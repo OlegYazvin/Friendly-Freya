@@ -1,0 +1,700 @@
+extends Node3D
+class_name DogAgent
+
+const FREYA_COAT_COLOR = Color(0.03, 0.03, 0.03)
+
+var is_freya = false
+var coat_color = Color(0.12, 0.12, 0.12)
+var speed = 2.2
+var bark_cooldown = 0.0
+var wander_timer = 0.0
+var scene_path = ""
+var model_scale = 1.0
+
+var _step_time = 0.0
+var _head_pivot: Node3D
+var _tail_pivot: Node3D
+var _tail_tip_pivot: Node3D
+var _leg_pivots: Array[Node3D] = []
+var _ear_pivots: Array[Node3D] = []
+var _visual_root: Node3D
+var _base_visual_y = 0.06
+var _anim_player: AnimationPlayer
+var _anim_idle = ""
+var _anim_walk = ""
+var _anim_run = ""
+var _has_move_animation = false
+var _model_forward_yaw_offset = PI
+
+func configure(config: Dictionary) -> void:
+	is_freya = bool(config.get("is_freya", false))
+	coat_color = FREYA_COAT_COLOR if is_freya else config.get("coat_color", Color(0.2, 0.2, 0.2))
+	speed = float(config.get("speed", 2.2))
+	scene_path = str(config.get("scene_path", ""))
+	model_scale = float(config.get("model_scale", 1.0))
+	_build_visual()
+
+func _build_visual() -> void:
+	if _try_build_custom_model():
+		return
+	_build_model()
+
+func _try_build_custom_model() -> bool:
+	if scene_path.is_empty():
+		return false
+	if not FileAccess.file_exists(scene_path) and not ResourceLoader.exists(scene_path):
+		return false
+	var res = load(scene_path)
+	if res == null or not (res is PackedScene):
+		return false
+
+	for child in get_children():
+		child.queue_free()
+
+	_leg_pivots.clear()
+	_ear_pivots.clear()
+	_head_pivot = null
+	_tail_pivot = null
+	_tail_tip_pivot = null
+	_anim_player = null
+	_anim_idle = ""
+	_anim_walk = ""
+	_anim_run = ""
+	_has_move_animation = false
+	_model_forward_yaw_offset = PI
+
+	_visual_root = Node3D.new()
+	_visual_root.position = Vector3(0.0, _base_visual_y, 0.0)
+	_visual_root.scale = Vector3.ONE * model_scale
+	add_child(_visual_root)
+
+	var model_root = (res as PackedScene).instantiate()
+	if not (model_root is Node3D):
+		return false
+	_visual_root.add_child(model_root as Node3D)
+	_normalize_external_model(model_root as Node3D)
+
+	_head_pivot = _find_named_node(model_root, ["head", "skull", "neck"])
+	_tail_pivot = _find_named_node(model_root, ["tail"])
+	if _tail_pivot != null:
+		_tail_tip_pivot = _tail_pivot
+	_anim_player = _find_animation_player(model_root)
+	_resolve_animation_names()
+	_infer_model_forward_axis(model_root as Node3D)
+
+	if is_freya:
+		_apply_black_coat(model_root)
+		_hide_leg_candidates(model_root)
+
+	return true
+
+func _find_named_node(root: Node, name_hints: Array) -> Node3D:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var current: Node = stack.pop_back()
+		var lname := current.name.to_lower()
+		for hint in name_hints:
+			if lname.contains(str(hint).to_lower()) and current is Node3D:
+				return current as Node3D
+		for child in current.get_children():
+			stack.append(child)
+	return null
+
+func _hide_leg_candidates(root: Node) -> void:
+	var candidates: Array[Node3D] = []
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var current: Node = stack.pop_back()
+		if current is Node3D:
+			var lname := current.name.to_lower()
+			if lname.contains("leg") or lname.contains("paw") or lname.contains("foot"):
+				candidates.append(current as Node3D)
+		for child in current.get_children():
+			stack.append(child)
+	if candidates.size() > 0:
+		# Hide one hind leg candidate to reflect Freya's 3-leg profile.
+		candidates[candidates.size() - 1].visible = false
+		return
+
+	# Fallback for skinned meshes: collapse one hind leg bone chain.
+	_hide_hind_leg_bone_chain(root)
+
+func _apply_black_coat(root: Node) -> void:
+	var black_mat := StandardMaterial3D.new()
+	black_mat.albedo_color = FREYA_COAT_COLOR
+	black_mat.roughness = 0.9
+	black_mat.metallic = 0.0
+	black_mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).material_override = black_mat
+		for c in n.get_children():
+			stack.append(c)
+
+func _hide_hind_leg_bone_chain(root: Node) -> void:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Skeleton3D:
+			var skel := n as Skeleton3D
+			var bone_idx := _pick_hind_leg_bone(skel)
+			if bone_idx >= 0:
+				_collapse_bone_chain(skel, bone_idx)
+				return
+		for c in n.get_children():
+			stack.append(c)
+
+func _pick_hind_leg_bone(skel: Skeleton3D) -> int:
+	var preferred = [
+		"backleg.l",
+		"hindleg.l",
+		"rearleg.l",
+		"back_leg_l",
+		"hind_leg_l",
+		"rear_leg_l",
+		"thigh.l",
+		"upleg.l",
+		"backleg.r",
+		"hindleg.r",
+		"rearleg.r",
+		"back_leg_r",
+		"hind_leg_r",
+		"rear_leg_r",
+		"thigh.r",
+		"upleg.r"
+	]
+
+	for needle in preferred:
+		for i in range(skel.get_bone_count()):
+			var bname := skel.get_bone_name(i).to_lower()
+			if bname.contains(needle):
+				return i
+
+	for i in range(skel.get_bone_count()):
+		var bname := skel.get_bone_name(i).to_lower()
+		if (bname.contains("back") or bname.contains("hind") or bname.contains("rear")) and (
+			bname.contains("leg") or bname.contains("thigh")
+		):
+			return i
+	return -1
+
+func _collapse_bone_chain(skel: Skeleton3D, root_bone: int) -> void:
+	var pending: Array[int] = [root_bone]
+	while not pending.is_empty():
+		var idx: int = pending.pop_back()
+		skel.set_bone_pose_scale(idx, Vector3(0.001, 0.001, 0.001))
+		var kids: PackedInt32Array = skel.get_bone_children(idx)
+		for child_idx in kids:
+			pending.append(int(child_idx))
+
+func _find_animation_player(root: Node) -> AnimationPlayer:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is AnimationPlayer:
+			return n as AnimationPlayer
+		for c in n.get_children():
+			stack.append(c)
+	return null
+
+func _strip_scale_tracks_from_animations() -> void:
+	if _anim_player == null:
+		return
+	var names: PackedStringArray = _anim_player.get_animation_list()
+	for anim_name in names:
+		var anim: Animation = _anim_player.get_animation(anim_name)
+		if anim == null:
+			continue
+		for track_idx in range(anim.get_track_count() - 1, -1, -1):
+			var path_text: String = str(anim.track_get_path(track_idx)).to_lower()
+			if path_text.contains("scale"):
+				anim.remove_track(track_idx)
+
+func _resolve_animation_names() -> void:
+	if _anim_player == null:
+		return
+	_strip_scale_tracks_from_animations()
+	var names: PackedStringArray = _anim_player.get_animation_list()
+	if names.is_empty():
+		return
+
+	_anim_idle = _pick_animation_name(names, ["idle", "rest", "stand", "breathe"])
+	_anim_walk = _pick_animation_name(names, ["walk", "trot", "move", "run"])
+	_anim_run = _pick_animation_name(names, ["run", "sprint", "gallop"])
+
+	if _anim_idle.is_empty():
+		_anim_idle = names[0]
+	if _anim_walk.is_empty():
+		_anim_walk = _anim_idle
+	if _anim_run.is_empty():
+		_anim_run = _anim_walk
+
+	_has_move_animation = (_anim_walk != _anim_idle) or (_anim_run != _anim_idle)
+	for name in [_anim_idle, _anim_walk, _anim_run]:
+		if name.is_empty():
+			continue
+		var anim: Animation = _anim_player.get_animation(name)
+		if anim != null and anim.loop_mode == Animation.LOOP_NONE:
+			anim.loop_mode = Animation.LOOP_LINEAR
+
+func _pick_animation_name(names: PackedStringArray, hints: Array) -> String:
+	for hint in hints:
+		var h := str(hint).to_lower()
+		for anim_name in names:
+			var name_lower := str(anim_name).to_lower()
+			if name_lower.contains(h):
+				return str(anim_name)
+	return ""
+
+func _aabb_corners(aabb: AABB) -> Array[Vector3]:
+	var p := aabb.position
+	var s := aabb.size
+	return [
+		p,
+		p + Vector3(s.x, 0.0, 0.0),
+		p + Vector3(0.0, s.y, 0.0),
+		p + Vector3(0.0, 0.0, s.z),
+		p + Vector3(s.x, s.y, 0.0),
+		p + Vector3(s.x, 0.0, s.z),
+		p + Vector3(0.0, s.y, s.z),
+		p + s
+	]
+
+func _compute_model_bounds(root: Node3D, include_root_transform: bool = false) -> AABB:
+	var initial_xf: Transform3D = root.transform if include_root_transform else Transform3D.IDENTITY
+	var node_stack: Array[Node3D] = [root]
+	var xf_stack: Array[Transform3D] = [initial_xf]
+	var has_point := false
+	var min_v := Vector3.ZERO
+	var max_v := Vector3.ZERO
+
+	while not node_stack.is_empty():
+		var n: Node3D = node_stack.pop_back()
+		var xf: Transform3D = xf_stack.pop_back()
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			if mi.mesh != null:
+				var local_aabb := mi.mesh.get_aabb().merge(mi.get_aabb())
+				if local_aabb.size.x > 0.000001 and local_aabb.size.y > 0.000001 and local_aabb.size.z > 0.000001:
+					for corner in _aabb_corners(local_aabb):
+						var p := xf * corner
+						if not has_point:
+							min_v = p
+							max_v = p
+							has_point = true
+						else:
+							min_v = min_v.min(p)
+							max_v = max_v.max(p)
+		for c in n.get_children():
+			if c is Node3D:
+				var child := c as Node3D
+				node_stack.append(child)
+				xf_stack.append(xf * child.transform)
+
+	if not has_point:
+		return AABB(Vector3(-0.3, 0.0, -0.6), Vector3(0.6, 1.0, 1.2))
+	return AABB(min_v, max_v - min_v)
+
+func _local_transform_from_root(root: Node3D, target: Node3D) -> Transform3D:
+	var chain: Array[Node3D] = []
+	var current: Node = target
+	while current != null and current != root:
+		if not (current is Node3D):
+			return Transform3D.IDENTITY
+		chain.append(current as Node3D)
+		current = current.get_parent()
+	if current != root:
+		return Transform3D.IDENTITY
+
+	var xf := Transform3D.IDENTITY
+	for i in range(chain.size() - 1, -1, -1):
+		xf = xf * chain[i].transform
+	return xf
+
+func _normalize_external_model(root: Node3D) -> void:
+	var bounds := _compute_model_bounds(root, true)
+	if bounds.size.x <= 0.0001 or bounds.size.y <= 0.0001 or bounds.size.z <= 0.0001:
+		return
+
+	if bounds.size.x > bounds.size.z * 1.12:
+		root.rotation.y += PI * 0.5
+		bounds = _compute_model_bounds(root, true)
+
+	var target_len := 1.58 if is_freya else 1.30
+	var target_h := 1.08 if is_freya else 0.92
+	var s_len: float = target_len / maxf(bounds.size.x, bounds.size.z)
+	var s_h: float = target_h / bounds.size.y
+	var uniform: float = clampf(minf(s_len, s_h) * model_scale, 0.0004, 8.0)
+
+	_visual_root.scale = Vector3.ONE * uniform
+	_base_visual_y = 0.06 - bounds.position.y * uniform + 0.01
+	_visual_root.position.y = _base_visual_y
+
+func _infer_model_forward_axis(model_root: Node3D) -> void:
+	_model_forward_yaw_offset = PI
+
+	var dir := Vector3.ZERO
+	if _head_pivot != null:
+		var local_head_xf: Transform3D = _local_transform_from_root(model_root, _head_pivot)
+		var local_head: Vector3 = local_head_xf.origin
+		if _tail_pivot != null:
+			var local_tail_xf: Transform3D = _local_transform_from_root(model_root, _tail_pivot)
+			var local_tail: Vector3 = local_tail_xf.origin
+			dir = local_head - local_tail
+		else:
+			dir = local_head
+		dir.y = 0.0
+		if dir.length_squared() > 0.0002:
+			_model_forward_yaw_offset = atan2(dir.x, dir.z)
+			_model_forward_yaw_offset = round(_model_forward_yaw_offset / (PI * 0.5)) * (PI * 0.5)
+			return
+
+	var bounds := _compute_model_bounds(model_root, true)
+	if bounds.size.x > bounds.size.z * 1.08:
+		_model_forward_yaw_offset = PI * 0.5
+	elif bounds.size.z > bounds.size.x * 1.08:
+		_model_forward_yaw_offset = PI
+	else:
+		_model_forward_yaw_offset = PI
+
+func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool) -> void:
+	if _anim_player == null:
+		return
+
+	var desired := ""
+	if is_moving:
+		if _has_move_animation:
+			desired = _anim_run if is_running else _anim_walk
+		else:
+			desired = _anim_idle
+	else:
+		desired = _anim_idle
+
+	if is_vomiting and not _anim_walk.is_empty():
+		desired = _anim_walk
+
+	if desired.is_empty():
+		return
+
+	if _anim_player.current_animation != desired or not _anim_player.is_playing():
+		_anim_player.play(desired, 0.18)
+
+	if is_moving:
+		_anim_player.speed_scale = 1.38 if is_running else 1.0
+	else:
+		_anim_player.speed_scale = 0.85
+
+func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomiting: bool) -> void:
+	var is_moving := move_dir.length_squared() > 0.0001
+	if move_dir.length_squared() > 0.0001:
+		_face_direction(move_dir.normalized(), delta)
+		_step_time += delta * (10.5 if is_running else 7.2)
+	else:
+		_step_time += delta * 2.4
+		rotation.x = 0.0
+		rotation.z = 0.0
+
+	_update_external_animation(is_moving, is_running, is_vomiting)
+
+	var stride_amp = 0.8 if is_running else 0.5
+	if move_dir.length_squared() < 0.0001:
+		stride_amp *= 0.25
+
+	for i in range(_leg_pivots.size()):
+		var leg = _leg_pivots[i]
+		var phase = _step_time * 6.0 + (PI if i % 2 == 0 else 0.0)
+		leg.rotation.x = sin(phase) * stride_amp
+
+	for i in range(_ear_pivots.size()):
+		var ear = _ear_pivots[i]
+		var flap = sin(_step_time * 4.4 + i * 1.4) * 0.07
+		ear.rotation.x = 0.22 + flap
+
+	var wag_amp = 0.5 if is_freya else 0.35
+	if _tail_pivot != null:
+		_tail_pivot.rotation.y = sin(_step_time * 3.8) * wag_amp
+	if _tail_tip_pivot != null:
+		_tail_tip_pivot.rotation.y = sin(_step_time * 5.3) * wag_amp * 0.7
+
+	if _head_pivot != null:
+		if is_vomiting:
+			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.6, clamp(delta * 9.0, 0.0, 1.0))
+		else:
+			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.0, clamp(delta * 7.0, 0.0, 1.0))
+
+	if _visual_root != null and _leg_pivots.is_empty():
+		var gait_hz = 8.2 if is_running else 5.9
+		var bob = 0.052 if is_running else 0.036
+		var roll = 0.05 if is_running else 0.034
+		var pitch = 0.042 if is_running else 0.03
+		var fore_aft = 0.05 if is_running else 0.032
+		if not is_moving:
+			gait_hz = 2.4
+			bob = 0.012
+			roll = 0.01
+			pitch = 0.008
+			fore_aft = 0.0
+		elif _has_move_animation:
+			bob *= 0.45
+			roll *= 0.55
+			pitch *= 0.45
+			fore_aft *= 0.35
+
+		var stride = sin(_step_time * gait_hz)
+		_visual_root.position.y = _base_visual_y + absf(stride) * bob
+		_visual_root.position.z = stride * fore_aft
+		_visual_root.rotation.z = sin(_step_time * gait_hz * 0.5) * roll
+		if is_moving:
+			_visual_root.rotation.x = sin(_step_time * gait_hz * 0.52 + 0.8) * pitch
+		else:
+			_visual_root.rotation.x = 0.0
+
+func _face_direction(move_dir: Vector3, delta: float) -> void:
+	var target_yaw: float = atan2(move_dir.x, move_dir.z)
+	target_yaw -= _model_forward_yaw_offset
+	rotation.y = lerp_angle(rotation.y, target_yaw, clampf(delta * 10.0, 0.0, 1.0))
+
+func head_world_position() -> Vector3:
+	if _head_pivot == null:
+		return global_position + Vector3(0.0, 0.9, 0.0)
+	return _head_pivot.global_position + Vector3(0.0, 0.28, 0.0)
+
+func has_move_animation() -> bool:
+	return _anim_player != null and _has_move_animation
+
+func _build_model() -> void:
+	for child in get_children():
+		child.queue_free()
+
+	_leg_pivots.clear()
+	_ear_pivots.clear()
+	_head_pivot = null
+	_tail_pivot = null
+	_tail_tip_pivot = null
+	_visual_root = null
+	_base_visual_y = 0.06
+	_anim_player = null
+	_anim_idle = ""
+	_anim_walk = ""
+	_anim_run = ""
+	_has_move_animation = false
+	_model_forward_yaw_offset = PI
+
+	var body_material = StandardMaterial3D.new()
+	body_material.albedo_color = coat_color
+	body_material.roughness = 0.78
+	body_material.metallic = 0.02
+
+	var fur_dark = StandardMaterial3D.new()
+	fur_dark.albedo_color = coat_color.darkened(0.18)
+	fur_dark.roughness = 0.84
+
+	var nose_material = StandardMaterial3D.new()
+	nose_material.albedo_color = Color(0.05, 0.05, 0.05)
+	nose_material.roughness = 0.45
+
+	var eye_material = StandardMaterial3D.new()
+	eye_material.albedo_color = Color(0.07, 0.07, 0.07)
+	eye_material.roughness = 0.15
+
+	var body_root = Node3D.new()
+	body_root.position = Vector3(0.0, 0.58, 0.0)
+	add_child(body_root)
+	_visual_root = body_root
+
+	var torso = MeshInstance3D.new()
+	var torso_mesh = SphereMesh.new()
+	torso_mesh.radius = 0.34
+	torso_mesh.height = 0.68
+	torso.mesh = torso_mesh
+	torso.scale = Vector3(1.25, 0.82, 1.95)
+	torso.material_override = body_material
+	body_root.add_child(torso)
+
+	var chest = MeshInstance3D.new()
+	var chest_mesh = SphereMesh.new()
+	chest_mesh.radius = 0.26
+	chest_mesh.height = 0.52
+	chest.mesh = chest_mesh
+	chest.position = Vector3(0.0, 0.02, -0.45)
+	chest.scale = Vector3(1.15, 1.0, 1.2)
+	chest.material_override = body_material
+	body_root.add_child(chest)
+
+	var rump = MeshInstance3D.new()
+	var rump_mesh = SphereMesh.new()
+	rump_mesh.radius = 0.25
+	rump_mesh.height = 0.5
+	rump.mesh = rump_mesh
+	rump.position = Vector3(0.0, -0.03, 0.44)
+	rump.scale = Vector3(1.2, 0.9, 1.2)
+	rump.material_override = fur_dark
+	body_root.add_child(rump)
+
+	_head_pivot = Node3D.new()
+	_head_pivot.position = Vector3(0.0, 0.15, -0.9)
+	body_root.add_child(_head_pivot)
+
+	var head = MeshInstance3D.new()
+	var head_mesh = SphereMesh.new()
+	head_mesh.radius = 0.23
+	head_mesh.height = 0.46
+	head.mesh = head_mesh
+	head.scale = Vector3(1.1, 1.0, 1.18)
+	head.material_override = fur_dark
+	_head_pivot.add_child(head)
+
+	var muzzle = MeshInstance3D.new()
+	var muzzle_mesh = SphereMesh.new()
+	muzzle_mesh.radius = 0.14
+	muzzle_mesh.height = 0.28
+	muzzle.mesh = muzzle_mesh
+	muzzle.position = Vector3(0.0, -0.02, -0.25)
+	muzzle.scale = Vector3(1.3, 0.85, 1.6)
+	muzzle.material_override = fur_dark
+	_head_pivot.add_child(muzzle)
+
+	var nose = MeshInstance3D.new()
+	var nose_mesh = SphereMesh.new()
+	nose_mesh.radius = 0.07
+	nose_mesh.height = 0.14
+	nose.mesh = nose_mesh
+	nose.position = Vector3(0.0, -0.03, -0.43)
+	nose.scale = Vector3(1.0, 0.8, 1.0)
+	nose.material_override = nose_material
+	_head_pivot.add_child(nose)
+
+	for sx in [-0.12, 0.12]:
+		var eye = MeshInstance3D.new()
+		var eye_mesh = SphereMesh.new()
+		eye_mesh.radius = 0.03
+		eye_mesh.height = 0.06
+		eye.mesh = eye_mesh
+		eye.position = Vector3(sx, 0.05, -0.18)
+		eye.material_override = eye_material
+		_head_pivot.add_child(eye)
+
+	for sx in [-0.17, 0.17]:
+		var ear_pivot = Node3D.new()
+		ear_pivot.position = Vector3(sx, 0.08, -0.02)
+		_head_pivot.add_child(ear_pivot)
+		_ear_pivots.append(ear_pivot)
+
+		var ear = MeshInstance3D.new()
+		var ear_mesh = CapsuleMesh.new()
+		ear_mesh.radius = 0.06
+		ear_mesh.height = 0.28
+		ear.mesh = ear_mesh
+		ear.position = Vector3(0.0, -0.15, 0.0)
+		ear.scale = Vector3(1.0, 1.15 if is_freya else 1.0, 1.0)
+		ear.material_override = fur_dark
+		ear_pivot.add_child(ear)
+
+	var leg_points = [
+		Vector3(-0.2, -0.2, -0.48),
+		Vector3(0.2, -0.2, -0.48),
+		Vector3(-0.23, -0.2, 0.43),
+		Vector3(0.23, -0.2, 0.43)
+	]
+
+	for i in range(leg_points.size()):
+		if is_freya and i == 2:
+			continue
+		var pivot = Node3D.new()
+		pivot.position = leg_points[i]
+		body_root.add_child(pivot)
+		_leg_pivots.append(pivot)
+
+		var upper = MeshInstance3D.new()
+		var upper_mesh = CylinderMesh.new()
+		upper_mesh.top_radius = 0.055
+		upper_mesh.bottom_radius = 0.05
+		upper_mesh.height = 0.35
+		upper.mesh = upper_mesh
+		upper.position = Vector3(0.0, -0.18, 0.0)
+		upper.material_override = fur_dark
+		pivot.add_child(upper)
+
+		var lower = MeshInstance3D.new()
+		var lower_mesh = CylinderMesh.new()
+		lower_mesh.top_radius = 0.042
+		lower_mesh.bottom_radius = 0.038
+		lower_mesh.height = 0.32
+		lower.mesh = lower_mesh
+		lower.position = Vector3(0.0, -0.5, 0.0)
+		lower.material_override = fur_dark
+		pivot.add_child(lower)
+
+		var paw = MeshInstance3D.new()
+		var paw_mesh = SphereMesh.new()
+		paw_mesh.radius = 0.055
+		paw_mesh.height = 0.11
+		paw.mesh = paw_mesh
+		paw.position = Vector3(0.0, -0.67, 0.03)
+		paw.scale = Vector3(1.2, 0.7, 1.4)
+		paw.material_override = nose_material
+		pivot.add_child(paw)
+
+	_tail_pivot = Node3D.new()
+	_tail_pivot.position = Vector3(0.0, 0.08, 0.84)
+	body_root.add_child(_tail_pivot)
+
+	var tail = MeshInstance3D.new()
+	var tail_mesh = CapsuleMesh.new()
+	tail_mesh.radius = 0.04
+	tail_mesh.height = 0.36
+	tail.mesh = tail_mesh
+	tail.rotation_degrees.x = 90.0
+	tail.position = Vector3(0.0, 0.04, 0.2)
+	tail.material_override = fur_dark
+	_tail_pivot.add_child(tail)
+
+	_tail_tip_pivot = Node3D.new()
+	_tail_tip_pivot.position = Vector3(0.0, 0.06, 0.34)
+	_tail_pivot.add_child(_tail_tip_pivot)
+
+	var tail_tip = MeshInstance3D.new()
+	var tip_mesh = CapsuleMesh.new()
+	tip_mesh.radius = 0.03
+	tip_mesh.height = 0.22
+	tail_tip.mesh = tip_mesh
+	tail_tip.rotation_degrees.x = 90.0
+	tail_tip.position = Vector3(0.0, 0.02, 0.12)
+	tail_tip.material_override = fur_dark
+	_tail_tip_pivot.add_child(tail_tip)
+
+	if is_freya:
+		var collar = MeshInstance3D.new()
+		var collar_mesh = TorusMesh.new()
+		collar_mesh.inner_radius = 0.17
+		collar_mesh.outer_radius = 0.22
+		collar.mesh = collar_mesh
+		collar.rotation_degrees.x = 90.0
+		collar.position = Vector3(0.0, 0.08, -0.63)
+		var collar_mat = StandardMaterial3D.new()
+		collar_mat.albedo_color = Color(0.74, 0.22, 0.18)
+		collar_mat.roughness = 0.45
+		collar.material_override = collar_mat
+		body_root.add_child(collar)
+
+		var curl_mat = StandardMaterial3D.new()
+		curl_mat.albedo_color = coat_color.darkened(0.14)
+		curl_mat.roughness = 0.9
+		for i in range(12):
+			var curl = MeshInstance3D.new()
+			var curl_mesh = SphereMesh.new()
+			curl_mesh.radius = 0.05
+			curl_mesh.height = 0.1
+			curl.mesh = curl_mesh
+			var angle = (TAU / 12.0) * float(i)
+			curl.position = Vector3(cos(angle) * 0.27, sin(angle * 1.8) * 0.06 + 0.05, sin(angle) * 0.56)
+			curl.scale = Vector3(1.0, 0.8, 1.0)
+			curl.material_override = curl_mat
+			body_root.add_child(curl)
+
+		body_root.scale = Vector3(1.08, 1.02, 1.1)
+	else:
+		body_root.scale = Vector3(0.96, 0.96, 0.96)

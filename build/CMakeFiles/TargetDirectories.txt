@@ -1,0 +1,3 @@
+/data/projects/Friendly Freya/build/CMakeFiles/friendly_freya.dir
+/data/projects/Friendly Freya/build/CMakeFiles/edit_cache.dir
+/data/projects/Friendly Freya/build/CMakeFiles/rebuild_cache.dir
