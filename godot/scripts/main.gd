@@ -17,11 +17,14 @@ const FREYA_STICK_RUN_MULT = 1.24
 const FREYA_COLLISION_RADIUS = 0.34
 const DOG_COLLISION_RADIUS = 0.28
 const DUMPSTER_COLLISION_RADIUS = 0.48
-const STREET_POLE_COLLISION_RADIUS = 0.26
+const STREET_POLE_COLLISION_RADIUS = 0.2
 const STREET_POLE_SPACING = 10.8
 const STREET_POLE_END_MARGIN = 2.6
 const BUILDING_SIDEWALK_W = 0.95
-const BUILDING_COLLISION_PAD = 0.08
+const BUILDING_COLLISION_PAD = 0.02
+const ROW_FRONT_SETBACK = 3.05
+const ROW_SIDE_SETBACK = 0.72
+const ALLEY_BUILDING_GAP = 0.2
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
 const FREYA_MODEL_CANDIDATES = [
@@ -672,12 +675,12 @@ func _compute_row_alley_layout(parcel: Rect2) -> Dictionary:
 	var alley_mid = parcel.position.y + parcel.size.y * 0.5
 	var alley_z0 = alley_mid - ALLEY_W * 0.5
 	var alley_z1 = alley_mid + ALLEY_W * 0.5
-	var alley_gap = 0.08
-	var x0 = parcel.position.x + 0.55
-	var x1 = parcel.position.x + parcel.size.x - 0.55
+	var alley_gap = ALLEY_BUILDING_GAP
+	var x0 = parcel.position.x + ROW_SIDE_SETBACK
+	var x1 = parcel.position.x + parcel.size.x - ROW_SIDE_SETBACK
 	var run_w = x1 - x0
-	var north_front = parcel.position.y + 0.62
-	var south_front = parcel.position.y + parcel.size.y - 0.62
+	var north_front = parcel.position.y + ROW_FRONT_SETBACK
+	var south_front = parcel.position.y + parcel.size.y - ROW_FRONT_SETBACK
 	var north_depth = alley_z0 - north_front - alley_gap
 	var south_depth = south_front - alley_z1 - alley_gap
 	var valid = run_w >= 10.4 and north_depth >= 4.0 and south_depth >= 4.0
@@ -703,9 +706,10 @@ func _add_block_alleys(parcel: Rect2) -> void:
 	var main = Rect2(parcel.position.x + 0.35, mid_z - ALLEY_W * 0.5, parcel.size.x - 0.7, ALLEY_W)
 	_add_alley(main)
 
-	var connector_h = 1.0
-	var left_connector = Rect2(parcel.position.x, mid_z - connector_h * 0.5, 0.35, connector_h)
-	var right_connector = Rect2(parcel.position.x + parcel.size.x - 0.35, mid_z - connector_h * 0.5, 0.35, connector_h)
+	var connector_h = 1.2
+	var connector_w = 0.95
+	var left_connector = Rect2(parcel.position.x, mid_z - connector_h * 0.5, connector_w, connector_h)
+	var right_connector = Rect2(parcel.position.x + parcel.size.x - connector_w, mid_z - connector_h * 0.5, connector_w, connector_h)
 	_add_alley(left_connector)
 	_add_alley(right_connector)
 
@@ -929,6 +933,9 @@ func _street_pole_candidate_ok(p: Vector2, existing_points: Array) -> bool:
 		return false
 	if dog_park.grow(0.35).has_point(p):
 		return false
+	for alley in alleys:
+		if alley.grow(1.2).has_point(p):
+			return false
 	if _surface_at(p) != "sidewalk":
 		return false
 	if _point_in_building(p, 0.2):
@@ -1114,7 +1121,7 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 
 	var created = BuildingFactoryScript.create_building(footprint, floors, front_is_south, rng)
 	created["floors"] = floors
-	var shrink = minf(0.16, minf(footprint.size.x, footprint.size.y) * 0.04)
+	var shrink = minf(0.24, minf(footprint.size.x, footprint.size.y) * 0.06)
 	created["collision_rect"] = footprint.grow(-shrink)
 	var node: Node3D = created["node"]
 	static_root.add_child(node)
@@ -1136,7 +1143,12 @@ func _populate_trees() -> void:
 			var tree_scale = rng.randf_range(0.9, 1.3)
 			var tree = TreeFactoryScript.create_tree(Vector3(p.x, 0.0, p.y), tree_scale, rng)
 			static_root.add_child(tree)
-			trees.append({"node": tree, "pos": p, "radius": TREE_COLLISION_SCALE * tree_scale})
+			trees.append({
+				"node": tree,
+				"pos": p,
+				"radius": TREE_COLLISION_SCALE * tree_scale,
+				"height": 3.65 * tree_scale
+			})
 			break
 
 func _build_grass_spikes() -> void:
@@ -1567,7 +1579,7 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 		return false
 	if _point_in_dumpster(p, maxf(0.08, radius * 0.9)):
 		return false
-	if _point_in_street_pole(p, maxf(0.08, radius * 0.85)):
+	if _point_in_street_pole(p, maxf(0.04, radius * 0.45)):
 		return false
 	return true
 
@@ -2019,7 +2031,7 @@ func _alleys_only_between_rows_ok() -> bool:
 				return false
 		else:
 			# Only short street connectors are allowed on the vertical axis.
-			if alley.size.y > 1.4 or alley.size.x > 0.55:
+			if alley.size.y > 1.6 or alley.size.x > 1.2:
 				return false
 	return true
 
@@ -2099,6 +2111,53 @@ func _street_poles_lining_streets_ok() -> bool:
 				near_road = true
 				break
 		if not near_road:
+			return false
+	return true
+
+func _building_front_buffer_order_ok() -> bool:
+	var checked = 0
+	var passed = 0
+	for b in buildings:
+		var fp: Rect2 = b["footprint"]
+		var front_is_south = bool(b.get("front_is_south", true))
+		var dir = 1.0 if front_is_south else -1.0
+		var front_z = fp.position.y + fp.size.y if front_is_south else fp.position.y
+		var cx = fp.position.x + fp.size.x * 0.5
+
+		var p_sidewalk = Vector2(cx, front_z + dir * (BUILDING_SIDEWALK_W * 0.45))
+		var p_grass = Vector2(cx, front_z + dir * (BUILDING_SIDEWALK_W + 0.5))
+		var p_street_sidewalk = Vector2(cx, front_z + dir * (ROW_FRONT_SETBACK - SIDEWALK_W * 0.45))
+		var p_road = Vector2(cx, front_z + dir * (ROW_FRONT_SETBACK + ROAD_W * 0.35))
+
+		if not (_point_in_map(p_sidewalk) and _point_in_map(p_grass) and _point_in_map(p_street_sidewalk) and _point_in_map(p_road)):
+			continue
+
+		checked += 1
+		var ok = _surface_at(p_sidewalk) == "sidewalk" and _surface_at(p_grass) == "grass" and _surface_at(p_street_sidewalk) == "sidewalk" and _surface_at(p_road) == "road"
+		if ok:
+			passed += 1
+
+	if checked == 0:
+		return true
+	return float(passed) / float(checked) >= 0.75
+
+func _alley_accessibility_ok() -> bool:
+	for alley in alleys:
+		if alley.size.x <= alley.size.y or alley.size.x < 9.0:
+			continue
+		var cz = alley.position.y + alley.size.y * 0.5
+		var walkable_samples = 0
+		for t in [0.15, 0.3, 0.5, 0.7, 0.85]:
+			var px = alley.position.x + alley.size.x * float(t)
+			if _is_walkable(px, cz, FREYA_COLLISION_RADIUS) and _surface_at(Vector2(px, cz)) == "road":
+				walkable_samples += 1
+		if walkable_samples < 3:
+			return false
+
+		var left_probe = Vector2(alley.position.x + 0.35, cz)
+		var right_probe = Vector2(alley.position.x + alley.size.x - 0.35, cz)
+		var end_ok = _in_any_rect(roads, left_probe) or _in_any_rect(roads, right_probe) or _surface_at(left_probe) == "road" or _surface_at(right_probe) == "road"
+		if not end_ok:
 			return false
 	return true
 
@@ -2239,6 +2298,10 @@ func _run_headless_smoke_checks() -> void:
 		failures.append("building_sidewalk_coverage_incomplete")
 	if not _street_poles_lining_streets_ok():
 		failures.append("street_pole_layout_bad")
+	if not _building_front_buffer_order_ok():
+		failures.append("front_buffer_order_bad")
+	if not _alley_accessibility_ok():
+		failures.append("alley_accessibility_bad")
 
 	# Dog animation checks
 	if freya == null or not freya.has_method("has_move_animation") or not bool(freya.call("has_move_animation")):
@@ -2405,7 +2468,7 @@ func _segment_rect_intersection_2d(a: Vector2, b: Vector2, rect: Rect2) -> Dicti
 
 func _building_blocks_view(building: Dictionary, cam_pos: Vector3, freya_pos: Vector3) -> bool:
 	var fp: Rect2 = building.get("collision_rect", building["footprint"])
-	var expanded = fp.grow(0.12)
+	var expanded = fp.grow(0.04)
 	var cam2 = Vector2(cam_pos.x, cam_pos.z)
 	var freya2 = Vector2(freya_pos.x, freya_pos.z)
 	var hit = _segment_rect_intersection_2d(cam2, freya2, expanded)
@@ -2415,36 +2478,98 @@ func _building_blocks_view(building: Dictionary, cam_pos: Vector3, freya_pos: Ve
 	var t_exit = float(hit.get("t_exit", 0.0))
 	if t_exit < 0.03 or t_enter > 0.98:
 		return false
-
-	var building_center = expanded.position + expanded.size * 0.5
-	var cam_to_freya = cam2.distance_to(freya2)
-	if cam2.distance_to(building_center) > cam_to_freya + 0.5:
+	if t_exit - t_enter < 0.01:
 		return false
 
 	var building_h = float(building.get("height", 8.0))
 	var eye_y = cam_pos.y + 0.1
 	var freya_target_y = freya_pos.y + 0.8
-	var y_enter = lerpf(eye_y, freya_target_y, t_enter)
-	var y_exit = lerpf(eye_y, freya_target_y, t_exit)
-	var sight_low = minf(y_enter, y_exit)
-	return building_h >= sight_low - 0.05
+	var t_mid = (t_enter + t_exit) * 0.5
+	var y_mid = lerpf(eye_y, freya_target_y, t_mid)
+	return building_h >= y_mid - 0.02
+
+func _segment_circle_intersection_2d(a: Vector2, b: Vector2, center: Vector2, radius: float) -> Dictionary:
+	var d = b - a
+	var f = a - center
+	var qa = d.dot(d)
+	if qa <= 0.0000001:
+		return {"hit": false}
+	var qb = 2.0 * f.dot(d)
+	var qc = f.dot(f) - radius * radius
+	var disc = qb * qb - 4.0 * qa * qc
+	if disc < 0.0:
+		return {"hit": false}
+
+	var sqrt_disc = sqrt(disc)
+	var t1 = (-qb - sqrt_disc) / (2.0 * qa)
+	var t2 = (-qb + sqrt_disc) / (2.0 * qa)
+	var t_enter = minf(t1, t2)
+	var t_exit = maxf(t1, t2)
+	if t_exit < 0.0 or t_enter > 1.0:
+		return {"hit": false}
+	return {
+		"hit": true,
+		"t_enter": clampf(t_enter, 0.0, 1.0),
+		"t_exit": clampf(t_exit, 0.0, 1.0)
+	}
+
+func _circle_blocks_view(center: Vector2, radius: float, height: float, cam_pos: Vector3, freya_pos: Vector3) -> bool:
+	var cam2 = Vector2(cam_pos.x, cam_pos.z)
+	var freya2 = Vector2(freya_pos.x, freya_pos.z)
+	var hit = _segment_circle_intersection_2d(cam2, freya2, center, radius)
+	if not bool(hit.get("hit", false)):
+		return false
+	var t_enter = float(hit.get("t_enter", 0.0))
+	var t_exit = float(hit.get("t_exit", 0.0))
+	if t_exit < 0.03 or t_enter > 0.98:
+		return false
+	if t_exit - t_enter < 0.008:
+		return false
+
+	var eye_y = cam_pos.y + 0.1
+	var freya_target_y = freya_pos.y + 0.8
+	var t_mid = (t_enter + t_exit) * 0.5
+	var y_mid = lerpf(eye_y, freya_target_y, t_mid)
+	return height >= y_mid - 0.02
+
+func _nonbuilding_blocks_view(cam_pos: Vector3, freya_pos: Vector3) -> bool:
+	for t in trees:
+		var center: Vector2 = t.get("pos", Vector2.ZERO)
+		var radius = float(t.get("radius", TREE_COLLISION_SCALE))
+		var height = float(t.get("height", 3.6))
+		if _circle_blocks_view(center, radius, height, cam_pos, freya_pos):
+			return true
+	for pole in street_poles:
+		var center: Vector2 = pole.get("pos", Vector2.ZERO)
+		var radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
+		if _circle_blocks_view(center, radius, 4.55, cam_pos, freya_pos):
+			return true
+	for d in dumpsters:
+		var center: Vector2 = d.get("pos", Vector2.ZERO)
+		var radius = float(d.get("radius", DUMPSTER_COLLISION_RADIUS))
+		if _circle_blocks_view(center, radius, 1.15, cam_pos, freya_pos):
+			return true
+	return false
+
+func _freya_occluded_from_camera(cam_pos: Vector3, freya_pos: Vector3) -> bool:
+	for b in buildings:
+		if _building_blocks_view(b, cam_pos, freya_pos):
+			return true
+	return _nonbuilding_blocks_view(cam_pos, freya_pos)
 
 func _update_roof_occlusion(delta: float) -> void:
 	var cam_pos = camera_node.global_position
 	var freya_pos = freya.global_position
-	var occluded = false
 
 	for b in buildings:
 		var roof_parts: Array = b["roof_parts"]
-		var hide_roof = false
-		if _building_blocks_view(b, cam_pos, freya_pos):
-			hide_roof = true
-			occluded = true
+		var hide_roof = _building_blocks_view(b, cam_pos, freya_pos)
 
 		for part in roof_parts:
 			(part as Node3D).visible = not hide_roof
 
 	_clear_occlusion_outlines()
+	var occluded = _freya_occluded_from_camera(cam_pos, freya_pos)
 	if occluded:
 		_apply_outline_recursive(freya, freya_outline_material, outlined_freya_meshes)
 		_apply_nearby_object_outlines(3.0)
