@@ -15,10 +15,20 @@ const FREYA_BASE_SPEED = 4.6
 const FREYA_RUN_MULT = 1.55
 const FREYA_STICK_RUN_MULT = 1.36
 const CAMERA_ORBIT_SPEED = 1.95
-const STICK_MOUTH_FORWARD_OFFSET = 0.86
-const STICK_MOUTH_UP_OFFSET = -0.03
+const STICK_VISUAL_SCALE = 1.2
+const STICK_THICKNESS_MULT = 1.45
+const STICK_MOUTH_FORWARD_OFFSET = -0.08
+const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
-const STICK_MOUTH_PITCH_DEG = 0.0
+const STICK_MOUTH_PITCH_DEG = -2.0
+const BARK_SAMPLE_CANDIDATES = [
+	"res://assets/audio/barks/bark_01.wav",
+	"res://assets/audio/barks/bark_02.wav",
+	"res://assets/audio/barks/bark_03.wav",
+	"res://assets/audio/barks/bark_04.wav",
+	"res://assets/audio/barks/bark_05.wav",
+	"res://assets/audio/barks/bark_06.wav"
+]
 const OBJECTIVE_CLAIM_TARGET = 10
 const CLAIM_TARGET_NONE = 0
 const CLAIM_TARGET_LIGHT_POLE = 1
@@ -26,6 +36,12 @@ const CLAIM_TARGET_TREE = 2
 const CLAIM_RANGE = 1.8
 const CLAIM_FILL_TIME = 1.35
 const CLAIM_RING_PULSE_SPEED = 4.1
+const CLAIM_PEE_SOURCE_BACK_OFFSET = 0.34
+const CLAIM_PEE_SOURCE_UP_OFFSET = 0.34
+const CLAIM_PEE_SOURCE_RIGHT_OFFSET = 0.0
+const CLAIM_PEE_STREAM_RADIUS = 0.028
+const CLAIM_PEE_TARGET_POLE_HEIGHT = 0.44
+const CLAIM_PEE_TARGET_TREE_HEIGHT = 0.56
 const OCCLUSION_UPDATE_INTERVAL = 0.08
 const OCCLUSION_MOVE_EPS = 0.08
 const MINIMAP_UPDATE_INTERVAL = 0.08
@@ -42,6 +58,7 @@ const ROW_SIDE_SETBACK = 0.72
 const ALLEY_BUILDING_GAP = 0.2
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
+const FREYA_PRIMARY_MODEL = "res://assets/models/freya_portuguese_water_dog.glb"
 const FREYA_MODEL_CANDIDATES = [
 	"res://assets/models/freya_portuguese_water_dog.glb",
 	"res://assets/models/freya_black_lab.glb",
@@ -117,6 +134,8 @@ var pole_metal_material: StandardMaterial3D
 var pole_base_material: StandardMaterial3D
 var pole_lamp_material: StandardMaterial3D
 var claim_ring_material: StandardMaterial3D
+var claim_pee_stream_material: StandardMaterial3D
+var claim_pee_splash_material: StandardMaterial3D
 var vomit_material_a: StandardMaterial3D
 var vomit_material_b: StandardMaterial3D
 
@@ -146,13 +165,15 @@ var claim_meter_label: Label
 var claim_meter_bar: ProgressBar
 var active_claim_target_type = CLAIM_TARGET_NONE
 var active_claim_target_index = -1
+var claim_pee_stream_node: MeshInstance3D
+var claim_pee_splash_node: MeshInstance3D
 
 var minimap
 var pause_menu_layer: CanvasLayer
 var pause_menu_panel: Panel
 var pause_menu_open = false
 var bark_sfx_players: Array[AudioStreamPlayer] = []
-var bark_sfx_streams: Array[AudioStreamWAV] = []
+var bark_sfx_streams: Array[AudioStream] = []
 var bark_sfx_cursor = 0
 var bark_sequences: Array = []
 
@@ -196,6 +217,7 @@ func _process(delta: float) -> void:
 		_toggle_pause_menu()
 	if pause_menu_open:
 		_hide_claim_meter()
+		_hide_claim_pee_effect()
 		_update_objectives_overlay()
 		return
 
@@ -215,6 +237,7 @@ func _process(delta: float) -> void:
 	_update_bark_pulses(delta)
 	_update_camera(delta)
 	_update_claiming(delta)
+	_update_claim_pee_effect(delta)
 	_update_claim_rings()
 	_update_roof_occlusion(delta)
 	_update_ui()
@@ -310,14 +333,17 @@ func _create_world_roots() -> void:
 
 func _create_audio_setup() -> void:
 	bark_sfx_streams.clear()
-	bark_sfx_streams.append(_build_bark_stream(116.0, 0.34, 0.33))
-	bark_sfx_streams.append(_build_bark_stream(124.0, 0.3, 0.3))
-	bark_sfx_streams.append(_build_bark_stream(132.0, 0.28, 0.29))
-	bark_sfx_streams.append(_build_bark_stream(142.0, 0.27, 0.27))
-	bark_sfx_streams.append(_build_bark_stream(154.0, 0.24, 0.24))
-	bark_sfx_streams.append(_build_bark_stream(166.0, 0.22, 0.22))
-	bark_sfx_streams.append(_build_bark_stream(178.0, 0.2, 0.2))
-	bark_sfx_streams.append(_build_bark_stream(188.0, 0.18, 0.19))
+	for stream in _load_bark_streams_from_files():
+		bark_sfx_streams.append(stream)
+	if bark_sfx_streams.is_empty():
+		bark_sfx_streams.append(_build_bark_stream(116.0, 0.34, 0.33))
+		bark_sfx_streams.append(_build_bark_stream(124.0, 0.3, 0.3))
+		bark_sfx_streams.append(_build_bark_stream(132.0, 0.28, 0.29))
+		bark_sfx_streams.append(_build_bark_stream(142.0, 0.27, 0.27))
+		bark_sfx_streams.append(_build_bark_stream(154.0, 0.24, 0.24))
+		bark_sfx_streams.append(_build_bark_stream(166.0, 0.22, 0.22))
+		bark_sfx_streams.append(_build_bark_stream(178.0, 0.2, 0.2))
+		bark_sfx_streams.append(_build_bark_stream(188.0, 0.18, 0.19))
 
 	for p in bark_sfx_players:
 		if p != null:
@@ -332,6 +358,16 @@ func _create_audio_setup() -> void:
 		bark_sfx_players.append(player)
 	bark_sfx_cursor = 0
 	bark_sequences.clear()
+
+func _load_bark_streams_from_files() -> Array[AudioStream]:
+	var out: Array[AudioStream] = []
+	for path in BARK_SAMPLE_CANDIDATES:
+		if not ResourceLoader.exists(path):
+			continue
+		var stream := load(path)
+		if stream is AudioStream:
+			out.append(stream as AudioStream)
+	return out
 
 func _bark_pulse_envelope(t: float, start_t: float, attack_t: float, hold_t: float, release_t: float) -> float:
 	var rel = t - start_t
@@ -428,11 +464,11 @@ func _play_bark_sound(is_freya_bark: bool) -> void:
 	if player == null:
 		return
 
-	var clip: AudioStreamWAV = bark_sfx_streams[rng.randi_range(0, bark_sfx_streams.size() - 1)]
+	var clip: AudioStream = bark_sfx_streams[rng.randi_range(0, bark_sfx_streams.size() - 1)]
 	player.stop()
 	player.stream = clip
-	player.pitch_scale = rng.randf_range(0.91, 1.09) * (0.97 if is_freya_bark else 1.03)
-	player.volume_db = -9.6 if is_freya_bark else -11.2
+	player.pitch_scale = rng.randf_range(0.94, 1.04) * (0.985 if is_freya_bark else 1.015)
+	player.volume_db = -8.8 if is_freya_bark else -10.2
 	player.play()
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int) -> void:
@@ -458,7 +494,7 @@ func _update_bark_sequences(delta: float) -> void:
 				bark_sequences.remove_at(i)
 				continue
 			seq["remaining"] = remaining
-			seq["next"] = rng.randf_range(0.15, 0.31)
+			seq["next"] = rng.randf_range(0.28, 0.52)
 		bark_sequences[i] = seq
 
 func _create_prop_materials() -> void:
@@ -512,6 +548,28 @@ func _create_prop_materials() -> void:
 	claim_ring_material.emission_enabled = true
 	claim_ring_material.emission = Color(0.18, 0.7, 0.28)
 	claim_ring_material.emission_energy_multiplier = 0.8
+
+	claim_pee_stream_material = StandardMaterial3D.new()
+	claim_pee_stream_material.albedo_color = Color(0.96, 0.9, 0.24, 0.78)
+	claim_pee_stream_material.roughness = 0.22
+	claim_pee_stream_material.metallic = 0.0
+	claim_pee_stream_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
+	claim_pee_stream_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+	claim_pee_stream_material.cull_mode = StandardMaterial3D.CULL_DISABLED
+	claim_pee_stream_material.emission_enabled = true
+	claim_pee_stream_material.emission = Color(0.9, 0.78, 0.12)
+	claim_pee_stream_material.emission_energy_multiplier = 0.5
+
+	claim_pee_splash_material = StandardMaterial3D.new()
+	claim_pee_splash_material.albedo_color = Color(0.98, 0.9, 0.28, 0.64)
+	claim_pee_splash_material.roughness = 0.28
+	claim_pee_splash_material.metallic = 0.0
+	claim_pee_splash_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
+	claim_pee_splash_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+	claim_pee_splash_material.cull_mode = StandardMaterial3D.CULL_DISABLED
+	claim_pee_splash_material.emission_enabled = true
+	claim_pee_splash_material.emission = Color(0.86, 0.72, 0.1)
+	claim_pee_splash_material.emission_energy_multiplier = 0.45
 
 	stick_material_main = StandardMaterial3D.new()
 	stick_material_main.albedo_color = Color8(132, 99, 62)
@@ -1405,11 +1463,12 @@ func _spawn_sticks(count: int) -> void:
 func _create_stick_node() -> Node3D:
 	var root = Node3D.new()
 	root.name = "Stick"
+	root.scale = Vector3.ONE * STICK_VISUAL_SCALE
 
 	var body = MeshInstance3D.new()
 	var body_mesh = CylinderMesh.new()
-	body_mesh.top_radius = 0.017
-	body_mesh.bottom_radius = 0.021
+	body_mesh.top_radius = 0.017 * STICK_THICKNESS_MULT
+	body_mesh.bottom_radius = 0.021 * STICK_THICKNESS_MULT
 	body_mesh.height = 0.58
 	body.mesh = body_mesh
 	body.rotation_degrees.z = 90.0
@@ -1419,8 +1478,8 @@ func _create_stick_node() -> Node3D:
 
 	var branch = MeshInstance3D.new()
 	var branch_mesh = CylinderMesh.new()
-	branch_mesh.top_radius = 0.011
-	branch_mesh.bottom_radius = 0.014
+	branch_mesh.top_radius = 0.011 * STICK_THICKNESS_MULT
+	branch_mesh.bottom_radius = 0.014 * STICK_THICKNESS_MULT
 	branch_mesh.height = 0.24
 	branch.mesh = branch_mesh
 	branch.position = Vector3(0.09, 0.07, -0.02)
@@ -1432,16 +1491,18 @@ func _create_stick_node() -> Node3D:
 
 func _spawn_freya_and_dogs() -> void:
 	objective_puke_on_dog_complete = false
-	var freya_model_paths = _animated_model_paths(FREYA_MODEL_CANDIDATES)
-	if freya_model_paths.is_empty():
-		freya_model_paths = _existing_model_paths(FREYA_MODEL_CANDIDATES)
+	var freya_model = ""
+	if FileAccess.file_exists(FREYA_PRIMARY_MODEL) or ResourceLoader.exists(FREYA_PRIMARY_MODEL):
+		freya_model = FREYA_PRIMARY_MODEL
+	else:
+		var freya_model_paths = _existing_model_paths(FREYA_MODEL_CANDIDATES)
+		freya_model = freya_model_paths[0] if freya_model_paths.size() > 0 else ""
 
 	var npc_model_paths = _animated_model_paths(NPC_DOG_MODEL_CANDIDATES)
-	var freya_model = freya_model_paths[0] if freya_model_paths.size() > 0 else ""
 	if npc_model_paths.is_empty() and not freya_model.is_empty() and _model_has_walk_animation(freya_model):
 		npc_model_paths = [freya_model]
 	if npc_model_paths.is_empty():
-		npc_model_paths = freya_model_paths.duplicate()
+		npc_model_paths = _existing_model_paths(NPC_DOG_MODEL_CANDIDATES)
 
 	freya = DogAgentScript.new()
 	freya.configure({
@@ -1915,9 +1976,9 @@ func _update_dogs(delta: float) -> void:
 			if float(state["bark"]) <= 0.0:
 				_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 1.0, 1.0, 0.82))
 				_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.9, 0.65, 0.84))
-				_queue_bark_sequence(false, rng.randi_range(2, 4))
-				_queue_bark_sequence(true, rng.randi_range(2, 3))
-				state["bark"] = rng.randf_range(0.35, 0.68)
+				_queue_bark_sequence(false, rng.randi_range(1, 2))
+				_queue_bark_sequence(true, rng.randi_range(1, 2))
+				state["bark"] = rng.randf_range(0.52, 0.96)
 
 		dogs[i] = state
 
@@ -2076,6 +2137,163 @@ func _claim_progress_for_target(target_type: int, index: int) -> float:
 		return clampf(float(trees[index].get("claim_progress", 0.0)), 0.0, 1.0)
 	return 0.0
 
+func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		var pole: Dictionary = street_poles[index]
+		var node: Node3D = pole.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node.global_position
+		var p: Vector2 = pole.get("pos", Vector2.ZERO)
+		return Vector3(p.x, 0.0, p.y)
+	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		var tree: Dictionary = trees[index]
+		var node: Node3D = tree.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node.global_position
+		var p: Vector2 = tree.get("pos", Vector2.ZERO)
+		return Vector3(p.x, 0.0, p.y)
+	return freya.global_position
+
+func _claim_target_pee_world_position(target_type: int, index: int) -> Vector3:
+	var center = _claim_target_base_world_position(target_type, index)
+	var toward_freya = Vector2(freya.global_position.x - center.x, freya.global_position.z - center.z)
+	if toward_freya.length_squared() < 0.0001:
+		toward_freya = Vector2.RIGHT
+	toward_freya = toward_freya.normalized()
+
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		var pole: Dictionary = street_poles[index]
+		var radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
+		return Vector3(
+			center.x + toward_freya.x * (radius + 0.03),
+			center.y + CLAIM_PEE_TARGET_POLE_HEIGHT,
+			center.z + toward_freya.y * (radius + 0.03)
+		)
+	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		var tree: Dictionary = trees[index]
+		var radius = float(tree.get("radius", TREE_COLLISION_SCALE))
+		return Vector3(
+			center.x + toward_freya.x * (radius + 0.06),
+			center.y + CLAIM_PEE_TARGET_TREE_HEIGHT,
+			center.z + toward_freya.y * (radius + 0.06)
+		)
+	return center + Vector3(0.0, 0.5, 0.0)
+
+func _freya_pee_source_world_position() -> Vector3:
+	var forward: Vector3 = -freya.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+	var right: Vector3 = freya.global_transform.basis.x
+	right.y = 0.0
+	if right.length_squared() < 0.0001:
+		right = forward.cross(Vector3.UP)
+	right = right.normalized()
+
+	var back = -forward
+	var sway = sin(world_time * 26.0) * 0.007
+	return (
+		freya.global_position
+		+ back * (CLAIM_PEE_SOURCE_BACK_OFFSET + sway)
+		+ right * CLAIM_PEE_SOURCE_RIGHT_OFFSET
+		+ Vector3.UP * (CLAIM_PEE_SOURCE_UP_OFFSET + 0.008 * sin(world_time * 17.0))
+	)
+
+func _ensure_claim_pee_nodes() -> void:
+	if dynamic_root == null:
+		return
+	if claim_pee_stream_node == null or not is_instance_valid(claim_pee_stream_node):
+		claim_pee_stream_node = MeshInstance3D.new()
+		var stream_mesh := CylinderMesh.new()
+		stream_mesh.top_radius = CLAIM_PEE_STREAM_RADIUS * 0.76
+		stream_mesh.bottom_radius = CLAIM_PEE_STREAM_RADIUS
+		stream_mesh.height = 0.8
+		claim_pee_stream_node.mesh = stream_mesh
+		claim_pee_stream_node.material_override = claim_pee_stream_material
+		claim_pee_stream_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		claim_pee_stream_node.visible = false
+		dynamic_root.add_child(claim_pee_stream_node)
+	if claim_pee_splash_node == null or not is_instance_valid(claim_pee_splash_node):
+		claim_pee_splash_node = MeshInstance3D.new()
+		var splash_mesh := SphereMesh.new()
+		splash_mesh.radius = 0.28
+		splash_mesh.height = 0.56
+		claim_pee_splash_node.mesh = splash_mesh
+		claim_pee_splash_node.material_override = claim_pee_splash_material
+		claim_pee_splash_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		claim_pee_splash_node.visible = false
+		dynamic_root.add_child(claim_pee_splash_node)
+
+func _hide_claim_pee_effect() -> void:
+	if claim_pee_stream_node != null and is_instance_valid(claim_pee_stream_node):
+		claim_pee_stream_node.visible = false
+	if claim_pee_splash_node != null and is_instance_valid(claim_pee_splash_node):
+		claim_pee_splash_node.visible = false
+
+func _place_claim_pee_stream(start_pos: Vector3, end_pos: Vector3, radius: float) -> void:
+	if claim_pee_stream_node == null or not is_instance_valid(claim_pee_stream_node):
+		return
+	var segment = end_pos - start_pos
+	var length = segment.length()
+	if length < 0.03:
+		claim_pee_stream_node.visible = false
+		return
+
+	var dir = segment / length
+	var x_axis = Vector3.UP.cross(dir)
+	if x_axis.length_squared() < 0.0001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var z_axis = dir.cross(x_axis).normalized()
+	var basis = Basis(x_axis, dir, z_axis).orthonormalized()
+	claim_pee_stream_node.global_transform = Transform3D(basis, (start_pos + end_pos) * 0.5)
+	var cyl := claim_pee_stream_node.mesh as CylinderMesh
+	if cyl != null:
+		cyl.height = length
+		cyl.top_radius = radius * 0.76
+		cyl.bottom_radius = radius
+	claim_pee_stream_node.visible = true
+
+func _update_claim_pee_effect(delta: float) -> void:
+	var can_stream = (
+		Input.is_action_pressed("claim")
+		and active_claim_target_type != CLAIM_TARGET_NONE
+		and active_claim_target_index >= 0
+		and freya != null
+	)
+	if not can_stream:
+		_hide_claim_pee_effect()
+		return
+
+	var impact_pos = _claim_target_pee_world_position(active_claim_target_type, active_claim_target_index)
+	var to_target = Vector3(impact_pos.x - freya.global_position.x, 0.0, impact_pos.z - freya.global_position.z)
+	if to_target.length_squared() < 0.0001:
+		_hide_claim_pee_effect()
+		return
+	var face_away = -to_target.normalized()
+	if freya.has_method("force_face_direction"):
+		freya.call("force_face_direction", face_away, delta * 3.4)
+
+	_ensure_claim_pee_nodes()
+	if claim_pee_stream_node == null or claim_pee_splash_node == null:
+		return
+
+	var source_pos = _freya_pee_source_world_position()
+	var flow_wobble = Vector3(
+		sin(world_time * 33.0) * 0.012,
+		sin(world_time * 29.0) * 0.005,
+		cos(world_time * 31.0) * 0.012
+	)
+	var stream_end = impact_pos + flow_wobble
+	var flow_radius = CLAIM_PEE_STREAM_RADIUS * (0.9 + 0.22 * (0.5 + 0.5 * sin(world_time * 37.0)))
+	_place_claim_pee_stream(source_pos, stream_end, flow_radius)
+
+	claim_pee_splash_node.global_position = impact_pos + Vector3(0.0, 0.015, 0.0)
+	var splash_scale = 0.1 + 0.05 * (0.5 + 0.5 * sin(world_time * 24.0))
+	claim_pee_splash_node.scale = Vector3(splash_scale, 0.15, splash_scale)
+	claim_pee_splash_node.visible = true
+
 func _update_claiming(delta: float) -> void:
 	var prev_type = active_claim_target_type
 	var prev_index = active_claim_target_index
@@ -2224,33 +2442,43 @@ func _update_carried_stick_pose() -> void:
 	if carried_stick.get_parent() != dynamic_root:
 		carried_stick.reparent(dynamic_root, true)
 
-	var forward: Vector3 = -freya.global_transform.basis.z
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = Vector3.FORWARD
-	forward = forward.normalized()
+	var move_forward: Vector3 = freya_move_dir
+	move_forward.y = 0.0
+	if move_forward.length_squared() < 0.0001:
+		move_forward = -freya.global_transform.basis.z
+		move_forward.y = 0.0
+	if move_forward.length_squared() < 0.0001:
+		move_forward = Vector3.FORWARD
+	move_forward = move_forward.normalized()
 
-	var right: Vector3 = freya.global_transform.basis.x
-	right.y = 0.0
-	if right.length_squared() < 0.0001:
-		right = forward.cross(Vector3.UP)
-	right = right.normalized()
+	var move_right := move_forward.cross(Vector3.UP)
+	if move_right.length_squared() < 0.0001:
+		move_right = freya.global_transform.basis.x
+		move_right.y = 0.0
+	if move_right.length_squared() < 0.0001:
+		move_right = Vector3.RIGHT
+	move_right = move_right.normalized()
 
 	var up := Vector3.UP
 	var pitch := deg_to_rad(STICK_MOUTH_PITCH_DEG)
-	var mouth_dir := (forward * cos(pitch) + up * sin(pitch)).normalized()
-	var side_axis := up.cross(mouth_dir)
-	if side_axis.length_squared() < 0.0001:
-		side_axis = right
-	side_axis = side_axis.normalized()
-	var up_axis := mouth_dir.cross(side_axis).normalized()
+	var mouth_forward := (move_forward * cos(pitch) + up * sin(pitch)).normalized()
+
+	# The stick mesh length is on local +X; align that axis side-to-side across the muzzle.
+	var stick_axis := move_right
+	var mouth_z_axis := -mouth_forward
+	var mouth_up_axis := mouth_z_axis.cross(stick_axis)
+	if mouth_up_axis.length_squared() < 0.0001:
+		mouth_up_axis = up
+	mouth_up_axis = mouth_up_axis.normalized()
 
 	var mouth_pos = freya.head_world_position()
-	mouth_pos += forward * STICK_MOUTH_FORWARD_OFFSET
-	mouth_pos += right * STICK_MOUTH_RIGHT_OFFSET
+	if freya != null and freya.has_method("mouth_world_position"):
+		mouth_pos = freya.call("mouth_world_position")
+	mouth_pos += move_forward * STICK_MOUTH_FORWARD_OFFSET
+	mouth_pos += move_right * STICK_MOUTH_RIGHT_OFFSET
 	mouth_pos += up * STICK_MOUTH_UP_OFFSET
 
-	carried_stick.global_transform = Transform3D(Basis(mouth_dir, up_axis, side_axis).orthonormalized(), mouth_pos)
+	carried_stick.global_transform = Transform3D(Basis(stick_axis, mouth_up_axis, mouth_z_axis).orthonormalized(), mouth_pos)
 	freya_has_stick = true
 
 func _try_interact() -> void:

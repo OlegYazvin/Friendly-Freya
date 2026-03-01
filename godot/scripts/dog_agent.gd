@@ -25,6 +25,10 @@ var _anim_walk = ""
 var _anim_run = ""
 var _has_move_animation = false
 var _model_forward_yaw_offset = PI
+var _mouth_anchor_node: Node3D
+var _mouth_anchor_skeleton: Skeleton3D
+var _mouth_anchor_bone = -1
+var _hidden_leg_chains: Array[Dictionary] = []
 
 func configure(config: Dictionary) -> void:
 	is_freya = bool(config.get("is_freya", false))
@@ -62,6 +66,10 @@ func _try_build_custom_model() -> bool:
 	_anim_run = ""
 	_has_move_animation = false
 	_model_forward_yaw_offset = PI
+	_mouth_anchor_node = null
+	_mouth_anchor_skeleton = null
+	_mouth_anchor_bone = -1
+	_hidden_leg_chains.clear()
 
 	_visual_root = Node3D.new()
 	_visual_root.position = Vector3(0.0, _base_visual_y, 0.0)
@@ -78,6 +86,7 @@ func _try_build_custom_model() -> bool:
 	_tail_pivot = _find_named_node(model_root, ["tail"])
 	if _tail_pivot != null:
 		_tail_tip_pivot = _tail_pivot
+	_resolve_mouth_anchor(model_root as Node3D)
 	_anim_player = _find_animation_player(model_root)
 	_resolve_animation_names()
 	_infer_model_forward_axis(model_root as Node3D)
@@ -85,6 +94,7 @@ func _try_build_custom_model() -> bool:
 	if is_freya:
 		_apply_black_coat(model_root)
 		_hide_leg_candidates(model_root)
+		_enforce_hidden_leg_pose()
 
 	return true
 
@@ -111,28 +121,85 @@ func _hide_leg_candidates(root: Node) -> void:
 				candidates.append(current as Node3D)
 		for child in current.get_children():
 			stack.append(child)
-	if candidates.size() > 0:
-		# Hide one hind leg candidate to reflect Freya's 3-leg profile.
-		candidates[candidates.size() - 1].visible = false
-		return
 
-	# Fallback for skinned meshes: collapse one hind leg bone chain.
+	if candidates.size() > 0:
+		var chosen: Node3D = candidates[candidates.size() - 1]
+		for n in candidates:
+			var lname := n.name.to_lower()
+			if (lname.contains("back") or lname.contains("hind") or lname.contains("rear")) and (
+				lname.contains("leg") or lname.contains("paw") or lname.contains("foot")
+			):
+				chosen = n
+				break
+		_hide_node_branch(chosen)
+
+	# Also collapse a hind-leg bone chain so skinned meshes stay 3-legged while animated.
 	_hide_hind_leg_bone_chain(root)
+	_enforce_hidden_leg_pose()
 
 func _apply_black_coat(root: Node) -> void:
-	var black_mat := StandardMaterial3D.new()
-	black_mat.albedo_color = FREYA_COAT_COLOR
-	black_mat.roughness = 0.9
-	black_mat.metallic = 0.0
-	black_mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-
 	var stack: Array = [root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
 		if n is MeshInstance3D:
-			(n as MeshInstance3D).material_override = black_mat
+			_style_freya_mesh(n as MeshInstance3D)
+		elif n is Node3D:
+			var node3 := n as Node3D
+			var lname := node3.name.to_lower()
+			if lname.contains("ear"):
+				node3.scale = Vector3(node3.scale.x, node3.scale.y * 1.12, node3.scale.z)
+			elif lname.contains("tail"):
+				node3.scale = Vector3(node3.scale.x, node3.scale.y, node3.scale.z * 0.9)
+			elif lname.contains("muzzle") or lname.contains("snout"):
+				node3.scale = Vector3(node3.scale.x * 1.06, node3.scale.y * 0.98, node3.scale.z * 1.08)
 		for c in n.get_children():
 			stack.append(c)
+
+func _style_freya_mesh(mesh_instance: MeshInstance3D) -> void:
+	if mesh_instance == null:
+		return
+	if mesh_instance.material_override != null:
+		mesh_instance.material_override = _freya_styled_material(mesh_instance.material_override)
+	var mesh := mesh_instance.mesh
+	if mesh == null:
+		return
+	for surface_idx in range(mesh.get_surface_count()):
+		var source: Material = mesh_instance.get_active_material(surface_idx)
+		if source == null:
+			source = mesh.surface_get_material(surface_idx)
+		if source == null:
+			continue
+		mesh_instance.set_surface_override_material(surface_idx, _freya_styled_material(source))
+
+func _freya_styled_material(source: Material) -> Material:
+	if source == null:
+		var fallback := StandardMaterial3D.new()
+		fallback.albedo_color = FREYA_COAT_COLOR
+		fallback.roughness = 0.9
+		fallback.metallic = 0.0
+		return fallback
+	var styled: Material = source.duplicate(true)
+	if styled is BaseMaterial3D:
+		var base := styled as BaseMaterial3D
+		var src := base.albedo_color
+		var lum := src.r * 0.2126 + src.g * 0.7152 + src.b * 0.0722
+		var black_level := clampf(0.032 + lum * 0.08, 0.03, 0.12)
+		base.albedo_color = Color(black_level, black_level, black_level, src.a)
+		base.roughness = maxf(base.roughness, 0.86)
+		base.metallic = minf(base.metallic, 0.03)
+		base.clearcoat = 0.0
+	return styled
+
+func _hide_node_branch(root: Node3D) -> void:
+	if root == null:
+		return
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node3D = stack.pop_back()
+		n.visible = false
+		for child in n.get_children():
+			if child is Node3D:
+				stack.append(child as Node3D)
 
 func _hide_hind_leg_bone_chain(root: Node) -> void:
 	var stack: Array = [root]
@@ -142,10 +209,18 @@ func _hide_hind_leg_bone_chain(root: Node) -> void:
 			var skel := n as Skeleton3D
 			var bone_idx := _pick_hind_leg_bone(skel)
 			if bone_idx >= 0:
+				_register_hidden_leg_chain(skel, bone_idx)
 				_collapse_bone_chain(skel, bone_idx)
-				return
+				continue
 		for c in n.get_children():
 			stack.append(c)
+
+func _register_hidden_leg_chain(skel: Skeleton3D, root_bone: int) -> void:
+	for i in range(_hidden_leg_chains.size()):
+		var entry: Dictionary = _hidden_leg_chains[i]
+		if entry.get("skeleton", null) == skel and int(entry.get("bone", -1)) == root_bone:
+			return
+	_hidden_leg_chains.append({"skeleton": skel, "bone": root_bone})
 
 func _pick_hind_leg_bone(skel: Skeleton3D) -> int:
 	var preferred = [
@@ -189,6 +264,18 @@ func _collapse_bone_chain(skel: Skeleton3D, root_bone: int) -> void:
 		var kids: PackedInt32Array = skel.get_bone_children(idx)
 		for child_idx in kids:
 			pending.append(int(child_idx))
+
+func _enforce_hidden_leg_pose() -> void:
+	if _hidden_leg_chains.is_empty():
+		return
+	for i in range(_hidden_leg_chains.size() - 1, -1, -1):
+		var entry: Dictionary = _hidden_leg_chains[i]
+		var skel: Skeleton3D = entry.get("skeleton", null)
+		var bone_idx := int(entry.get("bone", -1))
+		if skel == null or not is_instance_valid(skel) or bone_idx < 0:
+			_hidden_leg_chains.remove_at(i)
+			continue
+		_collapse_bone_chain(skel, bone_idx)
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
 	var stack: Array = [root]
@@ -360,6 +447,41 @@ func _infer_model_forward_axis(model_root: Node3D) -> void:
 	else:
 		_model_forward_yaw_offset = PI
 
+func _resolve_mouth_anchor(model_root: Node3D) -> void:
+	_mouth_anchor_node = _find_named_node(model_root, ["muzzle", "snout", "nose", "mouth", "jaw"])
+	_mouth_anchor_skeleton = null
+	_mouth_anchor_bone = -1
+	if _mouth_anchor_node != null:
+		return
+	var skel := _find_first_skeleton(model_root)
+	if skel == null:
+		return
+	var preferred = [
+		"head_end_end",
+		"head_end",
+		"snout",
+		"muzzle",
+		"nose",
+		"jaw"
+	]
+	for needle in preferred:
+		for i in range(skel.get_bone_count()):
+			var bname := skel.get_bone_name(i).to_lower()
+			if bname.contains(needle):
+				_mouth_anchor_skeleton = skel
+				_mouth_anchor_bone = i
+				return
+
+func _find_first_skeleton(root: Node) -> Skeleton3D:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Skeleton3D:
+			return n as Skeleton3D
+		for c in n.get_children():
+			stack.append(c)
+	return null
+
 func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool) -> void:
 	if _anim_player == null:
 		return
@@ -398,6 +520,7 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		rotation.z = 0.0
 
 	_update_external_animation(is_moving, is_running, is_vomiting)
+	_enforce_hidden_leg_pose()
 
 	var stride_amp = 0.8 if is_running else 0.5
 	if move_dir.length_squared() < 0.0001:
@@ -452,6 +575,13 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		else:
 			_visual_root.rotation.x = 0.0
 
+func force_face_direction(direction: Vector3, delta: float) -> void:
+	if direction.length_squared() < 0.0001:
+		return
+	_face_direction(direction.normalized(), delta)
+	rotation.x = 0.0
+	rotation.z = 0.0
+
 func _face_direction(move_dir: Vector3, delta: float) -> void:
 	var target_yaw: float = atan2(move_dir.x, move_dir.z)
 	target_yaw -= _model_forward_yaw_offset
@@ -461,6 +591,16 @@ func head_world_position() -> Vector3:
 	if _head_pivot == null:
 		return global_position + Vector3(0.0, 0.9, 0.0)
 	return _head_pivot.global_position + Vector3(0.0, 0.28, 0.0)
+
+func mouth_world_position() -> Vector3:
+	if _mouth_anchor_node != null and is_instance_valid(_mouth_anchor_node):
+		return _mouth_anchor_node.global_position
+	if _mouth_anchor_skeleton != null and is_instance_valid(_mouth_anchor_skeleton) and _mouth_anchor_bone >= 0:
+		var bone_pose: Transform3D = _mouth_anchor_skeleton.get_bone_global_pose(_mouth_anchor_bone)
+		return (_mouth_anchor_skeleton.global_transform * bone_pose).origin
+	if _head_pivot != null:
+		return _head_pivot.to_global(Vector3(0.0, -0.02, -0.4))
+	return head_world_position()
 
 func has_move_animation() -> bool:
 	return _anim_player != null and _has_move_animation
@@ -482,6 +622,10 @@ func _build_model() -> void:
 	_anim_run = ""
 	_has_move_animation = false
 	_model_forward_yaw_offset = PI
+	_mouth_anchor_node = null
+	_mouth_anchor_skeleton = null
+	_mouth_anchor_bone = -1
+	_hidden_leg_chains.clear()
 
 	var body_material = StandardMaterial3D.new()
 	body_material.albedo_color = coat_color
