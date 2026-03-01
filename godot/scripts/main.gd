@@ -15,10 +15,20 @@ const FREYA_BASE_SPEED = 4.6
 const FREYA_RUN_MULT = 1.55
 const FREYA_STICK_RUN_MULT = 1.36
 const CAMERA_ORBIT_SPEED = 1.95
-const STICK_MOUTH_FORWARD_OFFSET = 0.36
-const STICK_MOUTH_UP_OFFSET = -0.16
+const STICK_MOUTH_FORWARD_OFFSET = 0.86
+const STICK_MOUTH_UP_OFFSET = -0.03
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
-const STICK_MOUTH_PITCH_DEG = -7.5
+const STICK_MOUTH_PITCH_DEG = 0.0
+const OBJECTIVE_CLAIM_TARGET = 10
+const CLAIM_TARGET_NONE = 0
+const CLAIM_TARGET_LIGHT_POLE = 1
+const CLAIM_TARGET_TREE = 2
+const CLAIM_RANGE = 1.8
+const CLAIM_FILL_TIME = 1.35
+const CLAIM_RING_PULSE_SPEED = 4.1
+const OCCLUSION_UPDATE_INTERVAL = 0.08
+const OCCLUSION_MOVE_EPS = 0.08
+const MINIMAP_UPDATE_INTERVAL = 0.08
 const FREYA_COLLISION_RADIUS = 0.34
 const DOG_COLLISION_RADIUS = 0.28
 const DUMPSTER_COLLISION_RADIUS = 0.48
@@ -86,6 +96,10 @@ var camera_orbit_angle = 0.0
 
 var world_time = 0.0
 var poop_spawn_timer = 4.1
+var occlusion_update_timer = 0.0
+var last_occlusion_cam_pos = Vector3(100000.0, 100000.0, 100000.0)
+var last_occlusion_freya_pos = Vector3(-100000.0, -100000.0, -100000.0)
+var minimap_update_timer = 0.0
 
 var grass_material: Material
 var road_material: Material
@@ -102,6 +116,7 @@ var dumpster_trim_material: StandardMaterial3D
 var pole_metal_material: StandardMaterial3D
 var pole_base_material: StandardMaterial3D
 var pole_lamp_material: StandardMaterial3D
+var claim_ring_material: StandardMaterial3D
 var vomit_material_a: StandardMaterial3D
 var vomit_material_b: StandardMaterial3D
 
@@ -126,6 +141,11 @@ var status_timer = 0.0
 var objectives_panel: Panel
 var objectives_list_label: Label
 var objective_puke_on_dog_complete = false
+var claim_meter_panel: Panel
+var claim_meter_label: Label
+var claim_meter_bar: ProgressBar
+var active_claim_target_type = CLAIM_TARGET_NONE
+var active_claim_target_index = -1
 
 var minimap
 var pause_menu_layer: CanvasLayer
@@ -161,7 +181,7 @@ func _ready() -> void:
 	_seed_poops(20)
 	_create_ui()
 	_sync_minimap_static()
-	_update_minimap_dynamic()
+	_update_minimap_dynamic(0.0)
 
 	camera_focus = freya.global_position + Vector3(0.0, 0.95, 0.0)
 	_update_camera(0.0)
@@ -175,6 +195,7 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("menu"):
 		_toggle_pause_menu()
 	if pause_menu_open:
+		_hide_claim_meter()
 		_update_objectives_overlay()
 		return
 
@@ -193,10 +214,12 @@ func _process(delta: float) -> void:
 	_update_bark_sequences(delta)
 	_update_bark_pulses(delta)
 	_update_camera(delta)
+	_update_claiming(delta)
+	_update_claim_rings()
 	_update_roof_occlusion(delta)
 	_update_ui()
 	_update_objectives_overlay()
-	_update_minimap_dynamic()
+	_update_minimap_dynamic(delta)
 
 func _configure_input() -> void:
 	_ensure_action("move_left", [Key.KEY_A, Key.KEY_LEFT])
@@ -209,6 +232,7 @@ func _configure_input() -> void:
 	_ensure_action("camera_rotate_ccw", [Key.KEY_Q])
 	_ensure_action("camera_rotate_cw", [Key.KEY_E])
 	_ensure_action("vomit", [Key.KEY_SPACE])
+	_ensure_action("claim", [Key.KEY_R])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
 
@@ -243,9 +267,8 @@ func _create_render_setup() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.72, 0.81, 0.74)
 	environment.ambient_light_energy = 1.2
-	environment.ssao_enabled = true
-	environment.ssao_radius = 1.5
-	environment.ssil_enabled = true
+	environment.ssao_enabled = false
+	environment.ssil_enabled = false
 	environment.glow_enabled = false
 	env.environment = environment
 	add_child(env)
@@ -254,8 +277,8 @@ func _create_render_setup() -> void:
 	sun.rotation_degrees = Vector3(-52.0, -36.0, 0.0)
 	sun.light_energy = 2.7
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 120.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 92.0
 	add_child(sun)
 
 	var fill = DirectionalLight3D.new()
@@ -268,7 +291,7 @@ func _create_render_setup() -> void:
 	camera_node = Camera3D.new()
 	camera_node.fov = 40.0
 	camera_node.near = 0.1
-	camera_node.far = 320.0
+	camera_node.far = 220.0
 	add_child(camera_node)
 
 func _create_world_roots() -> void:
@@ -477,6 +500,17 @@ func _create_prop_materials() -> void:
 	pole_lamp_material.emission_enabled = true
 	pole_lamp_material.emission = Color(0.22, 0.19, 0.1)
 	pole_lamp_material.emission_energy_multiplier = 0.32
+
+	claim_ring_material = StandardMaterial3D.new()
+	claim_ring_material.albedo_color = Color(0.22, 0.9, 0.33, 0.5)
+	claim_ring_material.roughness = 0.35
+	claim_ring_material.metallic = 0.0
+	claim_ring_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
+	claim_ring_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+	claim_ring_material.cull_mode = StandardMaterial3D.CULL_DISABLED
+	claim_ring_material.emission_enabled = true
+	claim_ring_material.emission = Color(0.18, 0.7, 0.28)
+	claim_ring_material.emission_energy_multiplier = 0.8
 
 	stick_material_main = StandardMaterial3D.new()
 	stick_material_main.albedo_color = Color8(132, 99, 62)
@@ -958,7 +992,14 @@ func _spawn_street_poles() -> void:
 						pole.rotation.y = PI
 					static_root.add_child(pole)
 					placed_points.append(p)
-					street_poles.append({"node": pole, "pos": p, "radius": STREET_POLE_COLLISION_RADIUS})
+					street_poles.append({
+						"node": pole,
+						"pos": p,
+						"radius": STREET_POLE_COLLISION_RADIUS,
+						"claimed": false,
+						"claim_progress": 0.0,
+						"claim_ring": null
+					})
 				x += STREET_POLE_SPACING
 		else:
 			var lane_center = r.position.x + r.size.x * 0.5
@@ -981,7 +1022,14 @@ func _spawn_street_poles() -> void:
 					pole.rotation.y = PI * 0.5 if p.x < lane_center else -PI * 0.5
 					static_root.add_child(pole)
 					placed_points.append(p)
-					street_poles.append({"node": pole, "pos": p, "radius": STREET_POLE_COLLISION_RADIUS})
+					street_poles.append({
+						"node": pole,
+						"pos": p,
+						"radius": STREET_POLE_COLLISION_RADIUS,
+						"claimed": false,
+						"claim_progress": 0.0,
+						"claim_ring": null
+					})
 				z += STREET_POLE_SPACING
 
 func _street_pole_candidate_ok(p: Vector2, existing_points: Array) -> bool:
@@ -1225,7 +1273,10 @@ func _try_add_tree_at(p: Vector2, street_band_only: bool) -> bool:
 		"node": tree,
 		"pos": p,
 		"radius": TREE_COLLISION_SCALE * tree_scale,
-		"height": 3.65 * tree_scale
+		"height": 3.65 * tree_scale,
+		"claimed": false,
+		"claim_progress": 0.0,
+		"claim_ring": null
 	})
 	return true
 
@@ -1235,14 +1286,14 @@ func _populate_trees() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	trees.clear()
-	var street_band_target = 280
+	var street_band_target = 220
 	for i in range(street_band_target):
 		for try_i in range(26):
 			var p = Vector2(rng.randf_range(1.0, MAP_W - 1.0), rng.randf_range(1.0, MAP_H - 1.0))
 			if _try_add_tree_at(p, true):
 				break
 
-	var total_target = 420
+	var total_target = 300
 	var remaining = max(0, total_target - trees.size())
 	for i in range(remaining):
 		for try_i in range(18):
@@ -1261,7 +1312,7 @@ func _build_grass_spikes() -> void:
 	blade_mat.cull_mode = StandardMaterial3D.CULL_DISABLED
 
 	var points: Array = []
-	for i in range(9000):
+	for i in range(6200):
 		var p = Vector2(rng.randf_range(0.6, MAP_W - 0.6), rng.randf_range(0.6, MAP_H - 0.6))
 		if _surface_at(p) != "grass":
 			continue
@@ -1272,7 +1323,7 @@ func _build_grass_spikes() -> void:
 		if _point_near_hardscape(p, 0.22):
 			continue
 		points.append(p)
-		if points.size() >= 5200:
+		if points.size() >= 3100:
 			break
 
 	var mm = MultiMesh.new()
@@ -1895,6 +1946,256 @@ func _handle_actions() -> void:
 	if Input.is_action_just_pressed("vomit"):
 		_try_vomit()
 
+func _find_nearest_claim_target() -> Dictionary:
+	var found := false
+	var best_dist_sq := CLAIM_RANGE * CLAIM_RANGE
+	var best_type := CLAIM_TARGET_NONE
+	var best_index := -1
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+
+	for i in range(street_poles.size()):
+		var pole: Dictionary = street_poles[i]
+		if bool(pole.get("claimed", false)):
+			continue
+		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
+		var dist_sq = freya_pos.distance_squared_to(pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_type = CLAIM_TARGET_LIGHT_POLE
+			best_index = i
+			found = true
+
+	for i in range(trees.size()):
+		var tree: Dictionary = trees[i]
+		if bool(tree.get("claimed", false)):
+			continue
+		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
+		var dist_sq = freya_pos.distance_squared_to(pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_type = CLAIM_TARGET_TREE
+			best_index = i
+			found = true
+
+	return {"found": found, "type": best_type, "index": best_index}
+
+func _reset_claim_progress(target_type: int, index: int) -> void:
+	if index < 0:
+		return
+	if target_type == CLAIM_TARGET_LIGHT_POLE:
+		if index >= street_poles.size():
+			return
+		var pole: Dictionary = street_poles[index]
+		if not bool(pole.get("claimed", false)):
+			pole["claim_progress"] = 0.0
+			street_poles[index] = pole
+		return
+	if target_type == CLAIM_TARGET_TREE:
+		if index >= trees.size():
+			return
+		var tree: Dictionary = trees[index]
+		if not bool(tree.get("claimed", false)):
+			tree["claim_progress"] = 0.0
+			trees[index] = tree
+
+func _create_claim_ring_node(radius: float) -> MeshInstance3D:
+	var ring = MeshInstance3D.new()
+	var mesh = CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = 0.025
+	ring.mesh = mesh
+	ring.position = Vector3(0.0, 0.03, 0.0)
+	ring.material_override = claim_ring_material
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.visible = false
+	return ring
+
+func _ensure_claim_ring_for_target(target_type: int, index: int) -> void:
+	if index < 0:
+		return
+	if target_type == CLAIM_TARGET_LIGHT_POLE:
+		if index >= street_poles.size():
+			return
+		var pole: Dictionary = street_poles[index]
+		var existing = pole.get("claim_ring", null)
+		if existing != null and is_instance_valid(existing):
+			return
+		var node: Node3D = pole.get("node", null)
+		if node == null or not is_instance_valid(node):
+			return
+		var ring = _create_claim_ring_node(0.28)
+		node.add_child(ring)
+		pole["claim_ring"] = ring
+		street_poles[index] = pole
+		return
+	if target_type == CLAIM_TARGET_TREE:
+		if index >= trees.size():
+			return
+		var tree: Dictionary = trees[index]
+		var existing = tree.get("claim_ring", null)
+		if existing != null and is_instance_valid(existing):
+			return
+		var node: Node3D = tree.get("node", null)
+		if node == null or not is_instance_valid(node):
+			return
+		var ring_radius = clampf(float(tree.get("radius", TREE_COLLISION_SCALE)) * 1.9, 0.32, 0.55)
+		var ring = _create_claim_ring_node(ring_radius)
+		node.add_child(ring)
+		tree["claim_ring"] = ring
+		trees[index] = tree
+
+func _claim_target_world_position(target_type: int, index: int) -> Vector3:
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		var pole: Dictionary = street_poles[index]
+		var node: Node3D = pole.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node.global_position + Vector3(0.0, 4.9, 0.0)
+		var p: Vector2 = pole.get("pos", Vector2.ZERO)
+		return Vector3(p.x, 4.9, p.y)
+	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		var tree: Dictionary = trees[index]
+		var node: Node3D = tree.get("node", null)
+		var h = float(tree.get("height", 3.6))
+		if node != null and is_instance_valid(node):
+			return node.global_position + Vector3(0.0, h + 0.7, 0.0)
+		var p: Vector2 = tree.get("pos", Vector2.ZERO)
+		return Vector3(p.x, h + 0.7, p.y)
+	return freya.global_position + Vector3(0.0, 1.5, 0.0)
+
+func _claim_progress_for_target(target_type: int, index: int) -> float:
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		return clampf(float(street_poles[index].get("claim_progress", 0.0)), 0.0, 1.0)
+	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		return clampf(float(trees[index].get("claim_progress", 0.0)), 0.0, 1.0)
+	return 0.0
+
+func _update_claiming(delta: float) -> void:
+	var prev_type = active_claim_target_type
+	var prev_index = active_claim_target_index
+
+	if not Input.is_action_pressed("claim"):
+		_reset_claim_progress(prev_type, prev_index)
+		active_claim_target_type = CLAIM_TARGET_NONE
+		active_claim_target_index = -1
+		return
+
+	var target = _find_nearest_claim_target()
+	if not bool(target.get("found", false)):
+		_reset_claim_progress(prev_type, prev_index)
+		active_claim_target_type = CLAIM_TARGET_NONE
+		active_claim_target_index = -1
+		if Input.is_action_just_pressed("claim"):
+			_show_status("No tree or light pole in range", 0.85)
+		return
+
+	var target_type = int(target.get("type", CLAIM_TARGET_NONE))
+	var target_index = int(target.get("index", -1))
+	if prev_type != CLAIM_TARGET_NONE and (prev_type != target_type or prev_index != target_index):
+		_reset_claim_progress(prev_type, prev_index)
+
+	active_claim_target_type = target_type
+	active_claim_target_index = target_index
+
+	var claimed_now = false
+	if target_type == CLAIM_TARGET_LIGHT_POLE:
+		var pole: Dictionary = street_poles[target_index]
+		var progress = clampf(float(pole.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
+		pole["claim_progress"] = progress
+		if progress >= 1.0 and not bool(pole.get("claimed", false)):
+			pole["claimed"] = true
+			pole["claim_progress"] = 1.0
+			claimed_now = true
+		street_poles[target_index] = pole
+	elif target_type == CLAIM_TARGET_TREE:
+		var tree: Dictionary = trees[target_index]
+		var progress = clampf(float(tree.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
+		tree["claim_progress"] = progress
+		if progress >= 1.0 and not bool(tree.get("claimed", false)):
+			tree["claimed"] = true
+			tree["claim_progress"] = 1.0
+			claimed_now = true
+		trees[target_index] = tree
+
+	if not claimed_now:
+		return
+
+	_ensure_claim_ring_for_target(target_type, target_index)
+	active_claim_target_type = CLAIM_TARGET_NONE
+	active_claim_target_index = -1
+	if target_type == CLAIM_TARGET_LIGHT_POLE:
+		if _claimed_light_pole_count() >= OBJECTIVE_CLAIM_TARGET:
+			_show_status("Objective complete: Claim 10 light poles", 1.35)
+		else:
+			_show_status("Light pole claimed!", 0.95)
+	else:
+		if _claimed_tree_count() >= OBJECTIVE_CLAIM_TARGET:
+			_show_status("Objective complete: Claim 10 trees", 1.35)
+		else:
+			_show_status("Tree claimed!", 0.95)
+
+func _update_claim_rings() -> void:
+	var pulse_base = 0.91 + 0.13 * (0.5 + 0.5 * sin(world_time * CLAIM_RING_PULSE_SPEED))
+
+	for i in range(street_poles.size()):
+		var pole: Dictionary = street_poles[i]
+		var ring = pole.get("claim_ring", null)
+		if ring == null or not is_instance_valid(ring):
+			continue
+		var ring_node := ring as Node3D
+		var claimed = bool(pole.get("claimed", false))
+		ring_node.visible = claimed
+		if not claimed:
+			continue
+		var pulse = pulse_base + 0.03 * sin(world_time * 2.2 + float(i) * 0.41)
+		ring_node.scale = Vector3(pulse, 1.0, pulse)
+
+	for i in range(trees.size()):
+		var tree: Dictionary = trees[i]
+		var ring = tree.get("claim_ring", null)
+		if ring == null or not is_instance_valid(ring):
+			continue
+		var ring_node := ring as Node3D
+		var claimed = bool(tree.get("claimed", false))
+		ring_node.visible = claimed
+		if not claimed:
+			continue
+		var pulse = pulse_base + 0.03 * sin(world_time * 2.0 + float(i) * 0.37)
+		ring_node.scale = Vector3(pulse, 1.0, pulse)
+
+func _hide_claim_meter() -> void:
+	if claim_meter_panel != null:
+		claim_meter_panel.visible = false
+
+func _update_claim_meter_overlay() -> void:
+	if claim_meter_panel == null or claim_meter_label == null or claim_meter_bar == null:
+		return
+	if camera_node == null:
+		_hide_claim_meter()
+		return
+	if active_claim_target_type == CLAIM_TARGET_NONE or active_claim_target_index < 0:
+		_hide_claim_meter()
+		return
+	if not Input.is_action_pressed("claim"):
+		_hide_claim_meter()
+		return
+
+	var target_world = _claim_target_world_position(active_claim_target_type, active_claim_target_index)
+	if camera_node.is_position_behind(target_world):
+		_hide_claim_meter()
+		return
+
+	var screen_pos = camera_node.unproject_position(target_world)
+	var view_size = get_viewport().get_visible_rect().size
+	var panel_size = claim_meter_panel.size
+	claim_meter_panel.position = Vector2(
+		clampf(screen_pos.x - panel_size.x * 0.5, 8.0, view_size.x - panel_size.x - 8.0),
+		clampf(screen_pos.y - 58.0, 8.0, view_size.y - panel_size.y - 8.0)
+	)
+	claim_meter_bar.value = _claim_progress_for_target(active_claim_target_type, active_claim_target_index) * 100.0
+	claim_meter_label.text = "Claiming Light Pole" if active_claim_target_type == CLAIM_TARGET_LIGHT_POLE else "Claiming Tree"
+	claim_meter_panel.visible = true
+
 func _remove_stick_entry_for_node(node: Node3D) -> void:
 	if node == null:
 		return
@@ -1932,18 +2233,18 @@ func _update_carried_stick_pose() -> void:
 	var up := Vector3.UP
 	var pitch := deg_to_rad(STICK_MOUTH_PITCH_DEG)
 	var mouth_dir := (forward * cos(pitch) + up * sin(pitch)).normalized()
-	var depth_axis := mouth_dir.cross(up)
-	if depth_axis.length_squared() < 0.0001:
-		depth_axis = right
-	depth_axis = depth_axis.normalized()
-	var up_axis := depth_axis.cross(mouth_dir).normalized()
+	var side_axis := up.cross(mouth_dir)
+	if side_axis.length_squared() < 0.0001:
+		side_axis = right
+	side_axis = side_axis.normalized()
+	var up_axis := mouth_dir.cross(side_axis).normalized()
 
 	var mouth_pos = freya.head_world_position()
 	mouth_pos += forward * STICK_MOUTH_FORWARD_OFFSET
 	mouth_pos += right * STICK_MOUTH_RIGHT_OFFSET
 	mouth_pos += up * STICK_MOUTH_UP_OFFSET
 
-	carried_stick.global_transform = Transform3D(Basis(mouth_dir, up_axis, depth_axis).orthonormalized(), mouth_pos)
+	carried_stick.global_transform = Transform3D(Basis(mouth_dir, up_axis, side_axis).orthonormalized(), mouth_pos)
 	freya_has_stick = true
 
 func _try_interact() -> void:
@@ -2769,6 +3070,15 @@ func _freya_occluded_from_camera(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 func _update_roof_occlusion(delta: float) -> void:
 	var cam_pos = camera_node.global_position
 	var freya_pos = freya.global_position
+	if delta > 0.0:
+		occlusion_update_timer = maxf(0.0, occlusion_update_timer - delta)
+		var cam_moved = cam_pos.distance_squared_to(last_occlusion_cam_pos) >= OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
+		var freya_moved = freya_pos.distance_squared_to(last_occlusion_freya_pos) >= OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
+		if occlusion_update_timer > 0.0 and (not cam_moved) and (not freya_moved):
+			return
+		occlusion_update_timer = OCCLUSION_UPDATE_INTERVAL
+	last_occlusion_cam_pos = cam_pos
+	last_occlusion_freya_pos = freya_pos
 
 	for b in buildings:
 		var roof_parts: Array = b["roof_parts"]
@@ -2831,6 +3141,53 @@ func _create_ui() -> void:
 	status_label.add_theme_color_override("font_color", Color(0.9, 0.95, 0.98, 0.95))
 	ui_layer.add_child(status_label)
 
+	claim_meter_panel = Panel.new()
+	claim_meter_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	claim_meter_panel.size = Vector2(182.0, 54.0)
+	var claim_style = StyleBoxFlat.new()
+	claim_style.bg_color = Color(0.05, 0.1, 0.08, 0.9)
+	claim_style.border_color = Color(0.6, 0.9, 0.62, 0.84)
+	claim_style.border_width_left = 2
+	claim_style.border_width_top = 2
+	claim_style.border_width_right = 2
+	claim_style.border_width_bottom = 2
+	claim_style.corner_radius_top_left = 6
+	claim_style.corner_radius_top_right = 6
+	claim_style.corner_radius_bottom_left = 6
+	claim_style.corner_radius_bottom_right = 6
+	claim_meter_panel.add_theme_stylebox_override("panel", claim_style)
+	claim_meter_panel.visible = false
+	ui_layer.add_child(claim_meter_panel)
+
+	claim_meter_label = Label.new()
+	claim_meter_label.position = Vector2(10.0, 6.0)
+	claim_meter_label.size = Vector2(162.0, 18.0)
+	claim_meter_label.add_theme_font_size_override("font_size", 13)
+	claim_meter_panel.add_child(claim_meter_label)
+
+	claim_meter_bar = ProgressBar.new()
+	claim_meter_bar.position = Vector2(10.0, 30.0)
+	claim_meter_bar.size = Vector2(162.0, 14.0)
+	claim_meter_bar.min_value = 0.0
+	claim_meter_bar.max_value = 100.0
+	claim_meter_bar.step = 0.1
+	claim_meter_bar.show_percentage = false
+	var claim_bg = StyleBoxFlat.new()
+	claim_bg.bg_color = Color(0.08, 0.14, 0.1, 0.9)
+	claim_bg.corner_radius_top_left = 4
+	claim_bg.corner_radius_top_right = 4
+	claim_bg.corner_radius_bottom_left = 4
+	claim_bg.corner_radius_bottom_right = 4
+	claim_meter_bar.add_theme_stylebox_override("background", claim_bg)
+	var claim_fill = StyleBoxFlat.new()
+	claim_fill.bg_color = Color(0.36, 0.9, 0.35, 0.95)
+	claim_fill.corner_radius_top_left = 4
+	claim_fill.corner_radius_top_right = 4
+	claim_fill.corner_radius_bottom_left = 4
+	claim_fill.corner_radius_bottom_right = 4
+	claim_meter_bar.add_theme_stylebox_override("fill", claim_fill)
+	claim_meter_panel.add_child(claim_meter_bar)
+
 	var minimap_panel = Panel.new()
 	minimap_panel.anchor_left = 1.0
 	minimap_panel.anchor_top = 0.0
@@ -2880,10 +3237,10 @@ func _create_objectives_overlay() -> void:
 	objectives_panel.anchor_top = 0.0
 	objectives_panel.anchor_right = 0.5
 	objectives_panel.anchor_bottom = 0.0
-	objectives_panel.offset_left = -180.0
+	objectives_panel.offset_left = -230.0
 	objectives_panel.offset_top = 16.0
-	objectives_panel.offset_right = 180.0
-	objectives_panel.offset_bottom = 136.0
+	objectives_panel.offset_right = 230.0
+	objectives_panel.offset_bottom = 168.0
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.07, 0.1, 0.9)
 	panel_style.border_color = Color(0.74, 0.86, 0.92, 0.75)
@@ -2908,8 +3265,8 @@ func _create_objectives_overlay() -> void:
 	objectives_list_label = Label.new()
 	objectives_list_label.text = _objectives_text()
 	objectives_list_label.position = Vector2(16.0, 42.0)
-	objectives_list_label.size = Vector2(330.0, 80.0)
-	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	objectives_list_label.size = Vector2(426.0, 112.0)
+	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objectives_list_label.add_theme_font_size_override("font_size", 15)
 	objectives_panel.add_child(objectives_list_label)
 
@@ -2921,8 +3278,32 @@ func _update_objectives_overlay() -> void:
 	objectives_panel.visible = (not pause_menu_open) and Input.is_action_pressed("objectives")
 
 func _objectives_text() -> String:
-	var state = "[DONE]" if objective_puke_on_dog_complete else "[ ]"
-	return "- %s Puke on another dog" % state
+	var puke_state = "[DONE]" if objective_puke_on_dog_complete else "[ ]"
+	var poles_claimed = _claimed_light_pole_count()
+	var poles_done = poles_claimed >= OBJECTIVE_CLAIM_TARGET
+	var poles_state = "[DONE]" if poles_done else "[ ]"
+	var trees_claimed = _claimed_tree_count()
+	var trees_done = trees_claimed >= OBJECTIVE_CLAIM_TARGET
+	var trees_state = "[DONE]" if trees_done else "[ ]"
+	return (
+		"- %s Puke on another dog\n" % puke_state
+		+ "- %s Claim 10 light poles (%d/%d)\n" % [poles_state, poles_claimed, OBJECTIVE_CLAIM_TARGET]
+		+ "- %s Claim 10 trees (%d/%d)" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
+	)
+
+func _claimed_light_pole_count() -> int:
+	var total = 0
+	for pole in street_poles:
+		if bool(pole.get("claimed", false)):
+			total += 1
+	return total
+
+func _claimed_tree_count() -> int:
+	var total = 0
+	for tree in trees:
+		if bool(tree.get("claimed", false)):
+			total += 1
+	return total
 
 func _create_pause_menu() -> void:
 	pause_menu_layer = CanvasLayer.new()
@@ -2959,7 +3340,7 @@ func _create_pause_menu() -> void:
 	pause_menu_panel.add_child(title)
 
 	var controls = Label.new()
-	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up or drop stick\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
+	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up or drop stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
 	controls.position = Vector2(22, 58)
 	controls.size = Vector2(436, 172)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2987,6 +3368,8 @@ func _toggle_pause_menu(force_state: int = -1) -> void:
 	if force_state >= 0:
 		open = force_state > 0
 	pause_menu_open = open
+	if open:
+		_hide_claim_meter()
 	if pause_menu_panel != null:
 		pause_menu_panel.visible = open
 	get_tree().paused = open
@@ -3054,14 +3437,16 @@ func _update_ui() -> void:
 	social_value_label.text = "%d%%" % int(round(freya_social))
 
 	if freya_vomit >= 100.0:
-		action_hint_label.text = "Press SPACE to vomit"
+		action_hint_label.text = "Press SPACE to vomit | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.83, 0.95, 0.69, 0.98))
 	elif freya_has_stick:
-		action_hint_label.text = "Press F to drop stick (or eat nearby poop)"
+		action_hint_label.text = "Press F to drop stick (or eat nearby poop) | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.76, 0.98))
 	else:
-		action_hint_label.text = "Press F to eat poop or pick up a stick"
+		action_hint_label.text = "Press F to eat poop or pick up a stick | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8, 0.96))
+
+	_update_claim_meter_overlay()
 
 func _sync_minimap_static() -> void:
 	if minimap == null:
@@ -3077,9 +3462,14 @@ func _sync_minimap_static() -> void:
 	minimap.buildings = building_rects
 	minimap.queue_redraw()
 
-func _update_minimap_dynamic() -> void:
+func _update_minimap_dynamic(delta: float) -> void:
 	if minimap == null or freya == null:
 		return
+	if delta > 0.0:
+		minimap_update_timer = maxf(0.0, minimap_update_timer - delta)
+		if minimap_update_timer > 0.0:
+			return
+		minimap_update_timer = MINIMAP_UPDATE_INTERVAL
 
 	var dog_points = PackedVector2Array()
 	for d in dogs:
