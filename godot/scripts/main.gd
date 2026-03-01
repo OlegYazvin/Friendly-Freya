@@ -21,7 +21,9 @@ const STICK_MOUTH_FORWARD_OFFSET = -0.08
 const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
 const STICK_MOUTH_PITCH_DEG = -2.0
+const BARK_PRIMARY_SOURCE = "res://assets/audio/dog_barking_mono.wav"
 const BARK_SAMPLE_CANDIDATES = [
+	"res://assets/audio/dog_barking_mono.wav",
 	"res://assets/audio/barks/bark_01.wav",
 	"res://assets/audio/barks/bark_02.wav",
 	"res://assets/audio/barks/bark_03.wav",
@@ -336,6 +338,7 @@ func _create_audio_setup() -> void:
 	for stream in _load_bark_streams_from_files():
 		bark_sfx_streams.append(stream)
 	if bark_sfx_streams.is_empty():
+		push_warning("Bark files not loaded; falling back to synthesized bark audio.")
 		bark_sfx_streams.append(_build_bark_stream(116.0, 0.34, 0.33))
 		bark_sfx_streams.append(_build_bark_stream(124.0, 0.3, 0.3))
 		bark_sfx_streams.append(_build_bark_stream(132.0, 0.28, 0.29))
@@ -362,11 +365,20 @@ func _create_audio_setup() -> void:
 func _load_bark_streams_from_files() -> Array[AudioStream]:
 	var out: Array[AudioStream] = []
 	for path in BARK_SAMPLE_CANDIDATES:
-		if not ResourceLoader.exists(path):
+		if not FileAccess.file_exists(path):
 			continue
-		var stream := load(path)
-		if stream is AudioStream:
-			out.append(stream as AudioStream)
+		var lower = path.to_lower()
+		var stream: AudioStream = null
+		if lower.ends_with(".wav"):
+			stream = AudioStreamWAV.load_from_file(path)
+		elif lower.ends_with(".ogg"):
+			stream = AudioStreamOggVorbis.load_from_file(path)
+		if stream != null:
+			out.append(stream)
+	if out.is_empty() and FileAccess.file_exists(BARK_PRIMARY_SOURCE):
+		var primary = AudioStreamWAV.load_from_file(BARK_PRIMARY_SOURCE)
+		if primary != null:
+			out.append(primary)
 	return out
 
 func _bark_pulse_envelope(t: float, start_t: float, attack_t: float, hold_t: float, release_t: float) -> float:
