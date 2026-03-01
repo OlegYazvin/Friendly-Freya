@@ -232,6 +232,7 @@ func _configure_input() -> void:
 	_ensure_action("camera_rotate_ccw", [Key.KEY_Q])
 	_ensure_action("camera_rotate_cw", [Key.KEY_E])
 	_ensure_action("vomit", [Key.KEY_SPACE])
+	_ensure_action("drop_stick", [Key.KEY_V])
 	_ensure_action("claim", [Key.KEY_R])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
@@ -1945,6 +1946,11 @@ func _handle_actions() -> void:
 		_try_interact()
 	if Input.is_action_just_pressed("vomit"):
 		_try_vomit()
+	if Input.is_action_just_pressed("drop_stick"):
+		if carried_stick != null and is_instance_valid(carried_stick):
+			_drop_carried_stick()
+		else:
+			_show_status("No stick to drop", 0.55)
 
 func _find_nearest_claim_target() -> Dictionary:
 	var found := false
@@ -3340,7 +3346,7 @@ func _create_pause_menu() -> void:
 	pause_menu_panel.add_child(title)
 
 	var controls = Label.new()
-	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up or drop stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
+	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick\nV: Drop carried stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
 	controls.position = Vector2(22, 58)
 	controls.size = Vector2(436, 172)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -3440,7 +3446,7 @@ func _update_ui() -> void:
 		action_hint_label.text = "Press SPACE to vomit | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.83, 0.95, 0.69, 0.98))
 	elif freya_has_stick:
-		action_hint_label.text = "Press F to drop stick (or eat nearby poop) | Hold R to claim"
+		action_hint_label.text = "Press V to drop stick | Press F to eat nearby poop | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.76, 0.98))
 	else:
 		action_hint_label.text = "Press F to eat poop or pick up a stick | Hold R to claim"
