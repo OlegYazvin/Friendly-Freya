@@ -201,6 +201,37 @@ float distSq(const Vec2 &a, const Vec2 &b) {
   return dx * dx + dy * dy;
 }
 
+float distSqPointToSegment(const Vec2 &p, const Vec2 &a, const Vec2 &b) {
+  const float abx = b.x - a.x;
+  const float aby = b.y - a.y;
+  const float abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 0.000001f) {
+    return distSq(p, a);
+  }
+  const float apx = p.x - a.x;
+  const float apy = p.y - a.y;
+  const float t = clampf((apx * abx + apy * aby) / abLenSq, 0.0f, 1.0f);
+  const Vec2 closest{a.x + abx * t, a.y + aby * t};
+  return distSq(p, closest);
+}
+
+float cross2(const Vec2 &a, const Vec2 &b, const Vec2 &p) {
+  return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+}
+
+bool pointInTriangle(const Vec2 &p, const Vec2 &a, const Vec2 &b, const Vec2 &c) {
+  const float c1 = cross2(a, b, p);
+  const float c2 = cross2(b, c, p);
+  const float c3 = cross2(c, a, p);
+  const bool hasNeg = c1 < 0.0f || c2 < 0.0f || c3 < 0.0f;
+  const bool hasPos = c1 > 0.0f || c2 > 0.0f || c3 > 0.0f;
+  return !(hasNeg && hasPos);
+}
+
+bool pointInQuad(const Vec2 &p, const Vec2 &a, const Vec2 &b, const Vec2 &c, const Vec2 &d) {
+  return pointInTriangle(p, a, b, c) || pointInTriangle(p, a, c, d);
+}
+
 Vec2 addVec(const Vec2 &a, const Vec2 &b) {
   return {a.x + b.x, a.y + b.y};
 }
@@ -435,6 +466,7 @@ private:
   float hudNoPoopTimer = 0.0f;
   float hudEatTimer = 0.0f;
   float hudVomitReadyFlash = 0.0f;
+  bool objectivePukeOnDogComplete = false;
 
   float randf(float minValue, float maxValue) {
     std::uniform_real_distribution<float> dist(minValue, maxValue);
@@ -1541,6 +1573,7 @@ private:
     puddles.clear();
     barkPulses.clear();
     labels.clear();
+    objectivePukeOnDogComplete = false;
 
     const std::array<Color, 6> dogPalette = {
       rgb(42, 40, 37), rgb(90, 71, 56), rgb(205, 192, 171),
@@ -1769,11 +1802,32 @@ private:
     addLabel("YUM...", freya.pos, rgb(237, 200, 153), 1.0f);
   }
 
+  bool vomitHitsAnyDog(const Vec2 &from, const Vec2 &to) {
+    constexpr float hitRadius = 0.95f;
+    const float hitRadiusSq = hitRadius * hitRadius;
+    bool hit = false;
+    for (Dog &dog : dogs) {
+      if (distSqPointToSegment(dog.pos, from, to) <= hitRadiusSq) {
+        hit = true;
+        addBarkPulse(dog.pos, rgb(198, 231, 146, 0.88f));
+        addLabel("EWW!", dog.pos, rgb(236, 246, 222), 0.95f);
+      }
+    }
+    return hit;
+  }
+
   void tryVomit() {
     if (freya.vomit < 100.0f) {
       addLabel("NOT READY", freya.pos, rgb(202, 226, 236), 0.9f);
       return;
     }
+
+    const Vec2 from = freya.pos;
+    const Vec2 to{
+      freya.pos.x + std::cos(freya.facing) * 1.35f,
+      freya.pos.y + std::sin(freya.facing) * 1.35f
+    };
+    const bool pukedOnDog = vomitHitsAnyDog(from, to);
 
     const Vec2 p{
       freya.pos.x + std::cos(freya.facing) * 0.42f,
@@ -1783,6 +1837,11 @@ private:
     freya.vomit = 0.0f;
     freya.vomitingTimer = 0.65f;
     addLabel("BLEAARGH!", freya.pos, rgb(186, 232, 132), 1.2f);
+
+    if (pukedOnDog && !objectivePukeOnDogComplete) {
+      objectivePukeOnDogComplete = true;
+      addLabel("OBJECTIVE COMPLETE!", freya.pos, rgb(221, 245, 154), 1.4f);
+    }
   }
 
   void updatePoops(float dt) {
@@ -2760,6 +2819,17 @@ private:
       const float a = clampf(hudEatTimer / 0.8f, 0.0f, 1.0f);
       drawText("POOP EATEN", panelX + panelW + 18.0f, panelY + 42.0f, 2.0f, rgb(233, 205, 160, a));
     }
+
+    const float objectiveY = panelY + panelH + 8.0f;
+    const float objectiveH = 44.0f;
+    drawRect(panelX, objectiveY, panelW, objectiveH, rgb(8, 16, 20, 0.66f));
+    drawRectBorder(panelX, objectiveY, panelW, objectiveH, rgb(206, 235, 223, 0.56f), 1.2f);
+    drawText("OBJECTIVE", panelX + 14.0f, objectiveY + 8.0f, 1.7f, rgb(219, 244, 231));
+    if (objectivePukeOnDogComplete) {
+      drawText("PUKE ON A DOG: COMPLETE", panelX + 14.0f, objectiveY + 24.0f, 1.75f, rgb(206, 244, 152));
+    } else {
+      drawText("PUKE ON A DOG: IN PROGRESS", panelX + 14.0f, objectiveY + 24.0f, 1.75f, rgb(244, 229, 182));
+    }
   }
 
   void drawMiniMap() const {
@@ -2813,14 +2883,31 @@ private:
   }
 
   bool isFreyaOccludedByBuilding(const Building &b) const {
-    const float fx = freya.pos.x;
-    const float fy = freya.pos.y;
-    if (fx < b.x - 0.6f || fx > b.x + b.w + 0.6f || fy < b.y - 0.6f || fy > b.y + b.d + 0.6f) {
+    const float freyaDepth = freya.pos.x + freya.pos.y + 0.27f;
+    const float buildingDepth = b.x + b.y + b.d + 0.1f;
+    if (freyaDepth >= buildingDepth - 0.03f) {
       return false;
     }
-    const float freyaDepth = fx + fy;
-    const float buildingDepth = b.x + b.y + b.d;
-    return freyaDepth < buildingDepth;
+
+    const Vec2 B = worldToScreen(b.x + b.w, b.y, 0.0f);
+    const Vec2 C = worldToScreen(b.x + b.w, b.y + b.d, 0.0f);
+    const Vec2 D = worldToScreen(b.x, b.y + b.d, 0.0f);
+    const Vec2 B2 = worldToScreen(b.x + b.w, b.y, b.h);
+    const Vec2 C2 = worldToScreen(b.x + b.w, b.y + b.d, b.h);
+    const Vec2 D2 = worldToScreen(b.x, b.y + b.d, b.h);
+
+    const std::array<Vec2, 3> probes = {
+      worldToScreen(freya.pos.x, freya.pos.y, 3.0f),
+      worldToScreen(freya.pos.x, freya.pos.y, 8.0f),
+      worldToScreen(freya.pos.x, freya.pos.y, 13.0f)
+    };
+
+    for (const Vec2 &probe : probes) {
+      if (pointInQuad(probe, B2, C2, C, B) || pointInQuad(probe, C2, D2, D, C)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void drawFreyaOcclusionCutout() const {
