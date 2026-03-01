@@ -22,7 +22,8 @@ Or open `godot/project.godot` from the Godot editor and press Play.
 
 - `WASD` / Arrow keys: move Freya (`Up` maps to up on screen)
 - `Shift`: run
-- `E`: eat nearby poop
+- `Q` / `E`: rotate camera
+- `F`: eat nearby poop / pick up or drop stick
 - `Space`: vomit when vomit meter is full
 
 ## Gameplay Systems Included

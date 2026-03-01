@@ -53,6 +53,8 @@ struct Tree {
   float x = 0.0f;
   float y = 0.0f;
   float size = 1.0f;
+  float claimProgress = 0.0f;
+  bool claimed = false;
 };
 
 struct Shrub {
@@ -64,6 +66,14 @@ struct Shrub {
 struct StreetLight {
   float x = 0.0f;
   float y = 0.0f;
+  float claimProgress = 0.0f;
+  bool claimed = false;
+};
+
+struct StopSign {
+  float x = 0.0f;
+  float y = 0.0f;
+  float facing = 0.0f;
 };
 
 struct Dog {
@@ -154,11 +164,18 @@ enum class RenderType {
   Building,
   Tree,
   Shrub,
+  StopSign,
   Light,
   Vomit,
   Poop,
   Dog,
   Freya
+};
+
+enum class ClaimTargetType {
+  None,
+  Tree,
+  Light
 };
 
 struct RenderItem {
@@ -348,7 +365,7 @@ public:
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
     window = SDL_CreateWindow(
-      "Friendly Freya | WASD/Arrows Move | Shift Run | E Eat | SPACE Vomit",
+      "Friendly Freya | WASD/Arrows Move | Shift Run | E Eat | Hold R Claim | SPACE Vomit",
       SDL_WINDOWPOS_CENTERED,
       SDL_WINDOWPOS_CENTERED,
       windowW,
@@ -440,6 +457,7 @@ private:
   std::vector<Building> buildings;
   std::vector<Tree> trees;
   std::vector<Shrub> shrubs;
+  std::vector<StopSign> stopSigns;
   std::vector<StreetLight> streetLights;
   std::vector<RectArea> roadAreas;
   std::vector<RectArea> sidewalkAreas;
@@ -467,6 +485,22 @@ private:
   float hudEatTimer = 0.0f;
   float hudVomitReadyFlash = 0.0f;
   bool objectivePukeOnDogComplete = false;
+  bool objectiveClaimPolesComplete = false;
+  bool objectiveClaimTreesComplete = false;
+  int claimedPoleCount = 0;
+  int claimedTreeCount = 0;
+  ClaimTargetType activeClaimTargetType = ClaimTargetType::None;
+  int activeClaimTargetIndex = -1;
+
+  static constexpr float claimRange = 1.8f;
+  static constexpr float claimFillTime = 1.35f;
+  static constexpr int claimObjectiveCount = 10;
+  static constexpr float buildingMidRiseThreshold = 98.0f;
+  static constexpr float buildingHighRiseThreshold = 146.0f;
+  static constexpr float lowRiseHeightMin = 74.0f;
+  static constexpr float lowRiseHeightMax = 112.0f;
+  static constexpr float highRiseHeightMin = 162.0f;
+  static constexpr float highRiseHeightMax = 226.0f;
 
   float randf(float minValue, float maxValue) {
     std::uniform_real_distribution<float> dist(minValue, maxValue);
@@ -1228,6 +1262,7 @@ private:
     buildings.clear();
     trees.clear();
     shrubs.clear();
+    stopSigns.clear();
     streetLights.clear();
     roadAreas.clear();
     sidewalkAreas.clear();
@@ -1408,8 +1443,8 @@ private:
         const float northYMin = block.y0 + streetSetback;
         if (northYMax >= northYMin) {
           const int style = static_cast<int>(buildings.size()) % static_cast<int>(walls.size());
-          const float lowH = randf(56.0f, 86.0f);
-          const float highH = randf(124.0f, 172.0f);
+          const float lowH = randf(lowRiseHeightMin, lowRiseHeightMax);
+          const float highH = randf(highRiseHeightMin, highRiseHeightMax);
           const float northY = clampf(northYMax + randf(-0.06f, 0.04f), northYMin, northYMax);
           if (!overlapsAlley(x, northY, w, dNorth)) {
             buildings.push_back({
@@ -1431,8 +1466,8 @@ private:
         const float southYMax = block.y1 - dSouth - streetSetback;
         if (southYMax >= southYMin) {
           const int style2 = static_cast<int>(buildings.size()) % static_cast<int>(walls.size());
-          const float lowHBack = randf(54.0f, 84.0f);
-          const float highHBack = randf(124.0f, 170.0f);
+          const float lowHBack = randf(lowRiseHeightMin, lowRiseHeightMax);
+          const float highHBack = randf(highRiseHeightMin, highRiseHeightMax);
           const float southY = clampf(southYMin + randf(-0.04f, 0.06f), southYMin, southYMax);
           if (!overlapsAlley(x + randf(-0.1f, 0.1f), southY, w, dSouth)) {
             buildings.push_back({
@@ -1492,6 +1527,56 @@ private:
         for (float y = road.y0 + 2.5f; y < road.y1 - 2.0f; y += 10.6f) {
           streetLights.push_back({xLeft, y});
           streetLights.push_back({xRight, y + 4.8f});
+        }
+      }
+    }
+
+    auto tryAddStopSign = [&](float x, float y, float facing) {
+      if (x < 0.9f || y < 0.9f || x > MAP_W - 0.9f || y > MAP_H - 0.9f) {
+        return;
+      }
+      if (surfaceAt(x, y) == Surface::Road || inBuilding(x, y) || inDogPark(x, y)) {
+        return;
+      }
+      for (const StopSign &existing : stopSigns) {
+        if (distSq({x, y}, {existing.x, existing.y}) < 0.7f * 0.7f) {
+          return;
+        }
+      }
+      stopSigns.push_back({x, y, facing});
+    };
+
+    for (const RectArea &roadA : roadAreas) {
+      const bool horizontalA = (roadA.x1 - roadA.x0) > (roadA.y1 - roadA.y0);
+      if (!horizontalA) {
+        continue;
+      }
+      for (const RectArea &roadB : roadAreas) {
+        const bool horizontalB = (roadB.x1 - roadB.x0) > (roadB.y1 - roadB.y0);
+        if (horizontalB) {
+          continue;
+        }
+
+        const float ix0 = std::max(roadA.x0, roadB.x0);
+        const float iy0 = std::max(roadA.y0, roadB.y0);
+        const float ix1 = std::min(roadA.x1, roadB.x1);
+        const float iy1 = std::min(roadA.y1, roadB.y1);
+        if ((ix1 - ix0) < 0.15f || (iy1 - iy0) < 0.15f) {
+          continue;
+        }
+
+        const float cx = (ix0 + ix1) * 0.5f;
+        const float cy = (iy0 + iy1) * 0.5f;
+        const float offset = 0.55f;
+        const Vec2 corners[4] = {
+          {ix0 - offset, iy0 - offset},
+          {ix1 + offset, iy0 - offset},
+          {ix0 - offset, iy1 + offset},
+          {ix1 + offset, iy1 + offset}
+        };
+        for (const Vec2 &corner : corners) {
+          const float facing = std::atan2(cy - corner.y, cx - corner.x);
+          tryAddStopSign(corner.x, corner.y, facing);
         }
       }
     }
@@ -1574,6 +1659,21 @@ private:
     barkPulses.clear();
     labels.clear();
     objectivePukeOnDogComplete = false;
+    objectiveClaimPolesComplete = false;
+    objectiveClaimTreesComplete = false;
+    claimedPoleCount = 0;
+    claimedTreeCount = 0;
+    activeClaimTargetType = ClaimTargetType::None;
+    activeClaimTargetIndex = -1;
+
+    for (StreetLight &light : streetLights) {
+      light.claimProgress = 0.0f;
+      light.claimed = false;
+    }
+    for (Tree &tree : trees) {
+      tree.claimProgress = 0.0f;
+      tree.claimed = false;
+    }
 
     const std::array<Color, 6> dogPalette = {
       rgb(42, 40, 37), rgb(90, 71, 56), rgb(205, 192, 171),
@@ -1655,6 +1755,7 @@ private:
     updateFreya(dt);
     updateDogs(dt);
     handleActions();
+    updateClaiming(dt);
     updatePoops(dt);
     updatePuddles(dt);
     updateBarksAndLabels(dt);
@@ -1764,6 +1865,125 @@ private:
           addLabel("ARF!", freya.pos, rgb(255, 228, 145), 0.8f);
           dog.barkCooldown = randf(0.9f, 1.5f);
         }
+      }
+    }
+  }
+
+  bool findNearestClaimTarget(ClaimTargetType &typeOut, int &indexOut) const {
+    bool found = false;
+    float bestDistSq = claimRange * claimRange;
+    typeOut = ClaimTargetType::None;
+    indexOut = -1;
+
+    for (int i = 0; i < static_cast<int>(streetLights.size()); i += 1) {
+      const StreetLight &light = streetLights[static_cast<size_t>(i)];
+      if (light.claimed) {
+        continue;
+      }
+      const float d = distSq(freya.pos, {light.x, light.y});
+      if (d < bestDistSq) {
+        bestDistSq = d;
+        typeOut = ClaimTargetType::Light;
+        indexOut = i;
+        found = true;
+      }
+    }
+
+    for (int i = 0; i < static_cast<int>(trees.size()); i += 1) {
+      const Tree &tree = trees[static_cast<size_t>(i)];
+      if (tree.claimed) {
+        continue;
+      }
+      const float d = distSq(freya.pos, {tree.x, tree.y});
+      if (d < bestDistSq) {
+        bestDistSq = d;
+        typeOut = ClaimTargetType::Tree;
+        indexOut = i;
+        found = true;
+      }
+    }
+
+    return found;
+  }
+
+  void resetClaimProgress(ClaimTargetType type, int index) {
+    if (index < 0) {
+      return;
+    }
+    if (type == ClaimTargetType::Light) {
+      if (index >= static_cast<int>(streetLights.size())) {
+        return;
+      }
+      StreetLight &light = streetLights[static_cast<size_t>(index)];
+      if (!light.claimed) {
+        light.claimProgress = 0.0f;
+      }
+      return;
+    }
+    if (type == ClaimTargetType::Tree) {
+      if (index >= static_cast<int>(trees.size())) {
+        return;
+      }
+      Tree &tree = trees[static_cast<size_t>(index)];
+      if (!tree.claimed) {
+        tree.claimProgress = 0.0f;
+      }
+    }
+  }
+
+  void updateClaiming(float dt) {
+    const ClaimTargetType previousType = activeClaimTargetType;
+    const int previousIndex = activeClaimTargetIndex;
+
+    if (!keys[SDL_SCANCODE_R]) {
+      resetClaimProgress(previousType, previousIndex);
+      activeClaimTargetType = ClaimTargetType::None;
+      activeClaimTargetIndex = -1;
+      return;
+    }
+
+    ClaimTargetType targetType = ClaimTargetType::None;
+    int targetIndex = -1;
+    if (!findNearestClaimTarget(targetType, targetIndex)) {
+      resetClaimProgress(previousType, previousIndex);
+      if (pressed[SDL_SCANCODE_R]) {
+        addLabel("NO TREE OR POLE", freya.pos, rgb(200, 226, 193), 0.9f);
+      }
+      activeClaimTargetType = ClaimTargetType::None;
+      activeClaimTargetIndex = -1;
+      return;
+    }
+
+    if (previousType != ClaimTargetType::None && (previousType != targetType || previousIndex != targetIndex)) {
+      resetClaimProgress(previousType, previousIndex);
+    }
+    activeClaimTargetType = targetType;
+    activeClaimTargetIndex = targetIndex;
+
+    if (targetType == ClaimTargetType::Light) {
+      StreetLight &light = streetLights[static_cast<size_t>(targetIndex)];
+      light.claimProgress = clampf(light.claimProgress + dt / claimFillTime, 0.0f, 1.0f);
+      if (light.claimProgress >= 1.0f && !light.claimed) {
+        light.claimed = true;
+        claimedPoleCount = std::min(claimedPoleCount + 1, static_cast<int>(streetLights.size()));
+        addLabel("POLE CLAIMED!", {light.x, light.y}, rgb(154, 238, 136), 1.0f);
+        if (claimedPoleCount >= claimObjectiveCount && !objectiveClaimPolesComplete) {
+          objectiveClaimPolesComplete = true;
+          addLabel("OBJECTIVE COMPLETE!", freya.pos, rgb(221, 245, 154), 1.2f);
+        }
+      }
+      return;
+    }
+
+    Tree &tree = trees[static_cast<size_t>(targetIndex)];
+    tree.claimProgress = clampf(tree.claimProgress + dt / claimFillTime, 0.0f, 1.0f);
+    if (tree.claimProgress >= 1.0f && !tree.claimed) {
+      tree.claimed = true;
+      claimedTreeCount = std::min(claimedTreeCount + 1, static_cast<int>(trees.size()));
+      addLabel("TREE CLAIMED!", {tree.x, tree.y}, rgb(154, 238, 136), 1.0f);
+      if (claimedTreeCount >= claimObjectiveCount && !objectiveClaimTreesComplete) {
+        objectiveClaimTreesComplete = true;
+        addLabel("OBJECTIVE COMPLETE!", freya.pos, rgb(221, 245, 154), 1.2f);
       }
     }
   }
@@ -2268,7 +2488,7 @@ private:
     );
     unbindMaterial();
 
-    const int floors = b.h > 112.0f ? 3 : (b.h > 86.0f ? 2 : 1);
+    const int floors = b.h > buildingHighRiseThreshold ? 3 : (b.h > buildingMidRiseThreshold ? 2 : 1);
     const float roofZ = b.h + model::kBuildingModel.roofLift;
     const float parapetH = clampf(
       model::kBuildingModel.parapetBase + floors * model::kBuildingModel.parapetPerFloor,
@@ -2372,9 +2592,14 @@ private:
     const Color southGlass = frontOnSouth ? b.glass : shade(b.glass, -0.07f);
     const Color southTrim = frontOnSouth ? b.trim : shade(b.trim, -0.11f);
 
+    const float facadeBaseZ = 6.5f;
+    const float facadeTopPad = 9.5f;
+    const float usableFacadeHeight = std::max(24.0f, b.h - facadeBaseZ - facadeTopPad);
+    const float storyHeight = usableFacadeHeight / static_cast<float>(floors);
     for (int f = 0; f < floors; f += 1) {
-      const float z0 = b.h * 0.22f + static_cast<float>(f) * (b.h * 0.19f);
-      const float z1 = z0 + 14.0f;
+      const float storyBase = facadeBaseZ + static_cast<float>(f) * storyHeight;
+      const float z0 = storyBase + std::max(2.8f, storyHeight * 0.18f);
+      const float z1 = std::min(b.h - 5.2f, storyBase + std::max(11.2f, storyHeight * 0.82f));
 
       for (int c = 0; c < eastCols; c += 1) {
         const float y0 = b.y + 0.33f + c * ((b.d - 0.74f) / eastCols);
@@ -2393,15 +2618,15 @@ private:
       drawWindowY(southY, b.x + b.w * 0.44f, b.x + b.w * 0.56f, 3.5f, 18.5f, shade(b.trim, -0.2f), shade(b.trim, -0.16f), -1.0f);
     }
 
-    if (b.h > 112.0f) {
+    if (b.h > buildingHighRiseThreshold) {
       const float fx = b.x + b.w + 0.02f;
       const float yL = b.y + b.d * 0.28f;
       const float yR = b.y + b.d * 0.72f;
       for (int f = 0; f < floors; f += 1) {
-        const float z = 28.0f + static_cast<float>(f) * 26.0f;
+        const float z = facadeBaseZ + storyHeight * (0.56f + static_cast<float>(f));
         drawWorldLine3D(fx, yL, z, fx, yR, z, rgb(72, 73, 78, 0.9f), 1.6f);
-        drawWorldLine3D(fx, yL, z - 10.0f, fx, yL, z, rgb(72, 73, 78, 0.86f), 1.4f);
-        drawWorldLine3D(fx, yR, z - 10.0f, fx, yR, z, rgb(72, 73, 78, 0.86f), 1.4f);
+        drawWorldLine3D(fx, yL, z - storyHeight * 0.42f, fx, yL, z, rgb(72, 73, 78, 0.86f), 1.4f);
+        drawWorldLine3D(fx, yR, z - storyHeight * 0.42f, fx, yR, z, rgb(72, 73, 78, 0.86f), 1.4f);
       }
       drawWorldLine3D(fx, (yL + yR) * 0.5f, 16.0f, fx, (yL + yR) * 0.5f, b.h - 6.0f, rgb(65, 68, 72, 0.75f), 1.2f);
     } else {
@@ -2546,6 +2771,98 @@ private:
     const Vec2 lamp = worldToScreen(light.x + 0.22f, light.y + 0.09f, 45.0f);
     drawEllipse(lamp.x, lamp.y + 1.5f, 2.9f, 2.2f, rgb(144, 149, 152), 14);
     drawEllipse(lamp.x, lamp.y + 5.0f, 7.5f, 3.8f, rgb(46, 52, 58, 0.24f), 18);
+  }
+
+  void drawStopSign(const StopSign &sign) const {
+    const float poleH = 19.0f;
+    drawWorldLine3D(sign.x, sign.y, 0.0f, sign.x, sign.y, poleH, rgb(95, 101, 106), 2.4f);
+
+    const float nx = std::cos(sign.facing);
+    const float ny = std::sin(sign.facing);
+    const Vec2 center = worldToScreen(sign.x + nx * 0.08f, sign.y + ny * 0.08f, poleH);
+
+    std::vector<Vec2> border;
+    std::vector<Vec2> face;
+    border.reserve(8);
+    face.reserve(8);
+    const float outerR = 6.45f;
+    const float innerR = 5.35f;
+    for (int i = 0; i < 8; i += 1) {
+      const float t = PI * 0.125f + static_cast<float>(i) * (PI * 0.25f);
+      const float cs = std::cos(t);
+      const float sn = std::sin(t);
+      border.push_back({center.x + cs * outerR, center.y + sn * outerR});
+      face.push_back({center.x + cs * innerR, center.y + sn * innerR});
+    }
+
+    drawPolygon(border, rgb(241, 238, 230, 0.95f));
+    drawPolygon(face, rgb(184, 37, 38, 0.96f));
+    drawText("STOP", center.x - 11.5f, center.y - 3.5f, 1.0f, rgb(245, 243, 238, 0.96f));
+    drawEllipse(center.x, center.y + 1.1f, 2.7f, 1.2f, rgb(226, 133, 133, 0.23f), 12);
+
+    const Vec2 base = worldToScreen(sign.x, sign.y);
+    drawEllipse(base.x, base.y + 4.0f, 3.8f, 2.1f, rgb(29, 29, 29, 0.22f), 14);
+  }
+
+  void drawClaimEffects() const {
+    auto drawClaimRing = [&](float x, float y, float scaleMul) {
+      const Vec2 base = worldToScreen(x, y, 0.03f);
+      const float pulse = 0.5f + std::sin(worldTime * 4.2f + x * 0.31f + y * 0.27f) * 0.5f;
+      const float r0 = (4.6f + pulse * 2.2f) * scaleMul;
+      const float r1 = (2.7f + pulse * 1.3f) * scaleMul;
+      const Color c0 = rgb(130, 236, 112, 0.7f);
+      const Color c1 = rgb(106, 214, 91, 0.55f);
+      drawEllipseOutline(base.x, base.y + 3.6f, r0, r0 * 0.52f, c0, 2.0f, 28);
+      drawEllipseOutline(base.x, base.y + 3.6f, r1, r1 * 0.5f, c1, 1.6f, 24);
+    };
+
+    for (const StreetLight &light : streetLights) {
+      if (!light.claimed) {
+        continue;
+      }
+      drawClaimRing(light.x, light.y, 1.0f);
+    }
+    for (const Tree &tree : trees) {
+      if (!tree.claimed) {
+        continue;
+      }
+      const float treeScale = clampf(0.82f + tree.size * 0.28f, 0.85f, 1.28f);
+      drawClaimRing(tree.x, tree.y, treeScale);
+    }
+
+    if (!keys[SDL_SCANCODE_R] || activeClaimTargetType == ClaimTargetType::None || activeClaimTargetIndex < 0) {
+      return;
+    }
+
+    float tx = 0.0f;
+    float ty = 0.0f;
+    float meterZ = 22.0f;
+    float progress = 0.0f;
+    if (activeClaimTargetType == ClaimTargetType::Light && activeClaimTargetIndex < static_cast<int>(streetLights.size())) {
+      const StreetLight &light = streetLights[static_cast<size_t>(activeClaimTargetIndex)];
+      tx = light.x;
+      ty = light.y;
+      meterZ = 49.0f;
+      progress = light.claimProgress;
+    } else if (activeClaimTargetType == ClaimTargetType::Tree && activeClaimTargetIndex < static_cast<int>(trees.size())) {
+      const Tree &tree = trees[static_cast<size_t>(activeClaimTargetIndex)];
+      tx = tree.x;
+      ty = tree.y;
+      meterZ = 36.0f * tree.size;
+      progress = tree.claimProgress;
+    } else {
+      return;
+    }
+
+    const Vec2 m = worldToScreen(tx, ty, meterZ);
+    const float barW = 38.0f;
+    const float barH = 6.0f;
+    const float x0 = m.x - barW * 0.5f;
+    const float y0 = m.y - 8.0f;
+    drawRect(x0 - 3.0f, y0 - 3.0f, barW + 6.0f, barH + 6.0f, rgb(12, 20, 16, 0.76f));
+    drawRectBorder(x0 - 3.0f, y0 - 3.0f, barW + 6.0f, barH + 6.0f, rgb(188, 236, 178, 0.7f), 1.0f);
+    drawRect(x0, y0, barW * clampf(progress, 0.0f, 1.0f), barH, rgb(124, 232, 108, 0.92f));
+    drawText("CLAIM", m.x - 13.0f, y0 - 10.0f, 1.0f, rgb(214, 244, 206, 0.92f));
   }
 
   void drawPoop(const Poop &poop) const {
@@ -2805,9 +3122,9 @@ private:
       hudVomitReadyFlash += 0.08f;
       const float flash = 0.5f + std::sin(hudVomitReadyFlash) * 0.5f;
       drawRect(panelX + 12.0f, panelY + 122.0f, panelW - 24.0f, 24.0f, rgb(151, 205, 83, 0.2f + flash * 0.16f));
-      drawText("SPACE TO VOMIT", panelX + 20.0f, panelY + 128.0f, 2.0f, rgb(220, 246, 182));
+      drawText("SPACE TO VOMIT | HOLD R TO CLAIM", panelX + 20.0f, panelY + 128.0f, 1.6f, rgb(220, 246, 182));
     } else {
-      drawText("E TO EAT POOP", panelX + 20.0f, panelY + 128.0f, 2.0f, rgb(241, 227, 191));
+      drawText("E TO EAT POOP | HOLD R TO CLAIM", panelX + 20.0f, panelY + 128.0f, 1.6f, rgb(241, 227, 191));
     }
 
     if (hudNoPoopTimer > 0.0f) {
@@ -2821,14 +3138,38 @@ private:
     }
 
     const float objectiveY = panelY + panelH + 8.0f;
-    const float objectiveH = 44.0f;
+    const float objectiveH = 82.0f;
     drawRect(panelX, objectiveY, panelW, objectiveH, rgb(8, 16, 20, 0.66f));
     drawRectBorder(panelX, objectiveY, panelW, objectiveH, rgb(206, 235, 223, 0.56f), 1.2f);
     drawText("OBJECTIVE", panelX + 14.0f, objectiveY + 8.0f, 1.7f, rgb(219, 244, 231));
     if (objectivePukeOnDogComplete) {
-      drawText("PUKE ON A DOG: COMPLETE", panelX + 14.0f, objectiveY + 24.0f, 1.75f, rgb(206, 244, 152));
+      drawText("PUKE ON A DOG: COMPLETE", panelX + 14.0f, objectiveY + 24.0f, 1.45f, rgb(206, 244, 152));
     } else {
-      drawText("PUKE ON A DOG: IN PROGRESS", panelX + 14.0f, objectiveY + 24.0f, 1.75f, rgb(244, 229, 182));
+      drawText("PUKE ON A DOG: IN PROGRESS", panelX + 14.0f, objectiveY + 24.0f, 1.45f, rgb(244, 229, 182));
+    }
+
+    if (objectiveClaimPolesComplete) {
+      drawText("CLAIM 10 LIGHT POLES: COMPLETE", panelX + 14.0f, objectiveY + 40.0f, 1.45f, rgb(206, 244, 152));
+    } else {
+      drawText(
+        "CLAIM 10 LIGHT POLES: " + std::to_string(std::min(claimObjectiveCount, claimedPoleCount)) + " OF 10",
+        panelX + 14.0f,
+        objectiveY + 40.0f,
+        1.45f,
+        rgb(244, 229, 182)
+      );
+    }
+
+    if (objectiveClaimTreesComplete) {
+      drawText("CLAIM 10 TREES: COMPLETE", panelX + 14.0f, objectiveY + 56.0f, 1.45f, rgb(206, 244, 152));
+    } else {
+      drawText(
+        "CLAIM 10 TREES: " + std::to_string(std::min(claimObjectiveCount, claimedTreeCount)) + " OF 10",
+        panelX + 14.0f,
+        objectiveY + 56.0f,
+        1.45f,
+        rgb(244, 229, 182)
+      );
     }
   }
 
@@ -2950,7 +3291,7 @@ private:
 
   void drawWorld() {
     std::vector<RenderItem> items;
-    items.reserve(buildings.size() + trees.size() + shrubs.size() + streetLights.size() + poops.size() + puddles.size() + dogs.size() + 1);
+    items.reserve(buildings.size() + trees.size() + shrubs.size() + stopSigns.size() + streetLights.size() + poops.size() + puddles.size() + dogs.size() + 1);
 
     for (int i = 0; i < static_cast<int>(buildings.size()); i += 1) {
       const Building &b = buildings[static_cast<size_t>(i)];
@@ -2974,6 +3315,20 @@ private:
         continue;
       }
       items.push_back({s.x + s.y + 0.16f, RenderType::Shrub, i});
+    }
+    for (int i = 0; i < static_cast<int>(stopSigns.size()); i += 1) {
+      const StopSign &sign = stopSigns[static_cast<size_t>(i)];
+      if (!inCameraRange(sign.x, sign.y, 2.8f, 2.8f)) {
+        continue;
+      }
+      items.push_back({sign.x + sign.y + 0.18f, RenderType::StopSign, i});
+    }
+    for (int i = 0; i < static_cast<int>(streetLights.size()); i += 1) {
+      const StreetLight &light = streetLights[static_cast<size_t>(i)];
+      if (!inCameraRange(light.x, light.y, 3.0f, 3.0f)) {
+        continue;
+      }
+      items.push_back({light.x + light.y + 0.19f, RenderType::Light, i});
     }
     for (int i = 0; i < static_cast<int>(puddles.size()); i += 1) {
       const VomitPuddle &p = puddles[static_cast<size_t>(i)];
@@ -3013,6 +3368,9 @@ private:
           break;
         case RenderType::Shrub:
           drawShrub(shrubs[static_cast<size_t>(item.index)]);
+          break;
+        case RenderType::StopSign:
+          drawStopSign(stopSigns[static_cast<size_t>(item.index)]);
           break;
         case RenderType::Light:
           drawStreetLight(streetLights[static_cast<size_t>(item.index)]);
@@ -3061,6 +3419,7 @@ private:
     drawDogPark();
     drawStreetLightPools();
     drawWorld();
+    drawClaimEffects();
     drawFreyaOcclusionCutout();
     drawBarkPulses();
     drawLabels();

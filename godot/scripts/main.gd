@@ -13,7 +13,12 @@ const ALLEY_W = 2.25
 
 const FREYA_BASE_SPEED = 4.6
 const FREYA_RUN_MULT = 1.55
-const FREYA_STICK_RUN_MULT = 1.24
+const FREYA_STICK_RUN_MULT = 1.36
+const CAMERA_ORBIT_SPEED = 1.95
+const STICK_MOUTH_FORWARD_OFFSET = 0.36
+const STICK_MOUTH_UP_OFFSET = -0.16
+const STICK_MOUTH_RIGHT_OFFSET = 0.0
+const STICK_MOUTH_PITCH_DEG = -7.5
 const FREYA_COLLISION_RADIUS = 0.34
 const DOG_COLLISION_RADIUS = 0.28
 const DUMPSTER_COLLISION_RADIUS = 0.48
@@ -22,7 +27,7 @@ const STREET_POLE_SPACING = 10.8
 const STREET_POLE_END_MARGIN = 2.6
 const BUILDING_SIDEWALK_W = 0.95
 const BUILDING_COLLISION_PAD = 0.02
-const ROW_FRONT_SETBACK = 3.05
+const ROW_FRONT_SETBACK = 4.15
 const ROW_SIDE_SETBACK = 0.72
 const ALLEY_BUILDING_GAP = 0.2
 const TREE_COLLISION_SCALE = 0.34
@@ -77,6 +82,7 @@ var freya_social = 24.0
 var freya_vomit_timer = 0.0
 var freya_move_dir = Vector3.ZERO
 var camera_focus = Vector3.ZERO
+var camera_orbit_angle = 0.0
 
 var world_time = 0.0
 var poop_spawn_timer = 4.1
@@ -119,6 +125,7 @@ var status_label: Label
 var status_timer = 0.0
 var objectives_panel: Panel
 var objectives_list_label: Label
+var objective_puke_on_dog_complete = false
 
 var minimap
 var pause_menu_layer: CanvasLayer
@@ -176,9 +183,11 @@ func _process(delta: float) -> void:
 	if status_timer <= 0.0:
 		status_label.text = ""
 
+	_update_camera_orbit_input(delta)
 	_update_freya(delta)
 	_update_dogs(delta)
 	_handle_actions()
+	_update_carried_stick_pose()
 	_update_poops(delta)
 	_update_vomit_puddles(delta)
 	_update_bark_sequences(delta)
@@ -195,7 +204,10 @@ func _configure_input() -> void:
 	_ensure_action("move_up", [Key.KEY_W, Key.KEY_UP])
 	_ensure_action("move_down", [Key.KEY_S, Key.KEY_DOWN])
 	_ensure_action("run", [Key.KEY_SHIFT])
-	_ensure_action("eat", [Key.KEY_E])
+	_remove_action_key("eat", int(Key.KEY_E))
+	_ensure_action("eat", [Key.KEY_F])
+	_ensure_action("camera_rotate_ccw", [Key.KEY_Q])
+	_ensure_action("camera_rotate_cw", [Key.KEY_E])
 	_ensure_action("vomit", [Key.KEY_SPACE])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
@@ -215,6 +227,13 @@ func _action_has_key(name: String, keycode: int) -> bool:
 		if ev is InputEventKey and ev.physical_keycode == keycode:
 			return true
 	return false
+
+func _remove_action_key(name: String, keycode: int) -> void:
+	if not InputMap.has_action(name):
+		return
+	for ev in InputMap.action_get_events(name):
+		if ev is InputEventKey and ev.physical_keycode == keycode:
+			InputMap.action_erase_event(name, ev)
 
 func _create_render_setup() -> void:
 	var env = WorldEnvironment.new()
@@ -267,11 +286,14 @@ func _create_world_roots() -> void:
 
 func _create_audio_setup() -> void:
 	bark_sfx_streams.clear()
-	bark_sfx_streams.append(_build_bark_stream(132.0, 0.26, 0.29))
-	bark_sfx_streams.append(_build_bark_stream(148.0, 0.31, 0.26))
-	bark_sfx_streams.append(_build_bark_stream(166.0, 0.24, 0.22))
-	bark_sfx_streams.append(_build_bark_stream(182.0, 0.21, 0.2))
-	bark_sfx_streams.append(_build_bark_stream(124.0, 0.29, 0.31))
+	bark_sfx_streams.append(_build_bark_stream(116.0, 0.34, 0.33))
+	bark_sfx_streams.append(_build_bark_stream(124.0, 0.3, 0.3))
+	bark_sfx_streams.append(_build_bark_stream(132.0, 0.28, 0.29))
+	bark_sfx_streams.append(_build_bark_stream(142.0, 0.27, 0.27))
+	bark_sfx_streams.append(_build_bark_stream(154.0, 0.24, 0.24))
+	bark_sfx_streams.append(_build_bark_stream(166.0, 0.22, 0.22))
+	bark_sfx_streams.append(_build_bark_stream(178.0, 0.2, 0.2))
+	bark_sfx_streams.append(_build_bark_stream(188.0, 0.18, 0.19))
 
 	for p in bark_sfx_players:
 		if p != null:
@@ -287,8 +309,22 @@ func _create_audio_setup() -> void:
 	bark_sfx_cursor = 0
 	bark_sequences.clear()
 
+func _bark_pulse_envelope(t: float, start_t: float, attack_t: float, hold_t: float, release_t: float) -> float:
+	var rel = t - start_t
+	if rel < 0.0:
+		return 0.0
+	var attack = maxf(0.001, attack_t)
+	var hold = maxf(0.0, hold_t)
+	var release = maxf(0.001, release_t)
+	if rel < attack:
+		return rel / attack
+	if rel < attack + hold:
+		return 1.0
+	var out = 1.0 - ((rel - attack - hold) / release)
+	return clampf(out, 0.0, 1.0)
+
 func _build_bark_stream(base_freq: float, roughness: float, duration: float) -> AudioStreamWAV:
-	var sample_rate := 32000
+	var sample_rate := 44100
 	var sample_count := int(maxf(1.0, duration * float(sample_rate)))
 	var data := PackedByteArray()
 	data.resize(sample_count * 2)
@@ -297,36 +333,56 @@ func _build_bark_stream(base_freq: float, roughness: float, duration: float) -> 
 	local_rng.seed = int(base_freq * 1000.0 + roughness * 10000.0)
 
 	var phase_root := 0.0
-	var phase_formant_a := 0.0
-	var phase_formant_b := 0.0
+	var phase_harm := 0.0
+	var phase_air := 0.0
 	var noise_lp := 0.0
+	var noise_body := 0.0
+	var second_start = duration * local_rng.randf_range(0.31, 0.44)
+	var second_hold = duration * local_rng.randf_range(0.05, 0.09)
+	var second_release = duration * local_rng.randf_range(0.17, 0.27)
 
 	for i in range(sample_count):
 		var t := float(i) / float(sample_rate)
 		var tn := clampf(t / maxf(duration, 0.001), 0.0, 1.0)
-		var env_attack := clampf(t / 0.008, 0.0, 1.0)
-		var env_hold := 1.0 - clampf((t - 0.03) / maxf(0.01, duration * 0.32), 0.0, 0.38)
-		var env_decay := 1.0 - clampf((t - 0.05) / maxf(0.04, duration - 0.05), 0.0, 1.0)
-		var envelope := env_attack * env_hold * env_decay
 
-		var f0 := base_freq * (1.0 - tn * 0.28)
-		var f1 := f0 * 2.3
-		var f2 := f0 * 3.7
+		var env_main = _bark_pulse_envelope(
+			t,
+			0.0,
+			duration * 0.038,
+			duration * 0.09,
+			duration * 0.42
+		)
+		var env_second = _bark_pulse_envelope(
+			t,
+			second_start,
+			duration * 0.03,
+			second_hold,
+			second_release
+		)
+		var envelope = maxf(env_main, env_second * 0.68)
+		envelope *= 1.0 - clampf((t - duration * 0.9) / maxf(0.01, duration * 0.12), 0.0, 1.0)
+
+		var pitch_fall = lerpf(1.08, 0.72, pow(tn, 0.86))
+		var vibrato = sin(TAU * (4.7 + roughness * 1.8) * t) * 0.012
+		var f0 := maxf(72.0, base_freq * (pitch_fall + vibrato))
 		phase_root += TAU * f0 / float(sample_rate)
-		phase_formant_a += TAU * f1 / float(sample_rate)
-		phase_formant_b += TAU * f2 / float(sample_rate)
+		phase_harm += TAU * (f0 * 2.46) / float(sample_rate)
+		phase_air += TAU * (f0 * 4.32) / float(sample_rate)
 
 		var root = sin(phase_root)
-		var growl = sin(phase_root * 0.5 + sin(phase_root * 0.21) * 0.3)
-		var formant = sin(phase_formant_a) * 0.52 + sin(phase_formant_b) * 0.24
+		var chest = sin(phase_root * 0.5 + sin(phase_root * 0.19) * 0.62)
+		var formant = sin(phase_harm + sin(phase_root) * 0.16) * 0.64 + sin(phase_air) * 0.24
 		var raw_noise = local_rng.randf_range(-1.0, 1.0)
-		noise_lp = lerpf(noise_lp, raw_noise, 0.12)
-		var breath = noise_lp * roughness
+		noise_lp = lerpf(noise_lp, raw_noise, 0.08 + roughness * 0.08)
+		noise_body = lerpf(noise_body, raw_noise, 0.02)
+		var hiss = raw_noise - noise_lp
+		var transient = hiss * _bark_pulse_envelope(t, 0.0, duration * 0.015, duration * 0.01, duration * 0.05)
+		var breath = hiss * (0.2 + roughness * 0.44) + noise_body * 0.12
 
-		var pulse = 0.85 + 0.15 * sin(TAU * (2.2 + roughness) * t)
-		var throat = (root * 0.82 + growl * 0.26 + formant * 0.44) * pulse
-		var clipped = tanh(throat * 1.28 + breath * 0.62)
-		var sample: float = clipped * envelope * 0.92
+		var throat = root * 0.76 + chest * 0.31 + formant * 0.33
+		var sample: float = throat + breath * 0.24 + transient * (0.22 + roughness * 0.18)
+		sample = tanh(sample * (1.18 + roughness * 0.46))
+		sample *= envelope * 0.92
 		sample = clampf(sample, -1.0, 1.0)
 		var int_sample := int(round(sample * 32767.0))
 		data[i * 2] = int_sample & 0xFF
@@ -351,8 +407,8 @@ func _play_bark_sound(is_freya_bark: bool) -> void:
 	var clip: AudioStreamWAV = bark_sfx_streams[rng.randi_range(0, bark_sfx_streams.size() - 1)]
 	player.stop()
 	player.stream = clip
-	player.pitch_scale = rng.randf_range(0.94, 1.06) * (0.96 if is_freya_bark else 1.04)
-	player.volume_db = -10.2 if is_freya_bark else -12.4
+	player.pitch_scale = rng.randf_range(0.91, 1.09) * (0.97 if is_freya_bark else 1.03)
+	player.volume_db = -9.6 if is_freya_bark else -11.2
 	player.play()
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int) -> void:
@@ -378,7 +434,7 @@ func _update_bark_sequences(delta: float) -> void:
 				bark_sequences.remove_at(i)
 				continue
 			seq["remaining"] = remaining
-			seq["next"] = rng.randf_range(0.11, 0.24)
+			seq["next"] = rng.randf_range(0.15, 0.31)
 		bark_sequences[i] = seq
 
 func _create_prop_materials() -> void:
@@ -683,7 +739,7 @@ func _compute_row_alley_layout(parcel: Rect2) -> Dictionary:
 	var south_front = parcel.position.y + parcel.size.y - ROW_FRONT_SETBACK
 	var north_depth = alley_z0 - north_front - alley_gap
 	var south_depth = south_front - alley_z1 - alley_gap
-	var valid = run_w >= 10.4 and north_depth >= 4.0 and south_depth >= 4.0
+	var valid = run_w >= 10.4 and north_depth >= 3.3 and south_depth >= 3.3
 	return {
 		"valid": valid,
 		"alley_mid": alley_mid,
@@ -1127,29 +1183,72 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 	static_root.add_child(node)
 	buildings.append(created)
 
+func _point_in_street_grass_band(p: Vector2) -> bool:
+	for b in buildings:
+		var fp: Rect2 = b["footprint"]
+		var min_x = fp.position.x + 0.2
+		var max_x = fp.position.x + fp.size.x - 0.2
+		if p.x < min_x or p.x > max_x:
+			continue
+
+		var front_is_south = bool(b.get("front_is_south", true))
+		var front_z = fp.position.y + fp.size.y if front_is_south else fp.position.y
+		var near_building = front_z + (BUILDING_SIDEWALK_W + 0.12) * (1.0 if front_is_south else -1.0)
+		var near_street = front_z + (ROW_FRONT_SETBACK - SIDEWALK_W - 0.12) * (1.0 if front_is_south else -1.0)
+		var z0 = minf(near_building, near_street)
+		var z1 = maxf(near_building, near_street)
+		if p.y >= z0 and p.y <= z1:
+			return true
+	return false
+
+func _try_add_tree_at(p: Vector2, street_band_only: bool) -> bool:
+	if _surface_at(p) != "grass":
+		return false
+	if dog_park.grow(0.6).has_point(p):
+		return false
+	if _point_in_building(p, 0.9):
+		return false
+	if street_band_only and not _point_in_street_grass_band(p):
+		return false
+	var hardscape_margin = 0.2 if street_band_only else 0.48
+	if _point_near_hardscape(p, hardscape_margin):
+		return false
+	for existing in trees:
+		var ep: Vector2 = existing.get("pos", Vector2.ZERO)
+		if ep.distance_to(p) < (1.55 if street_band_only else 1.9):
+			return false
+
+	var tree_scale = rng.randf_range(0.9, 1.3)
+	var tree = TreeFactoryScript.create_tree(Vector3(p.x, 0.0, p.y), tree_scale, rng)
+	static_root.add_child(tree)
+	trees.append({
+		"node": tree,
+		"pos": p,
+		"radius": TREE_COLLISION_SCALE * tree_scale,
+		"height": 3.65 * tree_scale
+	})
+	return true
+
 func _populate_trees() -> void:
+	for item in trees:
+		var node: Node3D = item.get("node", null)
+		if node != null and is_instance_valid(node):
+			node.queue_free()
 	trees.clear()
-	for i in range(260):
-		for try_i in range(16):
+	var street_band_target = 280
+	for i in range(street_band_target):
+		for try_i in range(26):
 			var p = Vector2(rng.randf_range(1.0, MAP_W - 1.0), rng.randf_range(1.0, MAP_H - 1.0))
-			if _surface_at(p) != "grass":
-				continue
-			if dog_park.grow(0.6).has_point(p):
-				continue
-			if _point_in_building(p, 0.9):
-				continue
-			if _point_near_hardscape(p, 0.55):
-				continue
-			var tree_scale = rng.randf_range(0.9, 1.3)
-			var tree = TreeFactoryScript.create_tree(Vector3(p.x, 0.0, p.y), tree_scale, rng)
-			static_root.add_child(tree)
-			trees.append({
-				"node": tree,
-				"pos": p,
-				"radius": TREE_COLLISION_SCALE * tree_scale,
-				"height": 3.65 * tree_scale
-			})
-			break
+			if _try_add_tree_at(p, true):
+				break
+
+	var total_target = 420
+	var remaining = max(0, total_target - trees.size())
+	for i in range(remaining):
+		for try_i in range(18):
+			var p = Vector2(rng.randf_range(1.0, MAP_W - 1.0), rng.randf_range(1.0, MAP_H - 1.0))
+			if _try_add_tree_at(p, false):
+				break
 
 func _build_grass_spikes() -> void:
 	var blade_mesh = BoxMesh.new()
@@ -1208,6 +1307,8 @@ func _spawn_sticks(count: int) -> void:
 		if n != null:
 			n.queue_free()
 	sticks.clear()
+	if carried_stick != null and is_instance_valid(carried_stick):
+		carried_stick.queue_free()
 	carried_stick = null
 	freya_has_stick = false
 
@@ -1278,6 +1379,7 @@ func _create_stick_node() -> Node3D:
 	return root
 
 func _spawn_freya_and_dogs() -> void:
+	objective_puke_on_dog_complete = false
 	var freya_model_paths = _animated_model_paths(FREYA_MODEL_CANDIDATES)
 	if freya_model_paths.is_empty():
 		freya_model_paths = _existing_model_paths(FREYA_MODEL_CANDIDATES)
@@ -1700,7 +1802,7 @@ func _compute_freya_move_speed(running: bool) -> float:
 	var speed = FREYA_BASE_SPEED * (1.0 - speed_penalty)
 	if running:
 		speed *= FREYA_RUN_MULT
-		if freya_has_stick:
+		if freya_has_stick and carried_stick != null and is_instance_valid(carried_stick):
 			speed *= FREYA_STICK_RUN_MULT
 	return maxf(1.7, speed)
 
@@ -1793,17 +1895,76 @@ func _handle_actions() -> void:
 	if Input.is_action_just_pressed("vomit"):
 		_try_vomit()
 
+func _remove_stick_entry_for_node(node: Node3D) -> void:
+	if node == null:
+		return
+	for i in range(sticks.size() - 1, -1, -1):
+		var item: Dictionary = sticks[i]
+		if item.get("node", null) == node:
+			sticks.remove_at(i)
+
+func _update_carried_stick_pose() -> void:
+	if carried_stick == null:
+		freya_has_stick = false
+		return
+	if not is_instance_valid(carried_stick):
+		carried_stick = null
+		freya_has_stick = false
+		return
+	if freya == null:
+		return
+
+	if carried_stick.get_parent() != dynamic_root:
+		carried_stick.reparent(dynamic_root, true)
+
+	var forward: Vector3 = -freya.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+
+	var right: Vector3 = freya.global_transform.basis.x
+	right.y = 0.0
+	if right.length_squared() < 0.0001:
+		right = forward.cross(Vector3.UP)
+	right = right.normalized()
+
+	var up := Vector3.UP
+	var pitch := deg_to_rad(STICK_MOUTH_PITCH_DEG)
+	var mouth_dir := (forward * cos(pitch) + up * sin(pitch)).normalized()
+	var depth_axis := mouth_dir.cross(up)
+	if depth_axis.length_squared() < 0.0001:
+		depth_axis = right
+	depth_axis = depth_axis.normalized()
+	var up_axis := depth_axis.cross(mouth_dir).normalized()
+
+	var mouth_pos = freya.head_world_position()
+	mouth_pos += forward * STICK_MOUTH_FORWARD_OFFSET
+	mouth_pos += right * STICK_MOUTH_RIGHT_OFFSET
+	mouth_pos += up * STICK_MOUTH_UP_OFFSET
+
+	carried_stick.global_transform = Transform3D(Basis(mouth_dir, up_axis, depth_axis).orthonormalized(), mouth_pos)
+	freya_has_stick = true
+
 func _try_interact() -> void:
-	if freya_has_stick:
+	if carried_stick != null and is_instance_valid(carried_stick):
+		freya_has_stick = true
 		if _try_eat_poop(false):
 			return
 		_drop_carried_stick()
 		return
+	freya_has_stick = false
 	if _try_pickup_stick():
 		return
 	_try_eat_poop(true)
 
 func _try_pickup_stick() -> bool:
+	if carried_stick != null and not is_instance_valid(carried_stick):
+		carried_stick = null
+		freya_has_stick = false
+	if freya_has_stick or carried_stick != null:
+		return false
+
 	var best_idx = -1
 	var best_d = 9999.0
 	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
@@ -1823,16 +1984,19 @@ func _try_pickup_stick() -> bool:
 	if node == null:
 		return false
 
-	node.reparent(freya, false)
-	node.position = Vector3(0.0, 0.88, -0.44)
-	node.rotation_degrees = Vector3(14.0, 8.0, 84.0)
+	_remove_stick_entry_for_node(node)
+	if node.get_parent() != dynamic_root:
+		node.reparent(dynamic_root, true)
 	carried_stick = node
 	freya_has_stick = true
-	_show_status("Picked up a stick", 0.8)
+	_update_carried_stick_pose()
+	_show_status("Picked up a stick in mouth", 0.8)
 	return true
 
 func _drop_carried_stick() -> bool:
-	if not freya_has_stick or carried_stick == null:
+	if carried_stick == null or not is_instance_valid(carried_stick):
+		carried_stick = null
+		freya_has_stick = false
 		return false
 
 	var forward: Vector3 = -freya.global_transform.basis.z
@@ -1845,7 +2009,9 @@ func _drop_carried_stick() -> bool:
 	if not _is_walkable(drop_pos.x, drop_pos.z, 0.1) or _surface_at(Vector2(drop_pos.x, drop_pos.z)) == "road":
 		drop_pos = freya.global_position + Vector3(rng.randf_range(-0.65, 0.65), 0.0, rng.randf_range(-0.65, 0.65))
 
-	carried_stick.reparent(dynamic_root, true)
+	_remove_stick_entry_for_node(carried_stick)
+	if carried_stick.get_parent() != dynamic_root:
+		carried_stick.reparent(dynamic_root, true)
 	carried_stick.global_position = Vector3(drop_pos.x, 0.03, drop_pos.z)
 	carried_stick.rotation_degrees = Vector3(rng.randf_range(-8.0, 8.0), rng.randf_range(0.0, 360.0), 90.0 + rng.randf_range(-7.0, 7.0))
 	sticks.append({"node": carried_stick, "pos": Vector2(drop_pos.x, drop_pos.z)})
@@ -1892,6 +2058,10 @@ func _try_vomit() -> void:
 		forward = Vector3.FORWARD
 	forward = forward.normalized()
 
+	var vomit_start = Vector2(freya.global_position.x, freya.global_position.z)
+	var vomit_end = vomit_start + Vector2(forward.x, forward.z) * 1.45
+	var hit_dog = _vomit_hits_any_dog(vomit_start, vomit_end)
+
 	var puddle_pos = freya.global_position + forward * 0.95
 	var puddle = _create_vomit_puddle_node()
 	puddle.position = Vector3(puddle_pos.x, 0.02, puddle_pos.z)
@@ -1900,7 +2070,26 @@ func _try_vomit() -> void:
 
 	freya_vomit = 0.0
 	freya_vomit_timer = 0.65
-	_show_status("Bleaaargh!", 1.0)
+	if hit_dog and not objective_puke_on_dog_complete:
+		objective_puke_on_dog_complete = true
+		_show_status("Objective complete: Puke on another dog", 1.4)
+	elif hit_dog:
+		_show_status("Direct hit!", 0.9)
+	else:
+		_show_status("Bleaaargh!", 1.0)
+
+func _vomit_hits_any_dog(start: Vector2, stop: Vector2) -> bool:
+	var hit_any = false
+	for d in dogs:
+		var dog = d.get("node", null)
+		if dog == null:
+			continue
+		var center = Vector2(dog.global_position.x, dog.global_position.z)
+		var hit = _segment_circle_intersection_2d(start, stop, center, 0.9)
+		if bool(hit.get("hit", false)):
+			hit_any = true
+			_spawn_bark_pulse(dog.head_world_position(), Color(0.92, 0.97, 0.79, 0.84))
+	return hit_any
 
 func _create_vomit_puddle_node() -> Node3D:
 	var root = Node3D.new()
@@ -2256,6 +2445,16 @@ func _run_headless_smoke_checks() -> void:
 		var boosted_speed = _compute_freya_move_speed(true)
 		if boosted_speed <= base_run_speed + 0.05:
 			failures.append("stick_run_boost_missing")
+		var second_stick = _create_stick_node()
+		var second_pos = Vector3(freya.global_position.x + 0.75, 0.03, freya.global_position.z + 0.15)
+		second_stick.position = second_pos
+		dynamic_root.add_child(second_stick)
+		sticks.append({"node": second_stick, "pos": Vector2(second_pos.x, second_pos.z)})
+		if _try_pickup_stick():
+			failures.append("multiple_stick_pickup_allowed")
+		_remove_stick_entry_for_node(second_stick)
+		if is_instance_valid(second_stick):
+			second_stick.queue_free()
 	_drop_carried_stick()
 
 	# Social + bark check
@@ -2383,9 +2582,19 @@ func _update_camera(delta: float) -> void:
 	else:
 		camera_focus = camera_focus.lerp(target, clamp(delta * 5.2, 0.0, 1.0))
 
-	var offset = Vector3(-11.6, 14.3, 11.6)
+	var planar_offset = Vector3(-11.6, 0.0, 11.6).rotated(Vector3.UP, camera_orbit_angle)
+	var offset = Vector3(planar_offset.x, 14.3, planar_offset.z)
 	camera_node.global_position = camera_focus + offset
 	camera_node.look_at(camera_focus + Vector3(0.0, -0.15, 0.0), Vector3.UP)
+
+func _update_camera_orbit_input(delta: float) -> void:
+	var rotate_dir = 0.0
+	if Input.is_action_pressed("camera_rotate_ccw"):
+		rotate_dir += 1.0
+	if Input.is_action_pressed("camera_rotate_cw"):
+		rotate_dir -= 1.0
+	if absf(rotate_dir) > 0.0001:
+		camera_orbit_angle = wrapf(camera_orbit_angle + rotate_dir * CAMERA_ORBIT_SPEED * delta, -PI, PI)
 
 func _clear_occlusion_outlines() -> void:
 	for m in outlined_freya_meshes:
@@ -2697,7 +2906,7 @@ func _create_objectives_overlay() -> void:
 	objectives_panel.add_child(title)
 
 	objectives_list_label = Label.new()
-	objectives_list_label.text = "- No active objectives yet"
+	objectives_list_label.text = _objectives_text()
 	objectives_list_label.position = Vector2(16.0, 42.0)
 	objectives_list_label.size = Vector2(330.0, 80.0)
 	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2707,7 +2916,13 @@ func _create_objectives_overlay() -> void:
 func _update_objectives_overlay() -> void:
 	if objectives_panel == null:
 		return
+	if objectives_list_label != null:
+		objectives_list_label.text = _objectives_text()
 	objectives_panel.visible = (not pause_menu_open) and Input.is_action_pressed("objectives")
+
+func _objectives_text() -> String:
+	var state = "[DONE]" if objective_puke_on_dog_complete else "[ ]"
+	return "- %s Puke on another dog" % state
 
 func _create_pause_menu() -> void:
 	pause_menu_layer = CanvasLayer.new()
@@ -2744,7 +2959,7 @@ func _create_pause_menu() -> void:
 	pause_menu_panel.add_child(title)
 
 	var controls = Label.new()
-	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nE: Eat poop / Pick up or drop stick\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
+	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up or drop stick\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
 	controls.position = Vector2(22, 58)
 	controls.size = Vector2(436, 172)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2842,10 +3057,10 @@ func _update_ui() -> void:
 		action_hint_label.text = "Press SPACE to vomit"
 		action_hint_label.add_theme_color_override("font_color", Color(0.83, 0.95, 0.69, 0.98))
 	elif freya_has_stick:
-		action_hint_label.text = "Press E to drop stick (or eat nearby poop)"
+		action_hint_label.text = "Press F to drop stick (or eat nearby poop)"
 		action_hint_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.76, 0.98))
 	else:
-		action_hint_label.text = "Press E to eat poop or pick up a stick"
+		action_hint_label.text = "Press F to eat poop or pick up a stick"
 		action_hint_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8, 0.96))
 
 func _sync_minimap_static() -> void:
