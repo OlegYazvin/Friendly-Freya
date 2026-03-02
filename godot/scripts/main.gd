@@ -22,14 +22,18 @@ const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
 const STICK_MOUTH_PITCH_DEG = -2.0
 const BARK_PRIMARY_SOURCE = "res://assets/audio/dog_barking_mono.wav"
-const BARK_SAMPLE_CANDIDATES = [
-	"res://assets/audio/dog_barking_mono.wav",
+const BARK_PASSIVE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/barks/bark_01.wav",
 	"res://assets/audio/barks/bark_02.wav",
 	"res://assets/audio/barks/bark_03.wav",
-	"res://assets/audio/barks/bark_04.wav",
+	"res://assets/audio/barks/bark_04.wav"
+]
+const BARK_AGGRESSIVE_SAMPLE_CANDIDATES = [
+	"res://assets/audio/barks/aggressive_bark_01.wav",
+	"res://assets/audio/barks/aggressive_bark_02.wav",
+	"res://assets/audio/barks/bark_06.wav",
 	"res://assets/audio/barks/bark_05.wav",
-	"res://assets/audio/barks/bark_06.wav"
+	"res://assets/audio/barks/bark_04.wav"
 ]
 const OBJECTIVE_CLAIM_TARGET = 10
 const CLAIM_TARGET_NONE = 0
@@ -175,9 +179,13 @@ var pause_menu_layer: CanvasLayer
 var pause_menu_panel: Panel
 var pause_menu_open = false
 var bark_sfx_players: Array[AudioStreamPlayer] = []
-var bark_sfx_streams: Array[AudioStream] = []
+var bark_sfx_streams_passive: Array[AudioStream] = []
+var bark_sfx_streams_aggressive: Array[AudioStream] = []
 var bark_sfx_cursor = 0
+var bark_last_clip_idx = -1
 var bark_sequences: Array = []
+var pause_controls_button: Button
+var pause_controls_panel: Panel
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -259,6 +267,7 @@ func _configure_input() -> void:
 	_ensure_action("vomit", [Key.KEY_SPACE])
 	_ensure_action("drop_stick", [Key.KEY_V])
 	_ensure_action("claim", [Key.KEY_R])
+	_ensure_action("aggressive_social", [Key.KEY_X])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
 
@@ -270,11 +279,14 @@ func _ensure_action(name: String, keys: Array) -> void:
 			continue
 		var ev = InputEventKey.new()
 		ev.physical_keycode = int(k)
+		ev.keycode = int(k)
 		InputMap.action_add_event(name, ev)
 
 func _action_has_key(name: String, keycode: int) -> bool:
+	if not InputMap.has_action(name):
+		return false
 	for ev in InputMap.action_get_events(name):
-		if ev is InputEventKey and ev.physical_keycode == keycode:
+		if ev is InputEventKey and (ev.physical_keycode == keycode or ev.keycode == keycode):
 			return true
 	return false
 
@@ -282,7 +294,7 @@ func _remove_action_key(name: String, keycode: int) -> void:
 	if not InputMap.has_action(name):
 		return
 	for ev in InputMap.action_get_events(name):
-		if ev is InputEventKey and ev.physical_keycode == keycode:
+		if ev is InputEventKey and (ev.physical_keycode == keycode or ev.keycode == keycode):
 			InputMap.action_erase_event(name, ev)
 
 func _create_render_setup() -> void:
@@ -334,19 +346,27 @@ func _create_world_roots() -> void:
 	world_root.add_child(dynamic_root)
 
 func _create_audio_setup() -> void:
-	bark_sfx_streams.clear()
-	for stream in _load_bark_streams_from_files():
-		bark_sfx_streams.append(stream)
-	if bark_sfx_streams.is_empty():
-		push_warning("Bark files not loaded; falling back to synthesized bark audio.")
-		bark_sfx_streams.append(_build_bark_stream(116.0, 0.34, 0.33))
-		bark_sfx_streams.append(_build_bark_stream(124.0, 0.3, 0.3))
-		bark_sfx_streams.append(_build_bark_stream(132.0, 0.28, 0.29))
-		bark_sfx_streams.append(_build_bark_stream(142.0, 0.27, 0.27))
-		bark_sfx_streams.append(_build_bark_stream(154.0, 0.24, 0.24))
-		bark_sfx_streams.append(_build_bark_stream(166.0, 0.22, 0.22))
-		bark_sfx_streams.append(_build_bark_stream(178.0, 0.2, 0.2))
-		bark_sfx_streams.append(_build_bark_stream(188.0, 0.18, 0.19))
+	bark_sfx_streams_passive.clear()
+	for stream in _load_bark_streams_from_files(BARK_PASSIVE_SAMPLE_CANDIDATES):
+		bark_sfx_streams_passive.append(stream)
+	if bark_sfx_streams_passive.is_empty():
+		push_warning("Passive bark files not loaded; falling back to synthesized bark audio.")
+		bark_sfx_streams_passive.append(_build_bark_stream(126.0, 0.27, 0.26))
+		bark_sfx_streams_passive.append(_build_bark_stream(138.0, 0.25, 0.24))
+		bark_sfx_streams_passive.append(_build_bark_stream(152.0, 0.23, 0.23))
+		bark_sfx_streams_passive.append(_build_bark_stream(166.0, 0.2, 0.22))
+
+	bark_sfx_streams_aggressive.clear()
+	for stream in _load_bark_streams_from_files(BARK_AGGRESSIVE_SAMPLE_CANDIDATES):
+		bark_sfx_streams_aggressive.append(stream)
+	if bark_sfx_streams_aggressive.is_empty():
+		# Aggressive social barking should feel sharper and rougher than passive chatter.
+		bark_sfx_streams_aggressive.append(_build_bark_stream(112.0, 0.43, 0.24))
+		bark_sfx_streams_aggressive.append(_build_bark_stream(121.0, 0.46, 0.23))
+		bark_sfx_streams_aggressive.append(_build_bark_stream(130.0, 0.42, 0.22))
+	if bark_sfx_streams_aggressive.is_empty():
+		for stream in bark_sfx_streams_passive:
+			bark_sfx_streams_aggressive.append(stream)
 
 	for p in bark_sfx_players:
 		if p != null:
@@ -360,11 +380,12 @@ func _create_audio_setup() -> void:
 		add_child(player)
 		bark_sfx_players.append(player)
 	bark_sfx_cursor = 0
+	bark_last_clip_idx = -1
 	bark_sequences.clear()
 
-func _load_bark_streams_from_files() -> Array[AudioStream]:
+func _load_bark_streams_from_files(candidates: Array) -> Array[AudioStream]:
 	var out: Array[AudioStream] = []
-	for path in BARK_SAMPLE_CANDIDATES:
+	for path in candidates:
 		if not FileAccess.file_exists(path):
 			continue
 		var lower = path.to_lower()
@@ -467,8 +488,11 @@ func _build_bark_stream(base_freq: float, roughness: float, duration: float) -> 
 	wav.data = data
 	return wav
 
-func _play_bark_sound(is_freya_bark: bool) -> void:
-	if bark_sfx_players.is_empty() or bark_sfx_streams.is_empty():
+func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
+	var bark_pool = bark_sfx_streams_aggressive if aggressive else bark_sfx_streams_passive
+	if bark_pool.is_empty():
+		bark_pool = bark_sfx_streams_passive
+	if bark_sfx_players.is_empty() or bark_pool.is_empty():
 		return
 	var idx: int = bark_sfx_cursor % bark_sfx_players.size()
 	bark_sfx_cursor += 1
@@ -476,20 +500,29 @@ func _play_bark_sound(is_freya_bark: bool) -> void:
 	if player == null:
 		return
 
-	var clip: AudioStream = bark_sfx_streams[rng.randi_range(0, bark_sfx_streams.size() - 1)]
+	var clip_idx = rng.randi_range(0, bark_pool.size() - 1)
+	if bark_pool.size() > 1 and clip_idx == bark_last_clip_idx:
+		clip_idx = (clip_idx + 1 + rng.randi_range(0, bark_pool.size() - 2)) % bark_pool.size()
+	bark_last_clip_idx = clip_idx
+	var clip: AudioStream = bark_pool[clip_idx]
 	player.stop()
 	player.stream = clip
-	player.pitch_scale = rng.randf_range(0.94, 1.04) * (0.985 if is_freya_bark else 1.015)
-	player.volume_db = -8.8 if is_freya_bark else -10.2
+	if aggressive:
+		player.pitch_scale = rng.randf_range(0.84, 0.96) * (0.97 if is_freya_bark else 1.0)
+		player.volume_db = -6.0 if is_freya_bark else -7.4
+	else:
+		player.pitch_scale = rng.randf_range(0.9, 1.03) * (0.99 if is_freya_bark else 1.01)
+		player.volume_db = -7.8 if is_freya_bark else -9.0
 	player.play()
 
-func _queue_bark_sequence(is_freya_bark: bool, barks: int) -> void:
+func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
 	if barks <= 0:
 		return
 	if bark_sequences.size() > 28:
 		return
 	bark_sequences.append({
 		"is_freya": is_freya_bark,
+		"aggressive": aggressive,
 		"remaining": barks,
 		"next": 0.0
 	})
@@ -500,13 +533,14 @@ func _update_bark_sequences(delta: float) -> void:
 		seq["next"] = float(seq.get("next", 0.0)) - delta
 		if float(seq["next"]) <= 0.0:
 			var is_freya = bool(seq.get("is_freya", false))
-			_play_bark_sound(is_freya)
+			var aggressive = bool(seq.get("aggressive", false))
+			_play_bark_sound(is_freya, aggressive)
 			var remaining = int(seq.get("remaining", 0)) - 1
 			if remaining <= 0:
 				bark_sequences.remove_at(i)
 				continue
 			seq["remaining"] = remaining
-			seq["next"] = rng.randf_range(0.28, 0.52)
+			seq["next"] = rng.randf_range(0.18, 0.34) if aggressive else rng.randf_range(0.28, 0.52)
 		bark_sequences[i] = seq
 
 func _create_prop_materials() -> void:
@@ -594,14 +628,14 @@ func _create_prop_materials() -> void:
 	stick_material_branch.metallic = 0.0
 
 	vomit_material_a = StandardMaterial3D.new()
-	vomit_material_a.albedo_color = Color8(145, 191, 88)
-	vomit_material_a.roughness = 0.74
-	vomit_material_a.metallic = 0.03
+	vomit_material_a.albedo_color = Color8(167, 151, 92)
+	vomit_material_a.roughness = 0.88
+	vomit_material_a.metallic = 0.0
 
 	vomit_material_b = StandardMaterial3D.new()
-	vomit_material_b.albedo_color = Color8(112, 156, 62)
-	vomit_material_b.roughness = 0.8
-	vomit_material_b.metallic = 0.01
+	vomit_material_b.albedo_color = Color8(126, 104, 64)
+	vomit_material_b.roughness = 0.94
+	vomit_material_b.metallic = 0.0
 
 	freya_outline_material = _make_outline_material(Color(0.18, 0.96, 0.98, 1.0), 0.05)
 	object_outline_material = _make_outline_material(Color(0.98, 0.92, 0.42, 0.96), 0.036)
@@ -1983,14 +2017,22 @@ func _update_dogs(delta: float) -> void:
 		state["dir"] = dir
 
 		var near: float = dog.global_position.distance_to(freya.global_position)
+		var aggressive_social = Input.is_action_pressed("aggressive_social")
 		if near < 4.2:
-			freya_social = clamp(freya_social + delta * 22.0, 0.0, 100.0)
+			freya_social = clamp(freya_social + delta * (31.0 if aggressive_social else 22.0), 0.0, 100.0)
 			if float(state["bark"]) <= 0.0:
-				_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 1.0, 1.0, 0.82))
-				_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.9, 0.65, 0.84))
-				_queue_bark_sequence(false, rng.randi_range(1, 2))
-				_queue_bark_sequence(true, rng.randi_range(1, 2))
-				state["bark"] = rng.randf_range(0.52, 0.96)
+				if aggressive_social:
+					_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 0.78, 0.74, 0.9))
+					_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.62, 0.54, 0.94))
+					_queue_bark_sequence(false, rng.randi_range(2, 3), true)
+					_queue_bark_sequence(true, rng.randi_range(2, 3), true)
+					state["bark"] = rng.randf_range(0.24, 0.48)
+				else:
+					_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 1.0, 1.0, 0.82))
+					_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.9, 0.65, 0.84))
+					_queue_bark_sequence(false, rng.randi_range(1, 2), false)
+					_queue_bark_sequence(true, rng.randi_range(1, 2), false)
+					state["bark"] = rng.randf_range(0.52, 0.96)
 
 		dogs[i] = state
 
@@ -2599,17 +2641,16 @@ func _try_vomit() -> void:
 		_show_status("Vomit meter not full", 0.9)
 		return
 
-	var forward: Vector3 = -freya.global_transform.basis.z
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = Vector3.FORWARD
-	forward = forward.normalized()
-
-	var vomit_start = Vector2(freya.global_position.x, freya.global_position.z)
+	var vomit_data = _freya_vomit_origin_and_direction()
+	var vomit_origin: Vector3 = vomit_data.get("origin", freya.global_position + Vector3(0.0, 0.38, 0.0))
+	var forward: Vector3 = vomit_data.get("forward", Vector3.FORWARD)
+	var vomit_start = Vector2(vomit_origin.x, vomit_origin.z)
 	var vomit_end = vomit_start + Vector2(forward.x, forward.z) * 1.45
 	var hit_dog = _vomit_hits_any_dog(vomit_start, vomit_end)
 
-	var puddle_pos = freya.global_position + forward * 0.95
+	var puddle_pos = vomit_origin + forward * 0.75
+	if not _is_walkable(puddle_pos.x, puddle_pos.z, 0.08):
+		puddle_pos = freya.global_position + forward * 0.85
 	var puddle = _create_vomit_puddle_node()
 	puddle.position = Vector3(puddle_pos.x, 0.02, puddle_pos.z)
 	dynamic_root.add_child(puddle)
@@ -2624,6 +2665,24 @@ func _try_vomit() -> void:
 		_show_status("Direct hit!", 0.9)
 	else:
 		_show_status("Bleaaargh!", 1.0)
+
+func _freya_vomit_origin_and_direction() -> Dictionary:
+	var origin = freya.global_position + Vector3(0.0, 0.38, 0.0)
+	var forward = -freya.global_transform.basis.z
+	if freya != null and freya.has_method("mouth_world_position"):
+		origin = freya.call("mouth_world_position")
+	var head = origin - forward * 0.3
+	if freya != null and freya.has_method("head_world_position"):
+		head = freya.call("head_world_position")
+	var mouth_forward = origin - head
+	mouth_forward.y = 0.0
+	if mouth_forward.length_squared() > 0.0001:
+		forward = mouth_forward
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+	return {"origin": origin, "forward": forward}
 
 func _vomit_hits_any_dog(start: Vector2, stop: Vector2) -> bool:
 	var hit_any = false
@@ -2640,16 +2699,31 @@ func _vomit_hits_any_dog(start: Vector2, stop: Vector2) -> bool:
 
 func _create_vomit_puddle_node() -> Node3D:
 	var root = Node3D.new()
-	for i in range(4):
-		var blob = MeshInstance3D.new()
-		var mesh = SphereMesh.new()
-		mesh.radius = rng.randf_range(0.1, 0.2)
-		mesh.height = mesh.radius * 2.0
-		blob.mesh = mesh
-		blob.position = Vector3(rng.randf_range(-0.18, 0.18), 0.02, rng.randf_range(-0.15, 0.15))
-		blob.scale = Vector3(rng.randf_range(1.2, 2.0), rng.randf_range(0.2, 0.36), rng.randf_range(1.2, 2.0))
-		blob.material_override = vomit_material_a if i % 2 == 0 else vomit_material_b
-		root.add_child(blob)
+
+	var smear = MeshInstance3D.new()
+	var smear_mesh = CylinderMesh.new()
+	smear_mesh.top_radius = rng.randf_range(0.16, 0.24)
+	smear_mesh.bottom_radius = smear_mesh.top_radius * rng.randf_range(1.1, 1.35)
+	smear_mesh.height = rng.randf_range(0.04, 0.07)
+	smear.mesh = smear_mesh
+	smear.position = Vector3(0.0, 0.012, 0.0)
+	smear.scale = Vector3(rng.randf_range(1.15, 1.75), 1.0, rng.randf_range(0.92, 1.42))
+	smear.material_override = vomit_material_a
+	root.add_child(smear)
+
+	var chunk_count = rng.randi_range(7, 11)
+	for i in range(chunk_count):
+		var chunk = MeshInstance3D.new()
+		var chunk_mesh = SphereMesh.new()
+		chunk_mesh.radius = rng.randf_range(0.04, 0.1)
+		chunk_mesh.height = chunk_mesh.radius * 2.0
+		chunk.mesh = chunk_mesh
+		var dist = rng.randf_range(0.01, 0.24)
+		var angle = rng.randf_range(0.0, TAU)
+		chunk.position = Vector3(cos(angle) * dist, rng.randf_range(0.014, 0.052), sin(angle) * dist)
+		chunk.scale = Vector3(rng.randf_range(0.75, 1.7), rng.randf_range(0.32, 1.0), rng.randf_range(0.75, 1.65))
+		chunk.material_override = vomit_material_b if i % 3 == 0 else vomit_material_a
+		root.add_child(chunk)
 	return root
 
 func _update_poops(delta: float) -> void:
@@ -3561,10 +3635,10 @@ func _create_pause_menu() -> void:
 	pause_menu_panel.anchor_top = 0.5
 	pause_menu_panel.anchor_right = 0.5
 	pause_menu_panel.anchor_bottom = 0.5
-	pause_menu_panel.offset_left = -240.0
-	pause_menu_panel.offset_top = -175.0
-	pause_menu_panel.offset_right = 240.0
-	pause_menu_panel.offset_bottom = 175.0
+	pause_menu_panel.offset_left = -285.0
+	pause_menu_panel.offset_top = -210.0
+	pause_menu_panel.offset_right = 285.0
+	pause_menu_panel.offset_bottom = 210.0
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.07, 0.1, 0.92)
 	panel_style.border_color = Color(0.78, 0.87, 0.92, 0.85)
@@ -3585,28 +3659,59 @@ func _create_pause_menu() -> void:
 	title.add_theme_font_size_override("font_size", 28)
 	pause_menu_panel.add_child(title)
 
-	var controls = Label.new()
-	controls.text = "Controls:\nWASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick\nV: Drop carried stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when full)\nTab (hold): Objectives\nEsc: Toggle menu"
-	controls.position = Vector2(22, 58)
-	controls.size = Vector2(436, 172)
-	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
-	controls.add_theme_font_size_override("font_size", 16)
-	pause_menu_panel.add_child(controls)
-
 	var resume_btn = Button.new()
 	resume_btn.text = "Resume"
-	resume_btn.position = Vector2(22, 262)
-	resume_btn.size = Vector2(210, 44)
+	resume_btn.position = Vector2(22, 62)
+	resume_btn.size = Vector2(170, 44)
 	resume_btn.pressed.connect(_on_pause_resume_pressed)
 	pause_menu_panel.add_child(resume_btn)
 
+	pause_controls_button = Button.new()
+	pause_controls_button.text = "Controls"
+	pause_controls_button.position = Vector2(200, 62)
+	pause_controls_button.size = Vector2(170, 44)
+	pause_controls_button.pressed.connect(_on_pause_controls_pressed)
+	pause_menu_panel.add_child(pause_controls_button)
+
 	var exit_btn = Button.new()
-	exit_btn.text = "Exit Game"
-	exit_btn.position = Vector2(248, 262)
-	exit_btn.size = Vector2(210, 44)
+	exit_btn.text = "Quit Game"
+	exit_btn.position = Vector2(378, 62)
+	exit_btn.size = Vector2(170, 44)
 	exit_btn.pressed.connect(_on_pause_exit_pressed)
 	pause_menu_panel.add_child(exit_btn)
 
+	pause_controls_panel = Panel.new()
+	pause_controls_panel.position = Vector2(22, 120)
+	pause_controls_panel.size = Vector2(526, 262)
+	var controls_bg = StyleBoxFlat.new()
+	controls_bg.bg_color = Color(0.07, 0.11, 0.14, 0.92)
+	controls_bg.border_color = Color(0.68, 0.79, 0.86, 0.7)
+	controls_bg.border_width_left = 1
+	controls_bg.border_width_top = 1
+	controls_bg.border_width_right = 1
+	controls_bg.border_width_bottom = 1
+	controls_bg.corner_radius_top_left = 8
+	controls_bg.corner_radius_top_right = 8
+	controls_bg.corner_radius_bottom_left = 8
+	controls_bg.corner_radius_bottom_right = 8
+	pause_controls_panel.add_theme_stylebox_override("panel", controls_bg)
+	pause_menu_panel.add_child(pause_controls_panel)
+
+	var controls_title = Label.new()
+	controls_title.text = "Controls"
+	controls_title.position = Vector2(14, 12)
+	controls_title.add_theme_font_size_override("font_size", 22)
+	pause_controls_panel.add_child(controls_title)
+
+	var controls = Label.new()
+	controls.text = "WASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick\nV: Drop carried stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when meter is full)\nHold X near other dogs: Aggressive social barking\nTab (hold): Objectives\nEsc: Pause / resume"
+	controls.position = Vector2(16, 46)
+	controls.size = Vector2(496, 196)
+	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
+	controls.add_theme_font_size_override("font_size", 16)
+	pause_controls_panel.add_child(controls)
+
+	pause_controls_panel.visible = false
 	pause_menu_panel.visible = false
 
 func _toggle_pause_menu(force_state: int = -1) -> void:
@@ -3618,10 +3723,21 @@ func _toggle_pause_menu(force_state: int = -1) -> void:
 		_hide_claim_meter()
 	if pause_menu_panel != null:
 		pause_menu_panel.visible = open
+	if pause_controls_panel != null and not open:
+		pause_controls_panel.visible = false
+	if pause_controls_button != null and not open:
+		pause_controls_button.text = "Controls"
 	get_tree().paused = open
 
 func _on_pause_resume_pressed() -> void:
 	_toggle_pause_menu(0)
+
+func _on_pause_controls_pressed() -> void:
+	if pause_controls_panel == null:
+		return
+	pause_controls_panel.visible = not pause_controls_panel.visible
+	if pause_controls_button != null:
+		pause_controls_button.text = "Hide Controls" if pause_controls_panel.visible else "Controls"
 
 func _on_pause_exit_pressed() -> void:
 	get_tree().quit()
@@ -3683,13 +3799,13 @@ func _update_ui() -> void:
 	social_value_label.text = "%d%%" % int(round(freya_social))
 
 	if freya_vomit >= 100.0:
-		action_hint_label.text = "Press SPACE to vomit | Hold R to claim"
+		action_hint_label.text = "Press SPACE to vomit | Hold X near dogs for aggressive barking | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.83, 0.95, 0.69, 0.98))
 	elif freya_has_stick:
-		action_hint_label.text = "Press V to drop stick | Press F to eat nearby poop | Hold R to claim"
+		action_hint_label.text = "Press V to drop stick | Press F to eat nearby poop | Hold X near dogs for aggressive barking | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.76, 0.98))
 	else:
-		action_hint_label.text = "Press F to eat poop or pick up a stick | Hold R to claim"
+		action_hint_label.text = "Press F to eat poop or pick up a stick | Hold X near dogs for aggressive barking | Hold R to claim"
 		action_hint_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8, 0.96))
 
 	_update_claim_meter_overlay()

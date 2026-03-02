@@ -8,8 +8,12 @@ How to run:
 No Godot installation is required.
 
 Controls:
-- WASD / Arrow keys: Move Freya
+- WASD / Arrow keys: Move
 - Shift: Run
 - Q / E: Rotate camera
 - F: Eat nearby poop / pick up or drop stick
-- Space: Vomit when meter is full
+- V: Drop carried stick
+- Hold R: Claim trees/poles
+- Space: Vomit (when meter is full)
+- Hold X near other dogs: Aggressive social barking
+- Esc: Pause menu (Resume / Controls / Quit)
