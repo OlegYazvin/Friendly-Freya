@@ -82,8 +82,8 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 
 	var width = footprint.size.x
 	var depth = footprint.size.y
-	var floor_h = 3.25
-	var body_h = float(floors) * floor_h + 0.65
+	var floor_h = 4.25
+	var body_h = float(floors) * floor_h + 0.9
 	var center = Vector3(footprint.position.x + width * 0.5, 0.0, footprint.position.y + depth * 0.5)
 	root.position = center
 
@@ -274,7 +274,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 
 	var width = footprint.size.x
 	var depth = footprint.size.y
-	var target_h = max(4.6, float(floors) * 3.15 + 0.8)
+	var target_h = max(6.8, float(floors) * 4.35 + 1.4)
 	var center = Vector3(footprint.position.x + width * 0.5, 0.0, footprint.position.y + depth * 0.5)
 	root.position = center
 
@@ -300,7 +300,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 		bounds = _compute_model_bounds(model_root)
 
 		var current_h: float = maxf(bounds.size.y, 0.05)
-		var y_ratio: float = clampf(target_h / current_h, 0.72, 1.42)
+		var y_ratio: float = clampf(target_h / current_h, 0.84, 1.9)
 		model_root.scale.y *= y_ratio
 		bounds = _compute_model_bounds(model_root)
 
@@ -339,7 +339,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 	# Safety fallback if instantiate did not produce Node3D.
 	var fallback_body = MeshInstance3D.new()
 	var fallback_mesh = BoxMesh.new()
-	fallback_mesh.size = Vector3(width, max(4.5, float(floors) * 3.1), depth)
+	fallback_mesh.size = Vector3(width, max(6.4, float(floors) * 4.25), depth)
 	fallback_body.mesh = fallback_mesh
 	fallback_body.position = Vector3(0.0, fallback_mesh.size.y * 0.5, 0.0)
 	fallback_body.material_override = _wall_materials[rng.randi_range(0, _wall_materials.size() - 1)]

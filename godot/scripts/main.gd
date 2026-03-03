@@ -21,26 +21,33 @@ const STICK_MOUTH_FORWARD_OFFSET = -0.08
 const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
 const STICK_MOUTH_PITCH_DEG = -2.0
-const BARK_PRIMARY_SOURCE = "res://assets/audio/dog_barking_mono.wav"
+const BARK_PRIMARY_SOURCE = "res://assets/audio/dog_barking.wav"
 const BARK_PASSIVE_SAMPLE_CANDIDATES = [
-	"res://assets/audio/barks/bark_01.wav",
-	"res://assets/audio/barks/bark_02.wav",
-	"res://assets/audio/barks/bark_03.wav",
-	"res://assets/audio/barks/bark_04.wav"
+	"res://assets/audio/barks/bark_real_01.wav",
+	"res://assets/audio/barks/bark_real_02.wav",
+	"res://assets/audio/barks/bark_real_03.wav",
+	"res://assets/audio/barks/bark_real_04.wav",
+	"res://assets/audio/barks/bark_real_05.wav",
+	"res://assets/audio/barks/bark_real_06.wav",
+	"res://assets/audio/barks/bark_real_07.wav",
+	"res://assets/audio/barks/bark_real_08.wav"
 ]
 const BARK_AGGRESSIVE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/barks/aggressive_bark_01.wav",
 	"res://assets/audio/barks/aggressive_bark_02.wav",
-	"res://assets/audio/barks/bark_06.wav",
-	"res://assets/audio/barks/bark_05.wav",
-	"res://assets/audio/barks/bark_04.wav"
+	"res://assets/audio/barks/aggressive_bark_03.wav",
+	"res://assets/audio/barks/aggressive_bark_04.wav",
+	"res://assets/audio/barks/aggressive_bark_05.wav",
+	"res://assets/audio/barks/aggressive_bark_06.wav"
 ]
 const OBJECTIVE_CLAIM_TARGET = 10
+const OBJECTIVE_HYDRANT_TARGET = 8
 const CLAIM_TARGET_NONE = 0
 const CLAIM_TARGET_LIGHT_POLE = 1
 const CLAIM_TARGET_TREE = 2
+const CLAIM_TARGET_FIRE_HYDRANT = 3
 const CLAIM_RANGE = 1.8
-const CLAIM_FILL_TIME = 1.35
+const CLAIM_FILL_TIME = 2.75
 const CLAIM_RING_PULSE_SPEED = 4.1
 const CLAIM_PEE_SOURCE_BACK_OFFSET = 0.34
 const CLAIM_PEE_SOURCE_UP_OFFSET = 0.34
@@ -55,6 +62,8 @@ const FREYA_COLLISION_RADIUS = 0.34
 const DOG_COLLISION_RADIUS = 0.28
 const DUMPSTER_COLLISION_RADIUS = 0.48
 const STREET_POLE_COLLISION_RADIUS = 0.2
+const FIRE_HYDRANT_COLLISION_RADIUS = 0.18
+const FIRE_HYDRANT_SPACING = 17.0
 const STREET_POLE_SPACING = 10.8
 const STREET_POLE_END_MARGIN = 2.6
 const BUILDING_SIDEWALK_W = 0.95
@@ -64,6 +73,7 @@ const ROW_SIDE_SETBACK = 0.72
 const ALLEY_BUILDING_GAP = 0.2
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
+const BONE_PICKUP_RANGE = 1.55
 const FREYA_PRIMARY_MODEL = "res://assets/models/freya_portuguese_water_dog.glb"
 const FREYA_MODEL_CANDIDATES = [
 	"res://assets/models/freya_portuguese_water_dog.glb",
@@ -98,20 +108,25 @@ var alley_shoulders: Array[Rect2] = []
 var block_parcels: Array[Rect2] = []
 var buildings: Array = []
 var trees: Array = []
+var fire_hydrants: Array = []
 
 var dogs: Array = []
 var poops: Array = []
 var sticks: Array = []
 var dumpsters: Array = []
+var bones: Array = []
+var store_foods: Array = []
 var street_poles: Array = []
 var vomit_puddles: Array = []
 var bark_pulses: Array = []
+var store_entry_indicators: Array = []
 
 var dog_park = Rect2()
 var freya
 var freya_hunger = 34.0
 var freya_vomit = 0.0
 var freya_social = 24.0
+var freya_strength = 0.0
 var freya_vomit_timer = 0.0
 var freya_move_dir = Vector3.ZERO
 var camera_focus = Vector3.ZERO
@@ -139,11 +154,15 @@ var dumpster_trim_material: StandardMaterial3D
 var pole_metal_material: StandardMaterial3D
 var pole_base_material: StandardMaterial3D
 var pole_lamp_material: StandardMaterial3D
+var fire_hydrant_body_material: StandardMaterial3D
+var fire_hydrant_cap_material: StandardMaterial3D
 var claim_ring_material: StandardMaterial3D
 var claim_pee_stream_material: StandardMaterial3D
 var claim_pee_splash_material: StandardMaterial3D
 var vomit_material_a: StandardMaterial3D
 var vomit_material_b: StandardMaterial3D
+var bone_material: StandardMaterial3D
+var store_food_materials: Array[StandardMaterial3D] = []
 
 var freya_outline_material: ShaderMaterial
 var object_outline_material: ShaderMaterial
@@ -157,10 +176,11 @@ var ui_layer: CanvasLayer
 var hunger_bar: ProgressBar
 var vomit_bar: ProgressBar
 var social_bar: ProgressBar
+var strength_bar: ProgressBar
 var hunger_value_label: Label
 var vomit_value_label: Label
 var social_value_label: Label
-var action_hint_label: Label
+var strength_value_label: Label
 var status_label: Label
 var status_timer = 0.0
 var objectives_panel: Panel
@@ -171,7 +191,8 @@ var claim_meter_label: Label
 var claim_meter_bar: ProgressBar
 var active_claim_target_type = CLAIM_TARGET_NONE
 var active_claim_target_index = -1
-var claim_pee_stream_node: MeshInstance3D
+var claim_pee_stream_node: Node3D
+var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
 
 var minimap
@@ -184,8 +205,12 @@ var bark_sfx_streams_aggressive: Array[AudioStream] = []
 var bark_sfx_cursor = 0
 var bark_last_clip_idx = -1
 var bark_sequences: Array = []
+var aggressive_bark_pressure = 0.0
+var aggressive_bark_nearby_count = 0
 var pause_controls_button: Button
+var pause_howto_button: Button
 var pause_controls_panel: Panel
+var pause_howto_panel: Panel
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -201,15 +226,18 @@ func _ready() -> void:
 	_build_ground_meshes()
 	_build_dog_park()
 	_build_city_buildings()
+	_mark_store_buildings()
 	_add_building_sidewalks()
 	_spawn_street_poles()
+	_spawn_fire_hydrants()
 	_spawn_alley_dumpsters()
 	_populate_trees()
 	_build_grass_spikes()
 	_spawn_sticks(64)
+	_populate_store_foods()
 
 	_spawn_freya_and_dogs()
-	_seed_poops(20)
+	_seed_poops(30)
 	_create_ui()
 	_sync_minimap_static()
 	_update_minimap_dynamic(0.0)
@@ -245,6 +273,7 @@ func _process(delta: float) -> void:
 	_update_vomit_puddles(delta)
 	_update_bark_sequences(delta)
 	_update_bark_pulses(delta)
+	_update_store_entry_indicators()
 	_update_camera(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
@@ -350,30 +379,28 @@ func _create_audio_setup() -> void:
 	for stream in _load_bark_streams_from_files(BARK_PASSIVE_SAMPLE_CANDIDATES):
 		bark_sfx_streams_passive.append(stream)
 	if bark_sfx_streams_passive.is_empty():
-		push_warning("Passive bark files not loaded; falling back to synthesized bark audio.")
-		bark_sfx_streams_passive.append(_build_bark_stream(126.0, 0.27, 0.26))
-		bark_sfx_streams_passive.append(_build_bark_stream(138.0, 0.25, 0.24))
-		bark_sfx_streams_passive.append(_build_bark_stream(152.0, 0.23, 0.23))
-		bark_sfx_streams_passive.append(_build_bark_stream(166.0, 0.2, 0.22))
+		push_warning("Passive bark clips missing; using base dog bark source.")
+		if FileAccess.file_exists(BARK_PRIMARY_SOURCE):
+			var primary_stream = AudioStreamWAV.load_from_file(BARK_PRIMARY_SOURCE)
+			if primary_stream != null:
+				bark_sfx_streams_passive.append(primary_stream)
 
 	bark_sfx_streams_aggressive.clear()
 	for stream in _load_bark_streams_from_files(BARK_AGGRESSIVE_SAMPLE_CANDIDATES):
 		bark_sfx_streams_aggressive.append(stream)
 	if bark_sfx_streams_aggressive.is_empty():
-		# Aggressive social barking should feel sharper and rougher than passive chatter.
-		bark_sfx_streams_aggressive.append(_build_bark_stream(112.0, 0.43, 0.24))
-		bark_sfx_streams_aggressive.append(_build_bark_stream(121.0, 0.46, 0.23))
-		bark_sfx_streams_aggressive.append(_build_bark_stream(130.0, 0.42, 0.22))
-	if bark_sfx_streams_aggressive.is_empty():
 		for stream in bark_sfx_streams_passive:
 			bark_sfx_streams_aggressive.append(stream)
+	if bark_sfx_streams_aggressive.is_empty():
+		bark_sfx_streams_aggressive.append(_build_bark_stream(112.0, 0.43, 0.24))
+		bark_sfx_streams_aggressive.append(_build_bark_stream(121.0, 0.46, 0.23))
 
 	for p in bark_sfx_players:
 		if p != null:
 			p.queue_free()
 	bark_sfx_players.clear()
 
-	for i in range(8):
+	for i in range(14):
 		var player = AudioStreamPlayer.new()
 		player.bus = "Master"
 		player.volume_db = -13.0
@@ -508,17 +535,18 @@ func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
 	player.stop()
 	player.stream = clip
 	if aggressive:
-		player.pitch_scale = rng.randf_range(0.84, 0.96) * (0.97 if is_freya_bark else 1.0)
-		player.volume_db = -6.0 if is_freya_bark else -7.4
+		var crowd_gain = clampf((aggressive_bark_pressure - 1.0) * 1.0, 0.0, 5.5)
+		player.pitch_scale = rng.randf_range(0.96, 1.04) * (0.99 if is_freya_bark else 1.0)
+		player.volume_db = (-6.8 if is_freya_bark else -8.0) + crowd_gain
 	else:
-		player.pitch_scale = rng.randf_range(0.9, 1.03) * (0.99 if is_freya_bark else 1.01)
+		player.pitch_scale = rng.randf_range(0.98, 1.03) * (0.995 if is_freya_bark else 1.0)
 		player.volume_db = -7.8 if is_freya_bark else -9.0
 	player.play()
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
 	if barks <= 0:
 		return
-	if bark_sequences.size() > 28:
+	if bark_sequences.size() > 54:
 		return
 	bark_sequences.append({
 		"is_freya": is_freya_bark,
@@ -584,38 +612,51 @@ func _create_prop_materials() -> void:
 	pole_lamp_material.emission = Color(0.22, 0.19, 0.1)
 	pole_lamp_material.emission_energy_multiplier = 0.32
 
+	fire_hydrant_body_material = StandardMaterial3D.new()
+	fire_hydrant_body_material.albedo_color = Color8(196, 38, 37)
+	fire_hydrant_body_material.roughness = 0.5
+	fire_hydrant_body_material.metallic = 0.14
+	fire_hydrant_body_material.emission_enabled = true
+	fire_hydrant_body_material.emission = Color(0.52, 0.06, 0.05)
+	fire_hydrant_body_material.emission_energy_multiplier = 0.22
+
+	fire_hydrant_cap_material = StandardMaterial3D.new()
+	fire_hydrant_cap_material.albedo_color = Color8(229, 214, 144)
+	fire_hydrant_cap_material.roughness = 0.3
+	fire_hydrant_cap_material.metallic = 0.16
+
 	claim_ring_material = StandardMaterial3D.new()
-	claim_ring_material.albedo_color = Color(0.22, 0.9, 0.33, 0.5)
-	claim_ring_material.roughness = 0.35
+	claim_ring_material.albedo_color = Color(0.93, 0.18, 0.96, 0.76)
+	claim_ring_material.roughness = 0.14
 	claim_ring_material.metallic = 0.0
 	claim_ring_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
 	claim_ring_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
 	claim_ring_material.cull_mode = StandardMaterial3D.CULL_DISABLED
 	claim_ring_material.emission_enabled = true
-	claim_ring_material.emission = Color(0.18, 0.7, 0.28)
-	claim_ring_material.emission_energy_multiplier = 0.8
+	claim_ring_material.emission = Color(0.64, 0.08, 0.68)
+	claim_ring_material.emission_energy_multiplier = 1.8
 
 	claim_pee_stream_material = StandardMaterial3D.new()
-	claim_pee_stream_material.albedo_color = Color(0.96, 0.9, 0.24, 0.78)
-	claim_pee_stream_material.roughness = 0.22
+	claim_pee_stream_material.albedo_color = Color(1.0, 0.95, 0.24, 0.82)
+	claim_pee_stream_material.roughness = 0.12
 	claim_pee_stream_material.metallic = 0.0
 	claim_pee_stream_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
 	claim_pee_stream_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
 	claim_pee_stream_material.cull_mode = StandardMaterial3D.CULL_DISABLED
 	claim_pee_stream_material.emission_enabled = true
-	claim_pee_stream_material.emission = Color(0.9, 0.78, 0.12)
-	claim_pee_stream_material.emission_energy_multiplier = 0.5
+	claim_pee_stream_material.emission = Color(0.97, 0.83, 0.12)
+	claim_pee_stream_material.emission_energy_multiplier = 0.92
 
 	claim_pee_splash_material = StandardMaterial3D.new()
-	claim_pee_splash_material.albedo_color = Color(0.98, 0.9, 0.28, 0.64)
-	claim_pee_splash_material.roughness = 0.28
+	claim_pee_splash_material.albedo_color = Color(1.0, 0.95, 0.3, 0.78)
+	claim_pee_splash_material.roughness = 0.16
 	claim_pee_splash_material.metallic = 0.0
 	claim_pee_splash_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
 	claim_pee_splash_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
 	claim_pee_splash_material.cull_mode = StandardMaterial3D.CULL_DISABLED
 	claim_pee_splash_material.emission_enabled = true
-	claim_pee_splash_material.emission = Color(0.86, 0.72, 0.1)
-	claim_pee_splash_material.emission_energy_multiplier = 0.45
+	claim_pee_splash_material.emission = Color(0.95, 0.82, 0.14)
+	claim_pee_splash_material.emission_energy_multiplier = 1.05
 
 	stick_material_main = StandardMaterial3D.new()
 	stick_material_main.albedo_color = Color8(132, 99, 62)
@@ -636,6 +677,19 @@ func _create_prop_materials() -> void:
 	vomit_material_b.albedo_color = Color8(126, 104, 64)
 	vomit_material_b.roughness = 0.94
 	vomit_material_b.metallic = 0.0
+
+	bone_material = StandardMaterial3D.new()
+	bone_material.albedo_color = Color8(231, 224, 198)
+	bone_material.roughness = 0.7
+	bone_material.metallic = 0.0
+
+	store_food_materials.clear()
+	for c in [Color8(223, 137, 77), Color8(199, 170, 76), Color8(173, 92, 58), Color8(214, 98, 74)]:
+		var m = StandardMaterial3D.new()
+		m.albedo_color = c
+		m.roughness = 0.72
+		m.metallic = 0.0
+		store_food_materials.append(m)
 
 	freya_outline_material = _make_outline_material(Color(0.18, 0.96, 0.98, 1.0), 0.05)
 	object_outline_material = _make_outline_material(Color(0.98, 0.92, 0.42, 0.96), 0.036)
@@ -1046,6 +1100,216 @@ func _build_city_buildings() -> void:
 		_add_building(Rect2(33.0, 27.0, 6.1, 5.0), 3, false)
 		_add_building(Rect2(58.0, 50.0, 5.9, 4.8), 3, true)
 
+func _mark_store_buildings() -> void:
+	_clear_store_entry_indicators()
+	if buildings.is_empty():
+		return
+	var candidates: Array[int] = []
+	for i in range(buildings.size()):
+		var b: Dictionary = buildings[i]
+		b["is_store"] = false
+		b["enterable"] = false
+		b["store_food_slots"] = 0
+		b["entry_pos"] = Vector2(-1.0, -1.0)
+		buildings[i] = b
+
+		var fp: Rect2 = b["footprint"]
+		if fp.size.x < 4.8:
+			continue
+		var center_x = fp.position.x + fp.size.x * 0.5
+		var front_is_south = bool(b.get("front_is_south", true))
+		var dir = 1.0 if front_is_south else -1.0
+		var front_z = fp.position.y + fp.size.y if front_is_south else fp.position.y
+		var sidewalk_probe = Vector2(center_x, front_z + dir * (BUILDING_SIDEWALK_W * 0.45))
+		var road_probe = Vector2(center_x, front_z + dir * (ROW_FRONT_SETBACK + ROAD_W * 0.3))
+		if _surface_at(sidewalk_probe) != "sidewalk":
+			continue
+		if _surface_at(road_probe) != "road":
+			continue
+		candidates.append(i)
+
+	if candidates.is_empty():
+		return
+
+	var target_count = clampi(int(round(float(candidates.size()) * 0.28)), 3, 12)
+	target_count = mini(target_count, candidates.size())
+	for n in range(target_count):
+		var pick = rng.randi_range(0, candidates.size() - 1)
+		var idx = candidates[pick]
+		candidates.remove_at(pick)
+		var store: Dictionary = buildings[idx]
+		store["is_store"] = true
+		store["enterable"] = true
+		store["store_food_slots"] = rng.randi_range(3, 5)
+		_decorate_storefront(store)
+		_create_store_entry_indicator(store)
+		buildings[idx] = store
+
+func _decorate_storefront(building: Dictionary) -> void:
+	var node: Node3D = building.get("node", null)
+	if node == null or not is_instance_valid(node):
+		return
+	var fp: Rect2 = building.get("footprint", Rect2())
+	var half_w = fp.size.x * 0.5
+	var half_d = fp.size.y * 0.5
+	var front_is_south = bool(building.get("front_is_south", true))
+	var front_sign = 1.0 if front_is_south else -1.0
+	var front_local_z = half_d if front_is_south else -half_d
+
+	var sign_mat = StandardMaterial3D.new()
+	sign_mat.albedo_color = Color8(238, 213, 109)
+	sign_mat.roughness = 0.28
+	sign_mat.metallic = 0.08
+	sign_mat.emission_enabled = true
+	sign_mat.emission = Color(0.5, 0.44, 0.18)
+	sign_mat.emission_energy_multiplier = 0.62
+
+	var sign = MeshInstance3D.new()
+	var sign_mesh = BoxMesh.new()
+	sign_mesh.size = Vector3(clampf(fp.size.x * 0.5, 2.0, 3.8), 0.42, 0.08)
+	sign.mesh = sign_mesh
+	sign.position = Vector3(0.0, 2.2, front_local_z + front_sign * 0.07)
+	sign.material_override = sign_mat
+	node.add_child(sign)
+
+	var awning = MeshInstance3D.new()
+	var awning_mesh = BoxMesh.new()
+	awning_mesh.size = Vector3(clampf(fp.size.x * 0.56, 2.2, 4.2), 0.07, 0.58)
+	awning.mesh = awning_mesh
+	awning.position = Vector3(0.0, 1.62, front_local_z + front_sign * 0.31)
+	awning.material_override = pole_base_material
+	node.add_child(awning)
+
+func _clear_store_entry_indicators() -> void:
+	for item in store_entry_indicators:
+		var n: Node3D = item.get("node", null)
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	store_entry_indicators.clear()
+
+func _create_store_entry_indicator(building: Dictionary) -> void:
+	var node: Node3D = building.get("node", null)
+	if node == null or not is_instance_valid(node):
+		return
+	var fp: Rect2 = building.get("footprint", Rect2())
+	if fp.size.x <= 0.0 or fp.size.y <= 0.0:
+		return
+
+	var front_is_south = bool(building.get("front_is_south", true))
+	var front_sign = 1.0 if front_is_south else -1.0
+	var half_d = fp.size.y * 0.5
+	var front_local_z = half_d if front_is_south else -half_d
+
+	var marker = Node3D.new()
+	marker.name = "StoreEntryArrow"
+	var base_local = Vector3(0.0, 0.26, front_local_z + front_sign * 0.66)
+	marker.position = base_local
+	node.add_child(marker)
+
+	var arrow_mat = StandardMaterial3D.new()
+	arrow_mat.albedo_color = Color(0.16, 0.9, 1.0, 0.9)
+	arrow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	arrow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	arrow_mat.emission_enabled = true
+	arrow_mat.emission = Color(0.16, 0.9, 1.0)
+	arrow_mat.emission_energy_multiplier = 1.35
+
+	var shaft = MeshInstance3D.new()
+	var shaft_mesh = BoxMesh.new()
+	shaft_mesh.size = Vector3(0.18, 0.05, 0.48)
+	shaft.mesh = shaft_mesh
+	shaft.position = Vector3(0.0, 0.0, -front_sign * 0.14)
+	shaft.material_override = arrow_mat
+	marker.add_child(shaft)
+
+	var tip = MeshInstance3D.new()
+	var tip_mesh = CylinderMesh.new()
+	tip_mesh.top_radius = 0.0
+	tip_mesh.bottom_radius = 0.15
+	tip_mesh.height = 0.2
+	tip.mesh = tip_mesh
+	tip.rotation_degrees.x = 90.0
+	tip.position = Vector3(0.0, 0.0, -front_sign * 0.34)
+	tip.material_override = arrow_mat
+	marker.add_child(tip)
+
+	var entry_center = Vector2(fp.position.x + fp.size.x * 0.5, fp.position.y + (fp.size.y if front_is_south else 0.0))
+	var entry_dir = Vector2(0.0, -front_sign)
+	building["entry_pos"] = entry_center + entry_dir * 0.45
+	store_entry_indicators.append({
+		"node": marker,
+		"base": base_local,
+		"front_sign": front_sign,
+		"phase": rng.randf_range(0.0, TAU)
+	})
+
+func _populate_store_foods() -> void:
+	for item in store_foods:
+		var n: Node3D = item.get("node", null)
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	store_foods.clear()
+
+	for b in buildings:
+		if not bool(b.get("is_store", false)):
+			continue
+		var count = int(b.get("store_food_slots", 3))
+		for i in range(count):
+			_spawn_store_food_in_building(b)
+
+func _spawn_store_food_in_building(building: Dictionary) -> bool:
+	var fp: Rect2 = building.get("footprint", Rect2())
+	if fp.size.x < 1.6 or fp.size.y < 1.6:
+		return false
+	for attempt in range(24):
+		var p = Vector2(
+			rng.randf_range(fp.position.x + 0.42, fp.position.x + fp.size.x - 0.42),
+			rng.randf_range(fp.position.y + 0.42, fp.position.y + fp.size.y - 0.42)
+		)
+		if not _is_walkable(p.x, p.y, 0.12):
+			continue
+		var too_close = false
+		for f in store_foods:
+			var existing: Vector2 = f.get("pos", Vector2.ZERO)
+			if existing.distance_to(p) < 0.62:
+				too_close = true
+				break
+		if too_close:
+			continue
+		var node = _create_store_food_node()
+		node.position = Vector3(p.x, 0.04, p.y)
+		dynamic_root.add_child(node)
+		store_foods.append({"node": node, "pos": p})
+		return true
+	return false
+
+func _create_store_food_node() -> Node3D:
+	var root = Node3D.new()
+	root.name = "StoreFood"
+	var plate = MeshInstance3D.new()
+	var plate_mesh = CylinderMesh.new()
+	plate_mesh.top_radius = 0.14
+	plate_mesh.bottom_radius = 0.15
+	plate_mesh.height = 0.025
+	plate.mesh = plate_mesh
+	plate.position = Vector3(0.0, 0.015, 0.0)
+	plate.material_override = bone_material
+	root.add_child(plate)
+
+	var top = MeshInstance3D.new()
+	var top_mesh = SphereMesh.new()
+	top_mesh.radius = 0.1
+	top_mesh.height = 0.2
+	top.mesh = top_mesh
+	top.position = Vector3(rng.randf_range(-0.015, 0.015), 0.08, rng.randf_range(-0.015, 0.015))
+	if store_food_materials.is_empty():
+		top.material_override = poop_material
+	else:
+		top.material_override = store_food_materials[rng.randi_range(0, store_food_materials.size() - 1)]
+	root.add_child(top)
+	return root
+
 func _clip_rect_to_map(rect: Rect2) -> Rect2:
 	var map_rect = Rect2(0.0, 0.0, MAP_W, MAP_H)
 	return rect.intersection(map_rect)
@@ -1136,6 +1400,150 @@ func _spawn_street_poles() -> void:
 						"claim_ring": null
 					})
 				z += STREET_POLE_SPACING
+
+func _spawn_fire_hydrants() -> void:
+	for item in fire_hydrants:
+		var node: Node3D = item.get("node", null)
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	fire_hydrants.clear()
+
+	var placed_points: Array[Vector2] = []
+	for r in roads:
+		if r.size.x > r.size.y:
+			var side_coords = [
+				r.position.y - SIDEWALK_W * 0.34,
+				r.position.y + r.size.y + SIDEWALK_W * 0.34
+			]
+			var x = r.position.x + STREET_POLE_END_MARGIN + 1.2
+			var x_end = r.position.x + r.size.x - STREET_POLE_END_MARGIN - 1.2
+			while x <= x_end + 0.001:
+				if rng.randf() < 0.58:
+					for side_z in side_coords:
+						var p = Vector2(
+							x + rng.randf_range(-0.22, 0.22),
+							float(side_z) + rng.randf_range(-0.08, 0.08)
+						)
+						if not _fire_hydrant_candidate_ok(p, placed_points):
+							continue
+						var hydrant = _create_fire_hydrant_node()
+						hydrant.position = Vector3(p.x, 0.0, p.y)
+						static_root.add_child(hydrant)
+						placed_points.append(p)
+						fire_hydrants.append({
+							"node": hydrant,
+							"pos": p,
+							"radius": FIRE_HYDRANT_COLLISION_RADIUS,
+							"claimed": false,
+							"claim_progress": 0.0,
+							"claim_ring": null
+						})
+				x += FIRE_HYDRANT_SPACING
+		else:
+			var side_coords = [
+				r.position.x - SIDEWALK_W * 0.34,
+				r.position.x + r.size.x + SIDEWALK_W * 0.34
+			]
+			var z = r.position.y + STREET_POLE_END_MARGIN + 1.2
+			var z_end = r.position.y + r.size.y - STREET_POLE_END_MARGIN - 1.2
+			while z <= z_end + 0.001:
+				if rng.randf() < 0.58:
+					for side_x in side_coords:
+						var p = Vector2(
+							float(side_x) + rng.randf_range(-0.08, 0.08),
+							z + rng.randf_range(-0.22, 0.22)
+						)
+						if not _fire_hydrant_candidate_ok(p, placed_points):
+							continue
+						var hydrant = _create_fire_hydrant_node()
+						hydrant.position = Vector3(p.x, 0.0, p.y)
+						static_root.add_child(hydrant)
+						placed_points.append(p)
+						fire_hydrants.append({
+							"node": hydrant,
+							"pos": p,
+							"radius": FIRE_HYDRANT_COLLISION_RADIUS,
+							"claimed": false,
+							"claim_progress": 0.0,
+							"claim_ring": null
+						})
+				z += FIRE_HYDRANT_SPACING
+
+func _fire_hydrant_candidate_ok(p: Vector2, existing_points: Array) -> bool:
+	if not _point_in_map(p):
+		return false
+	if dog_park.grow(0.4).has_point(p):
+		return false
+	if _surface_at(p) != "sidewalk":
+		return false
+	if _point_in_building(p, 0.18):
+		return false
+	for ep in existing_points:
+		var existing: Vector2 = ep
+		if existing.distance_to(p) < 5.9:
+			return false
+	for pole in street_poles:
+		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
+		if pos.distance_to(p) < 1.45:
+			return false
+	return true
+
+func _create_fire_hydrant_node() -> Node3D:
+	var root = Node3D.new()
+	root.name = "FireHydrant"
+
+	var base = MeshInstance3D.new()
+	var base_mesh = CylinderMesh.new()
+	base_mesh.top_radius = 0.13
+	base_mesh.bottom_radius = 0.16
+	base_mesh.height = 0.16
+	base.mesh = base_mesh
+	base.position = Vector3(0.0, 0.08, 0.0)
+	base.material_override = fire_hydrant_body_material
+	root.add_child(base)
+
+	var body = MeshInstance3D.new()
+	var body_mesh = CylinderMesh.new()
+	body_mesh.top_radius = 0.11
+	body_mesh.bottom_radius = 0.13
+	body_mesh.height = 0.52
+	body.mesh = body_mesh
+	body.position = Vector3(0.0, 0.36, 0.0)
+	body.material_override = fire_hydrant_body_material
+	root.add_child(body)
+
+	var dome = MeshInstance3D.new()
+	var dome_mesh = SphereMesh.new()
+	dome_mesh.radius = 0.13
+	dome_mesh.height = 0.26
+	dome.mesh = dome_mesh
+	dome.position = Vector3(0.0, 0.67, 0.0)
+	dome.material_override = fire_hydrant_body_material
+	root.add_child(dome)
+
+	for side in [-1.0, 1.0]:
+		var arm = MeshInstance3D.new()
+		var arm_mesh = CylinderMesh.new()
+		arm_mesh.top_radius = 0.04
+		arm_mesh.bottom_radius = 0.04
+		arm_mesh.height = 0.22
+		arm.mesh = arm_mesh
+		arm.rotation_degrees.z = 90.0
+		arm.position = Vector3(side * 0.16, 0.43, 0.0)
+		arm.material_override = fire_hydrant_cap_material
+		root.add_child(arm)
+
+	var cap = MeshInstance3D.new()
+	var cap_mesh = CylinderMesh.new()
+	cap_mesh.top_radius = 0.06
+	cap_mesh.bottom_radius = 0.07
+	cap_mesh.height = 0.11
+	cap.mesh = cap_mesh
+	cap.position = Vector3(0.0, 0.78, 0.0)
+	cap.material_override = fire_hydrant_cap_material
+	root.add_child(cap)
+
+	return root
 
 func _street_pole_candidate_ok(p: Vector2, existing_points: Array) -> bool:
 	if not _point_in_map(p):
@@ -1253,7 +1661,9 @@ func _spawn_alley_dumpsters() -> void:
 			dumpsters.append({
 				"node": dumpster,
 				"pos": p,
-				"radius": DUMPSTER_COLLISION_RADIUS
+				"radius": DUMPSTER_COLLISION_RADIUS,
+				"has_bone": rng.randf() < 0.5,
+				"searched": false
 			})
 
 func _create_dumpster_node() -> Node3D:
@@ -1332,6 +1742,9 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 	created["floors"] = floors
 	var shrink = minf(0.24, minf(footprint.size.x, footprint.size.y) * 0.06)
 	created["collision_rect"] = footprint.grow(-shrink)
+	created["is_store"] = false
+	created["enterable"] = false
+	created["store_food_slots"] = 0
 	var node: Node3D = created["node"]
 	static_root.add_child(node)
 	buildings.append(created)
@@ -1535,6 +1948,41 @@ func _create_stick_node() -> Node3D:
 
 	return root
 
+func _create_bone_node() -> Node3D:
+	var root = Node3D.new()
+	root.name = "Bone"
+
+	var shaft = MeshInstance3D.new()
+	var shaft_mesh = CylinderMesh.new()
+	shaft_mesh.top_radius = 0.04
+	shaft_mesh.bottom_radius = 0.04
+	shaft_mesh.height = 0.46
+	shaft.mesh = shaft_mesh
+	shaft.rotation_degrees.z = 90.0
+	shaft.position = Vector3(0.0, 0.05, 0.0)
+	shaft.material_override = bone_material
+	root.add_child(shaft)
+
+	for end_x in [-0.21, 0.21]:
+		var lobe_a = MeshInstance3D.new()
+		var lobe_mesh_a = SphereMesh.new()
+		lobe_mesh_a.radius = 0.055
+		lobe_mesh_a.height = 0.11
+		lobe_a.mesh = lobe_mesh_a
+		lobe_a.position = Vector3(end_x, 0.075, 0.06)
+		lobe_a.material_override = bone_material
+		root.add_child(lobe_a)
+
+		var lobe_b = MeshInstance3D.new()
+		var lobe_mesh_b = SphereMesh.new()
+		lobe_mesh_b.radius = 0.055
+		lobe_mesh_b.height = 0.11
+		lobe_b.mesh = lobe_mesh_b
+		lobe_b.position = Vector3(end_x, 0.075, -0.06)
+		lobe_b.material_override = bone_material
+		root.add_child(lobe_b)
+	return root
+
 func _spawn_freya_and_dogs() -> void:
 	objective_puke_on_dog_complete = false
 	var freya_model = ""
@@ -1570,22 +2018,45 @@ func _spawn_freya_and_dogs() -> void:
 
 	for i in range(total_dogs):
 		var dog = DogAgentScript.new()
+		var cosmetic_rng = RandomNumberGenerator.new()
+		cosmetic_rng.seed = int(146959810 + i * 2654435761)
 		var dog_model = ""
 		if npc_model_paths.size() > 0:
-			dog_model = npc_model_paths[i % npc_model_paths.size()]
+			dog_model = npc_model_paths[int(cosmetic_rng.randi()) % npc_model_paths.size()]
 		var coat_options = [
 			Color8(58, 48, 42),
+			Color8(92, 80, 70),
+			Color8(120, 93, 70),
 			Color8(164, 126, 93),
-			Color8(189, 175, 152),
-			Color8(102, 94, 83),
-			Color8(216, 206, 187)
+			Color8(188, 159, 118),
+			Color8(205, 192, 171),
+			Color8(216, 206, 187),
+			Color8(178, 140, 102),
+			Color8(76, 78, 84),
+			Color8(132, 127, 120),
+			Color8(37, 34, 33),
+			Color8(228, 220, 206)
 		]
+		var breed_profiles = [
+			"retriever",
+			"shepherd",
+			"husky",
+			"terrier",
+			"hound",
+			"bulldog",
+			"poodle",
+			"mixed"
+		]
+		var dog_speed = rng.randf_range(1.7, 2.6)
+		var model_scale = _npc_model_scale_for_path(dog_model) * cosmetic_rng.randf_range(0.9, 1.13)
 		dog.configure({
 			"is_freya": false,
-			"coat_color": coat_options[i % coat_options.size()],
-			"speed": rng.randf_range(1.7, 2.6),
+			"coat_color": coat_options[int(cosmetic_rng.randi()) % coat_options.size()],
+			"speed": dog_speed,
 			"scene_path": dog_model,
-			"model_scale": _npc_model_scale_for_path(dog_model)
+			"model_scale": model_scale,
+			"breed_profile": breed_profiles[int(cosmetic_rng.randi()) % breed_profiles.size()],
+			"variant_seed": int(cosmetic_rng.randi())
 		})
 		dog.scale = Vector3.ONE
 		var in_park = i < park_dogs
@@ -1791,17 +2262,32 @@ func _random_dir() -> Vector3:
 
 func _seed_poops(count: int) -> void:
 	for i in range(count):
-		_spawn_poop()
+		_spawn_poop(rng.randf() < 0.5)
 
-func _spawn_poop() -> void:
-	var p3 = _random_walkable_point(true, 0.1)
-	var p2 = Vector2(p3.x, p3.z)
+func _spawn_poop(prefer_dog_park: bool = false) -> void:
+	var p2 = Vector2.ZERO
+	var found = false
+	if prefer_dog_park:
+		for attempt in range(40):
+			var candidate = Vector2(
+				rng.randf_range(dog_park.position.x + 0.5, dog_park.position.x + dog_park.size.x - 0.5),
+				rng.randf_range(dog_park.position.y + 0.5, dog_park.position.y + dog_park.size.y - 0.5)
+			)
+			if not _is_walkable(candidate.x, candidate.y, 0.1):
+				continue
+			p2 = candidate
+			found = true
+			break
+	if not found:
+		var p3 = _random_walkable_point(true, 0.1)
+		p2 = Vector2(p3.x, p3.z)
 	if _surface_at(p2) == "road":
 		return
 	for item in poops:
 		var pos: Vector2 = item["pos"]
 		if pos.distance_to(p2) < 1.2:
 			return
+	var p3 = Vector3(p2.x, 0.0, p2.y)
 
 	var root = Node3D.new()
 	root.position = p3
@@ -1834,7 +2320,7 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 	if x < radius or z < radius or x > MAP_W - radius or z > MAP_H - radius:
 		return false
 	var p = Vector2(x, z)
-	if _point_in_building(p, radius + BUILDING_COLLISION_PAD):
+	if _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
 		return false
 	if _point_in_tree_trunk(p, maxf(0.2, radius * 0.95)):
 		return false
@@ -1842,10 +2328,21 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 		return false
 	if _point_in_street_pole(p, maxf(0.04, radius * 0.45)):
 		return false
+	if _point_in_fire_hydrant(p, maxf(0.04, radius * 0.45)):
+		return false
 	return true
 
 func _point_in_building(p: Vector2, pad: float) -> bool:
 	for b in buildings:
+		var rect: Rect2 = b.get("collision_rect", b["footprint"])
+		if rect.grow(pad).has_point(p):
+			return true
+	return false
+
+func _point_in_blocking_building(p: Vector2, pad: float) -> bool:
+	for b in buildings:
+		if bool(b.get("enterable", false)):
+			continue
 		var rect: Rect2 = b.get("collision_rect", b["footprint"])
 		if rect.grow(pad).has_point(p):
 			return true
@@ -1872,6 +2369,14 @@ func _point_in_street_pole(p: Vector2, extra_radius: float) -> bool:
 		var center: Vector2 = pole.get("pos", Vector2.ZERO)
 		var pole_radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
 		if center.distance_to(p) <= pole_radius + extra_radius:
+			return true
+	return false
+
+func _point_in_fire_hydrant(p: Vector2, extra_radius: float) -> bool:
+	for hydrant in fire_hydrants:
+		var center: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		var radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
+		if center.distance_to(p) <= radius + extra_radius:
 			return true
 	return false
 
@@ -1910,11 +2415,17 @@ func _point_near_hardscape(p: Vector2, margin: float) -> bool:
 		var pole_radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
 		if center.distance_to(p) <= pole_radius + margin:
 			return true
+	for hydrant in fire_hydrants:
+		var center: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		var hydrant_radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
+		if center.distance_to(p) <= hydrant_radius + margin:
+			return true
 	return false
 
 func _update_freya(delta: float) -> void:
-	freya_hunger = clamp(freya_hunger + delta * 2.4, 0.0, 100.0)
+	freya_hunger = clamp(freya_hunger + delta * 1.25, 0.0, 100.0)
 	freya_social = clamp(freya_social - delta * 1.0, 0.0, 100.0)
+	freya_vomit = clamp(freya_vomit - delta * 1.15, 0.0, 100.0)
 
 	if freya_vomit_timer > 0.0:
 		freya_vomit_timer = max(0.0, freya_vomit_timer - delta)
@@ -1966,6 +2477,21 @@ func _compute_freya_move_speed(running: bool) -> float:
 	return maxf(1.7, speed)
 
 func _update_dogs(delta: float) -> void:
+	var aggressive_social = Input.is_action_pressed("aggressive_social")
+	aggressive_bark_nearby_count = 0
+	if aggressive_social:
+		for d in dogs:
+			var dn: Node3D = d.get("node", null)
+			if dn == null or not is_instance_valid(dn):
+				continue
+			if dn.global_position.distance_to(freya.global_position) < 4.25:
+				aggressive_bark_nearby_count += 1
+	if aggressive_social:
+		var pack_target = float(max(1, aggressive_bark_nearby_count))
+		aggressive_bark_pressure = lerpf(aggressive_bark_pressure, pack_target, clampf(delta * 7.0, 0.0, 1.0))
+	else:
+		aggressive_bark_pressure = maxf(1.0, aggressive_bark_pressure - delta * 2.4)
+
 	for i in range(dogs.size()):
 		var state: Dictionary = dogs[i]
 		var dog = state["node"]
@@ -2017,16 +2543,21 @@ func _update_dogs(delta: float) -> void:
 		state["dir"] = dir
 
 		var near: float = dog.global_position.distance_to(freya.global_position)
-		var aggressive_social = Input.is_action_pressed("aggressive_social")
 		if near < 4.2:
 			freya_social = clamp(freya_social + delta * (31.0 if aggressive_social else 22.0), 0.0, 100.0)
 			if float(state["bark"]) <= 0.0:
 				if aggressive_social:
-					_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 0.78, 0.74, 0.9))
-					_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.62, 0.54, 0.94))
-					_queue_bark_sequence(false, rng.randi_range(2, 3), true)
-					_queue_bark_sequence(true, rng.randi_range(2, 3), true)
-					state["bark"] = rng.randf_range(0.24, 0.48)
+					var pack = max(1, aggressive_bark_nearby_count)
+					var pulse_hot = clampf(0.64 + float(pack) * 0.05, 0.64, 1.0)
+					_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 0.74, 0.7, 0.9))
+					_spawn_bark_pulse(freya.head_world_position(), Color(1.0, pulse_hot, 0.48, 0.96))
+					var bark_burst = rng.randi_range(2, 3)
+					if pack >= 5 and rng.randf() < 0.5:
+						bark_burst += 1
+					_queue_bark_sequence(false, bark_burst, true)
+					_queue_bark_sequence(true, bark_burst, true)
+					var cooldown_scale = clampf(1.0 - (float(pack - 1) * 0.07), 0.45, 1.0)
+					state["bark"] = rng.randf_range(0.21, 0.43) * cooldown_scale
 				else:
 					_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 1.0, 1.0, 0.82))
 					_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.9, 0.65, 0.84))
@@ -2098,7 +2629,60 @@ func _find_nearest_claim_target() -> Dictionary:
 			best_index = i
 			found = true
 
-	return {"found": found, "type": best_type, "index": best_index}
+	for i in range(fire_hydrants.size()):
+		var hydrant: Dictionary = fire_hydrants[i]
+		if bool(hydrant.get("claimed", false)):
+			continue
+		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		var dist_sq = freya_pos.distance_squared_to(pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_type = CLAIM_TARGET_FIRE_HYDRANT
+			best_index = i
+			found = true
+
+	return {"found": found, "type": best_type, "index": best_index, "dist_sq": best_dist_sq}
+
+func _find_nearest_dumpster_index(max_range: float = CLAIM_RANGE + 0.35) -> int:
+	var best_idx = -1
+	var best_dist_sq = max_range * max_range
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	for i in range(dumpsters.size()):
+		var d: Dictionary = dumpsters[i]
+		var pos: Vector2 = d.get("pos", Vector2.ZERO)
+		var dist_sq = freya_pos.distance_squared_to(pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_idx = i
+	return best_idx
+
+func _try_search_dumpster(dumpster_index: int) -> bool:
+	if dumpster_index < 0 or dumpster_index >= dumpsters.size():
+		return false
+	var d: Dictionary = dumpsters[dumpster_index]
+	if bool(d.get("searched", false)):
+		_show_status("Already searched this dumpster", 0.85)
+		return true
+	d["searched"] = true
+	var found_bone = bool(d.get("has_bone", false))
+	d["has_bone"] = false
+	dumpsters[dumpster_index] = d
+	if not found_bone:
+		_show_status("Dumpster searched: just trash", 0.9)
+		return true
+
+	var base_pos: Vector2 = d.get("pos", Vector2.ZERO)
+	var spawn_pos = base_pos + Vector2(rng.randf_range(-0.52, 0.52), rng.randf_range(-0.52, 0.52))
+	if not _is_walkable(spawn_pos.x, spawn_pos.y, 0.12):
+		var fallback = freya.global_position + Vector3(rng.randf_range(-0.65, 0.65), 0.0, rng.randf_range(-0.65, 0.65))
+		spawn_pos = Vector2(fallback.x, fallback.z)
+	var bone = _create_bone_node()
+	bone.position = Vector3(spawn_pos.x, 0.03, spawn_pos.y)
+	bone.rotation.y = rng.randf_range(0.0, TAU)
+	dynamic_root.add_child(bone)
+	bones.append({"node": bone, "pos": spawn_pos})
+	_show_status("Found a bone in the dumpster!", 1.05)
+	return true
 
 func _reset_claim_progress(target_type: int, index: int) -> void:
 	if index < 0:
@@ -2118,15 +2702,23 @@ func _reset_claim_progress(target_type: int, index: int) -> void:
 		if not bool(tree.get("claimed", false)):
 			tree["claim_progress"] = 0.0
 			trees[index] = tree
+		return
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT:
+		if index >= fire_hydrants.size():
+			return
+		var hydrant: Dictionary = fire_hydrants[index]
+		if not bool(hydrant.get("claimed", false)):
+			hydrant["claim_progress"] = 0.0
+			fire_hydrants[index] = hydrant
 
 func _create_claim_ring_node(radius: float) -> MeshInstance3D:
 	var ring = MeshInstance3D.new()
 	var mesh = CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
-	mesh.height = 0.025
+	mesh.height = 0.04
 	ring.mesh = mesh
-	ring.position = Vector3(0.0, 0.03, 0.0)
+	ring.position = Vector3(0.0, 0.045, 0.0)
 	ring.material_override = claim_ring_material
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ring.visible = false
@@ -2165,6 +2757,21 @@ func _ensure_claim_ring_for_target(target_type: int, index: int) -> void:
 		node.add_child(ring)
 		tree["claim_ring"] = ring
 		trees[index] = tree
+		return
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT:
+		if index >= fire_hydrants.size():
+			return
+		var hydrant: Dictionary = fire_hydrants[index]
+		var existing = hydrant.get("claim_ring", null)
+		if existing != null and is_instance_valid(existing):
+			return
+		var node: Node3D = hydrant.get("node", null)
+		if node == null or not is_instance_valid(node):
+			return
+		var ring = _create_claim_ring_node(0.24)
+		node.add_child(ring)
+		hydrant["claim_ring"] = ring
+		fire_hydrants[index] = hydrant
 
 func _claim_target_world_position(target_type: int, index: int) -> Vector3:
 	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
@@ -2182,6 +2789,13 @@ func _claim_target_world_position(target_type: int, index: int) -> Vector3:
 			return node.global_position + Vector3(0.0, h + 0.7, 0.0)
 		var p: Vector2 = tree.get("pos", Vector2.ZERO)
 		return Vector3(p.x, h + 0.7, p.y)
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		var hydrant: Dictionary = fire_hydrants[index]
+		var node: Node3D = hydrant.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node.global_position + Vector3(0.0, 1.15, 0.0)
+		var p: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		return Vector3(p.x, 1.15, p.y)
 	return freya.global_position + Vector3(0.0, 1.5, 0.0)
 
 func _claim_progress_for_target(target_type: int, index: int) -> float:
@@ -2189,6 +2803,8 @@ func _claim_progress_for_target(target_type: int, index: int) -> float:
 		return clampf(float(street_poles[index].get("claim_progress", 0.0)), 0.0, 1.0)
 	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
 		return clampf(float(trees[index].get("claim_progress", 0.0)), 0.0, 1.0)
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		return clampf(float(fire_hydrants[index].get("claim_progress", 0.0)), 0.0, 1.0)
 	return 0.0
 
 func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
@@ -2205,6 +2821,13 @@ func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
 		if node != null and is_instance_valid(node):
 			return node.global_position
 		var p: Vector2 = tree.get("pos", Vector2.ZERO)
+		return Vector3(p.x, 0.0, p.y)
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		var hydrant: Dictionary = fire_hydrants[index]
+		var node: Node3D = hydrant.get("node", null)
+		if node != null and is_instance_valid(node):
+			return node.global_position
+		var p: Vector2 = hydrant.get("pos", Vector2.ZERO)
 		return Vector3(p.x, 0.0, p.y)
 	return freya.global_position
 
@@ -2230,6 +2853,14 @@ func _claim_target_pee_world_position(target_type: int, index: int) -> Vector3:
 			center.x + toward_freya.x * (radius + 0.06),
 			center.y + CLAIM_PEE_TARGET_TREE_HEIGHT,
 			center.z + toward_freya.y * (radius + 0.06)
+		)
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		var hydrant: Dictionary = fire_hydrants[index]
+		var radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
+		return Vector3(
+			center.x + toward_freya.x * (radius + 0.05),
+			center.y + 0.4,
+			center.z + toward_freya.y * (radius + 0.05)
 		)
 	return center + Vector3(0.0, 0.5, 0.0)
 
@@ -2258,14 +2889,20 @@ func _ensure_claim_pee_nodes() -> void:
 	if dynamic_root == null:
 		return
 	if claim_pee_stream_node == null or not is_instance_valid(claim_pee_stream_node):
-		claim_pee_stream_node = MeshInstance3D.new()
-		var stream_mesh := CylinderMesh.new()
-		stream_mesh.top_radius = CLAIM_PEE_STREAM_RADIUS * 0.76
-		stream_mesh.bottom_radius = CLAIM_PEE_STREAM_RADIUS
-		stream_mesh.height = 0.8
-		claim_pee_stream_node.mesh = stream_mesh
-		claim_pee_stream_node.material_override = claim_pee_stream_material
-		claim_pee_stream_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		claim_pee_stream_node = Node3D.new()
+		claim_pee_stream_segments.clear()
+		for i in range(7):
+			var segment = MeshInstance3D.new()
+			var stream_mesh := CylinderMesh.new()
+			stream_mesh.top_radius = CLAIM_PEE_STREAM_RADIUS * 0.76
+			stream_mesh.bottom_radius = CLAIM_PEE_STREAM_RADIUS
+			stream_mesh.height = 0.26
+			segment.mesh = stream_mesh
+			segment.material_override = claim_pee_stream_material
+			segment.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			segment.visible = false
+			claim_pee_stream_node.add_child(segment)
+			claim_pee_stream_segments.append(segment)
 		claim_pee_stream_node.visible = false
 		dynamic_root.add_child(claim_pee_stream_node)
 	if claim_pee_splash_node == null or not is_instance_valid(claim_pee_splash_node):
@@ -2282,31 +2919,63 @@ func _ensure_claim_pee_nodes() -> void:
 func _hide_claim_pee_effect() -> void:
 	if claim_pee_stream_node != null and is_instance_valid(claim_pee_stream_node):
 		claim_pee_stream_node.visible = false
+	for seg in claim_pee_stream_segments:
+		if seg != null and is_instance_valid(seg):
+			seg.visible = false
 	if claim_pee_splash_node != null and is_instance_valid(claim_pee_splash_node):
 		claim_pee_splash_node.visible = false
+
+func _quadratic_point(a: Vector3, b: Vector3, c: Vector3, t: float) -> Vector3:
+	var omt = 1.0 - t
+	return a * omt * omt + b * 2.0 * omt * t + c * t * t
 
 func _place_claim_pee_stream(start_pos: Vector3, end_pos: Vector3, radius: float) -> void:
 	if claim_pee_stream_node == null or not is_instance_valid(claim_pee_stream_node):
 		return
-	var segment = end_pos - start_pos
-	var length = segment.length()
-	if length < 0.03:
+	if claim_pee_stream_segments.is_empty():
 		claim_pee_stream_node.visible = false
 		return
 
-	var dir = segment / length
-	var x_axis = Vector3.UP.cross(dir)
-	if x_axis.length_squared() < 0.0001:
-		x_axis = Vector3.RIGHT
-	x_axis = x_axis.normalized()
-	var z_axis = dir.cross(x_axis).normalized()
-	var basis = Basis(x_axis, dir, z_axis).orthonormalized()
-	claim_pee_stream_node.global_transform = Transform3D(basis, (start_pos + end_pos) * 0.5)
-	var cyl := claim_pee_stream_node.mesh as CylinderMesh
-	if cyl != null:
-		cyl.height = length
-		cyl.top_radius = radius * 0.76
-		cyl.bottom_radius = radius
+	var delta = end_pos - start_pos
+	var planar = Vector2(delta.x, delta.z).length()
+	if planar < 0.03:
+		claim_pee_stream_node.visible = false
+		for seg in claim_pee_stream_segments:
+			if seg != null and is_instance_valid(seg):
+				seg.visible = false
+		return
+
+	var apex_height = maxf(start_pos.y, end_pos.y) + 0.14 + planar * 0.23
+	var control = (start_pos + end_pos) * 0.5 + Vector3.UP * (apex_height - ((start_pos.y + end_pos.y) * 0.5))
+	var count = claim_pee_stream_segments.size()
+	for i in range(count):
+		var seg = claim_pee_stream_segments[i]
+		if seg == null or not is_instance_valid(seg):
+			continue
+		var t0 = float(i) / float(count)
+		var t1 = float(i + 1) / float(count)
+		var p0 = _quadratic_point(start_pos, control, end_pos, t0)
+		var p1 = _quadratic_point(start_pos, control, end_pos, t1)
+		var segment = p1 - p0
+		var length = segment.length()
+		if length < 0.001:
+			seg.visible = false
+			continue
+		var dir = segment / length
+		var x_axis = Vector3.UP.cross(dir)
+		if x_axis.length_squared() < 0.0001:
+			x_axis = Vector3.RIGHT
+		x_axis = x_axis.normalized()
+		var z_axis = dir.cross(x_axis).normalized()
+		var basis = Basis(x_axis, dir, z_axis).orthonormalized()
+		seg.global_transform = Transform3D(basis, (p0 + p1) * 0.5)
+		var cyl := seg.mesh as CylinderMesh
+		if cyl != null:
+			var taper = lerpf(1.0, 0.68, t0)
+			cyl.height = length
+			cyl.top_radius = radius * 0.74 * taper
+			cyl.bottom_radius = radius * taper
+		seg.visible = true
 	claim_pee_stream_node.visible = true
 
 func _update_claim_pee_effect(delta: float) -> void:
@@ -2359,12 +3028,26 @@ func _update_claiming(delta: float) -> void:
 		return
 
 	var target = _find_nearest_claim_target()
+	if Input.is_action_just_pressed("claim"):
+		var dumpster_idx = _find_nearest_dumpster_index()
+		var claim_dist_sq = float(target.get("dist_sq", CLAIM_RANGE * CLAIM_RANGE + 1.0))
+		if dumpster_idx >= 0:
+			var dump_pos: Vector2 = dumpsters[dumpster_idx].get("pos", Vector2.ZERO)
+			var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+			var dump_dist_sq = freya_pos.distance_squared_to(dump_pos)
+			if (not bool(target.get("found", false))) or dump_dist_sq < claim_dist_sq:
+				_reset_claim_progress(prev_type, prev_index)
+				active_claim_target_type = CLAIM_TARGET_NONE
+				active_claim_target_index = -1
+				_try_search_dumpster(dumpster_idx)
+				return
+
 	if not bool(target.get("found", false)):
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
 		if Input.is_action_just_pressed("claim"):
-			_show_status("No tree or light pole in range", 0.85)
+			_show_status("No tree, pole, hydrant, or dumpster in range", 0.95)
 		return
 
 	var target_type = int(target.get("type", CLAIM_TARGET_NONE))
@@ -2394,6 +3077,15 @@ func _update_claiming(delta: float) -> void:
 			tree["claim_progress"] = 1.0
 			claimed_now = true
 		trees[target_index] = tree
+	elif target_type == CLAIM_TARGET_FIRE_HYDRANT:
+		var hydrant: Dictionary = fire_hydrants[target_index]
+		var progress = clampf(float(hydrant.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
+		hydrant["claim_progress"] = progress
+		if progress >= 1.0 and not bool(hydrant.get("claimed", false)):
+			hydrant["claimed"] = true
+			hydrant["claim_progress"] = 1.0
+			claimed_now = true
+		fire_hydrants[target_index] = hydrant
 
 	if not claimed_now:
 		return
@@ -2406,14 +3098,19 @@ func _update_claiming(delta: float) -> void:
 			_show_status("Objective complete: Claim 10 light poles", 1.35)
 		else:
 			_show_status("Light pole claimed!", 0.95)
-	else:
+	elif target_type == CLAIM_TARGET_TREE:
 		if _claimed_tree_count() >= OBJECTIVE_CLAIM_TARGET:
 			_show_status("Objective complete: Claim 10 trees", 1.35)
 		else:
 			_show_status("Tree claimed!", 0.95)
+	else:
+		if _claimed_fire_hydrant_count() >= OBJECTIVE_HYDRANT_TARGET:
+			_show_status("Objective complete: Claim 8 fire hydrants", 1.35)
+		else:
+			_show_status("Fire hydrant claimed!", 0.95)
 
 func _update_claim_rings() -> void:
-	var pulse_base = 0.91 + 0.13 * (0.5 + 0.5 * sin(world_time * CLAIM_RING_PULSE_SPEED))
+	var pulse_base = 0.98 + 0.2 * (0.5 + 0.5 * sin(world_time * CLAIM_RING_PULSE_SPEED))
 
 	for i in range(street_poles.size()):
 		var pole: Dictionary = street_poles[i]
@@ -2425,7 +3122,7 @@ func _update_claim_rings() -> void:
 		ring_node.visible = claimed
 		if not claimed:
 			continue
-		var pulse = pulse_base + 0.03 * sin(world_time * 2.2 + float(i) * 0.41)
+		var pulse = pulse_base + 0.09 * sin(world_time * 2.2 + float(i) * 0.41)
 		ring_node.scale = Vector3(pulse, 1.0, pulse)
 
 	for i in range(trees.size()):
@@ -2438,7 +3135,20 @@ func _update_claim_rings() -> void:
 		ring_node.visible = claimed
 		if not claimed:
 			continue
-		var pulse = pulse_base + 0.03 * sin(world_time * 2.0 + float(i) * 0.37)
+		var pulse = pulse_base + 0.09 * sin(world_time * 2.0 + float(i) * 0.37)
+		ring_node.scale = Vector3(pulse, 1.0, pulse)
+
+	for i in range(fire_hydrants.size()):
+		var hydrant: Dictionary = fire_hydrants[i]
+		var ring = hydrant.get("claim_ring", null)
+		if ring == null or not is_instance_valid(ring):
+			continue
+		var ring_node := ring as Node3D
+		var claimed = bool(hydrant.get("claimed", false))
+		ring_node.visible = claimed
+		if not claimed:
+			continue
+		var pulse = pulse_base + 0.1 * sin(world_time * 2.4 + float(i) * 0.35)
 		ring_node.scale = Vector3(pulse, 1.0, pulse)
 
 func _hide_claim_meter() -> void:
@@ -2471,7 +3181,12 @@ func _update_claim_meter_overlay() -> void:
 		clampf(screen_pos.y - 58.0, 8.0, view_size.y - panel_size.y - 8.0)
 	)
 	claim_meter_bar.value = _claim_progress_for_target(active_claim_target_type, active_claim_target_index) * 100.0
-	claim_meter_label.text = "Claiming Light Pole" if active_claim_target_type == CLAIM_TARGET_LIGHT_POLE else "Claiming Tree"
+	if active_claim_target_type == CLAIM_TARGET_LIGHT_POLE:
+		claim_meter_label.text = "Claiming Light Pole"
+	elif active_claim_target_type == CLAIM_TARGET_TREE:
+		claim_meter_label.text = "Claiming Tree"
+	else:
+		claim_meter_label.text = "Claiming Fire Hydrant"
 	claim_meter_panel.visible = true
 
 func _remove_stick_entry_for_node(node: Node3D) -> void:
@@ -2538,12 +3253,20 @@ func _update_carried_stick_pose() -> void:
 func _try_interact() -> void:
 	if carried_stick != null and is_instance_valid(carried_stick):
 		freya_has_stick = true
+		if _try_eat_bone(false):
+			return
+		if _try_eat_store_food(false):
+			return
 		if _try_eat_poop(false):
 			return
 		_drop_carried_stick()
 		return
 	freya_has_stick = false
 	if _try_pickup_stick():
+		return
+	if _try_eat_bone(false):
+		return
+	if _try_eat_store_food(false):
 		return
 	_try_eat_poop(true)
 
@@ -2609,6 +3332,58 @@ func _drop_carried_stick() -> bool:
 	_show_status("Dropped stick", 0.65)
 	return true
 
+func _try_eat_bone(show_fail_status: bool = false) -> bool:
+	var best_idx = -1
+	var best_d = 9999.0
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	for i in range(bones.size()):
+		var item: Dictionary = bones[i]
+		var d = freya_pos.distance_to(item.get("pos", Vector2.ZERO))
+		if d < best_d:
+			best_d = d
+			best_idx = i
+	if best_idx < 0 or best_d > BONE_PICKUP_RANGE:
+		if show_fail_status:
+			_show_status("No bone nearby", 0.8)
+		return false
+
+	var eaten: Dictionary = bones[best_idx]
+	var node: Node3D = eaten.get("node", null)
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+	bones.remove_at(best_idx)
+
+	freya_strength = clamp(freya_strength + 18.0, 0.0, 100.0)
+	freya_hunger = clamp(freya_hunger - 3.0, 0.0, 100.0)
+	_show_status("Crunch! Strength increased", 0.95)
+	return true
+
+func _try_eat_store_food(show_fail_status: bool = false) -> bool:
+	var best_idx = -1
+	var best_d = 9999.0
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	for i in range(store_foods.size()):
+		var item: Dictionary = store_foods[i]
+		var d = freya_pos.distance_to(item.get("pos", Vector2.ZERO))
+		if d < best_d:
+			best_d = d
+			best_idx = i
+	if best_idx < 0 or best_d > 1.55:
+		if show_fail_status:
+			_show_status("No food nearby", 0.75)
+		return false
+
+	var eaten: Dictionary = store_foods[best_idx]
+	var node: Node3D = eaten.get("node", null)
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+	store_foods.remove_at(best_idx)
+
+	freya_hunger = clamp(freya_hunger - rng.randf_range(9.0, 14.0), 0.0, 100.0)
+	freya_vomit = clamp(freya_vomit + rng.randf_range(16.0, 30.0), 0.0, 100.0)
+	_show_status("Ate random store food", 0.9)
+	return true
+
 func _try_eat_poop(show_fail_status: bool = true) -> bool:
 	var best_idx = -1
 	var best_d = 9999.0
@@ -2623,7 +3398,7 @@ func _try_eat_poop(show_fail_status: bool = true) -> bool:
 
 	if best_idx < 0 or best_d > 1.5:
 		if show_fail_status:
-			_show_status("No poop or stick nearby", 0.9)
+			_show_status("No food, bone, or poop nearby", 0.95)
 		return false
 
 	var eaten: Dictionary = poops[best_idx]
@@ -2729,9 +3504,9 @@ func _create_vomit_puddle_node() -> Node3D:
 func _update_poops(delta: float) -> void:
 	poop_spawn_timer -= delta
 	if poop_spawn_timer <= 0.0:
-		poop_spawn_timer = rng.randf_range(3.1, 6.2)
-		if poops.size() < 22:
-			_spawn_poop()
+		poop_spawn_timer = rng.randf_range(2.2, 4.8)
+		if poops.size() < 34:
+			_spawn_poop(rng.randf() < 0.62)
 
 func _update_vomit_puddles(delta: float) -> void:
 	for i in range(vomit_puddles.size() - 1, -1, -1):
@@ -2764,6 +3539,21 @@ func _update_bark_pulses(delta: float) -> void:
 		c.a = 1.0 - t
 		mat.albedo_color = c
 		bark_pulses[i] = pulse
+
+func _update_store_entry_indicators() -> void:
+	for i in range(store_entry_indicators.size() - 1, -1, -1):
+		var item: Dictionary = store_entry_indicators[i]
+		var marker: Node3D = item.get("node", null)
+		if marker == null or not is_instance_valid(marker):
+			store_entry_indicators.remove_at(i)
+			continue
+		var base: Vector3 = item.get("base", Vector3.ZERO)
+		var front_sign = float(item.get("front_sign", 1.0))
+		var phase = float(item.get("phase", 0.0))
+		var t = world_time * 2.4 + phase
+		var bob = 0.06 * sin(t * 1.7)
+		var glide = (0.5 + 0.5 * sin(t)) * 0.24
+		marker.position = base + Vector3(0.0, bob, -front_sign * glide)
 
 func _has_back_alley_rowhouse_corridor() -> bool:
 	for alley in alleys:
@@ -3251,6 +4041,14 @@ func _apply_nearby_object_outlines(radius: float) -> void:
 		var pos: Vector2 = s.get("pos", Vector2.ZERO)
 		if center.distance_to(pos) <= radius:
 			_apply_outline_recursive(s.get("node", null), object_outline_material, outlined_object_meshes)
+	for b in bones:
+		var pos: Vector2 = b.get("pos", Vector2.ZERO)
+		if center.distance_to(pos) <= radius:
+			_apply_outline_recursive(b.get("node", null), object_outline_material, outlined_object_meshes)
+	for f in store_foods:
+		var pos: Vector2 = f.get("pos", Vector2.ZERO)
+		if center.distance_to(pos) <= radius:
+			_apply_outline_recursive(f.get("node", null), object_outline_material, outlined_object_meshes)
 	for v in vomit_puddles:
 		var pos: Vector2 = v.get("pos", Vector2.ZERO)
 		if center.distance_to(pos) <= radius:
@@ -3374,6 +4172,11 @@ func _nonbuilding_blocks_view(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 		var radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
 		if _circle_blocks_view(center, radius, 4.55, cam_pos, freya_pos):
 			return true
+	for hydrant in fire_hydrants:
+		var center: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		var radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
+		if _circle_blocks_view(center, radius, 0.95, cam_pos, freya_pos):
+			return true
 	for d in dumpsters:
 		var center: Vector2 = d.get("pos", Vector2.ZERO)
 		var radius = float(d.get("radius", DUMPSTER_COLLISION_RADIUS))
@@ -3420,7 +4223,7 @@ func _create_ui() -> void:
 	var panel = Panel.new()
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(370, 160)
+	panel.size = Vector2(370, 176)
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.03, 0.08, 0.1, 0.72)
 	panel_style.border_width_left = 2
@@ -3450,13 +4253,11 @@ func _create_ui() -> void:
 	social_bar = _make_meter(panel, "Social", Vector2(18, 110), Color(0.36, 0.66, 0.9))
 	social_value_label = _make_value_label(panel, Vector2(316, 110))
 
-	action_hint_label = Label.new()
-	action_hint_label.position = Vector2(18, 136)
-	action_hint_label.add_theme_font_size_override("font_size", 14)
-	panel.add_child(action_hint_label)
+	strength_bar = _make_meter(panel, "Strength", Vector2(18, 142), Color(0.92, 0.8, 0.36))
+	strength_value_label = _make_value_label(panel, Vector2(316, 142))
 
 	status_label = Label.new()
-	status_label.position = Vector2(16, 188)
+	status_label.position = Vector2(16, 205)
 	status_label.add_theme_font_size_override("font_size", 18)
 	status_label.add_theme_color_override("font_color", Color(0.9, 0.95, 0.98, 0.95))
 	ui_layer.add_child(status_label)
@@ -3465,8 +4266,8 @@ func _create_ui() -> void:
 	claim_meter_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	claim_meter_panel.size = Vector2(182.0, 54.0)
 	var claim_style = StyleBoxFlat.new()
-	claim_style.bg_color = Color(0.05, 0.1, 0.08, 0.9)
-	claim_style.border_color = Color(0.6, 0.9, 0.62, 0.84)
+	claim_style.bg_color = Color(0.09, 0.03, 0.1, 0.92)
+	claim_style.border_color = Color(0.98, 0.3, 0.98, 0.95)
 	claim_style.border_width_left = 2
 	claim_style.border_width_top = 2
 	claim_style.border_width_right = 2
@@ -3493,14 +4294,14 @@ func _create_ui() -> void:
 	claim_meter_bar.step = 0.1
 	claim_meter_bar.show_percentage = false
 	var claim_bg = StyleBoxFlat.new()
-	claim_bg.bg_color = Color(0.08, 0.14, 0.1, 0.9)
+	claim_bg.bg_color = Color(0.12, 0.07, 0.14, 0.9)
 	claim_bg.corner_radius_top_left = 4
 	claim_bg.corner_radius_top_right = 4
 	claim_bg.corner_radius_bottom_left = 4
 	claim_bg.corner_radius_bottom_right = 4
 	claim_meter_bar.add_theme_stylebox_override("background", claim_bg)
 	var claim_fill = StyleBoxFlat.new()
-	claim_fill.bg_color = Color(0.36, 0.9, 0.35, 0.95)
+	claim_fill.bg_color = Color(1.0, 0.34, 0.96, 0.98)
 	claim_fill.corner_radius_top_left = 4
 	claim_fill.corner_radius_top_right = 4
 	claim_fill.corner_radius_bottom_left = 4
@@ -3605,10 +4406,14 @@ func _objectives_text() -> String:
 	var trees_claimed = _claimed_tree_count()
 	var trees_done = trees_claimed >= OBJECTIVE_CLAIM_TARGET
 	var trees_state = "[DONE]" if trees_done else "[ ]"
+	var hydrants_claimed = _claimed_fire_hydrant_count()
+	var hydrants_done = hydrants_claimed >= OBJECTIVE_HYDRANT_TARGET
+	var hydrants_state = "[DONE]" if hydrants_done else "[ ]"
 	return (
 		"- %s Puke on another dog\n" % puke_state
 		+ "- %s Claim 10 light poles (%d/%d)\n" % [poles_state, poles_claimed, OBJECTIVE_CLAIM_TARGET]
-		+ "- %s Claim 10 trees (%d/%d)" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
+		+ "- %s Claim 10 trees (%d/%d)\n" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
+		+ "- %s Claim 8 fire hydrants (%d/%d)" % [hydrants_state, hydrants_claimed, OBJECTIVE_HYDRANT_TARGET]
 	)
 
 func _claimed_light_pole_count() -> int:
@@ -3622,6 +4427,13 @@ func _claimed_tree_count() -> int:
 	var total = 0
 	for tree in trees:
 		if bool(tree.get("claimed", false)):
+			total += 1
+	return total
+
+func _claimed_fire_hydrant_count() -> int:
+	var total = 0
+	for hydrant in fire_hydrants:
+		if bool(hydrant.get("claimed", false)):
 			total += 1
 	return total
 
@@ -3662,21 +4474,28 @@ func _create_pause_menu() -> void:
 	var resume_btn = Button.new()
 	resume_btn.text = "Resume"
 	resume_btn.position = Vector2(22, 62)
-	resume_btn.size = Vector2(170, 44)
+	resume_btn.size = Vector2(124, 44)
 	resume_btn.pressed.connect(_on_pause_resume_pressed)
 	pause_menu_panel.add_child(resume_btn)
 
 	pause_controls_button = Button.new()
 	pause_controls_button.text = "Controls"
-	pause_controls_button.position = Vector2(200, 62)
-	pause_controls_button.size = Vector2(170, 44)
+	pause_controls_button.position = Vector2(154, 62)
+	pause_controls_button.size = Vector2(124, 44)
 	pause_controls_button.pressed.connect(_on_pause_controls_pressed)
 	pause_menu_panel.add_child(pause_controls_button)
 
+	pause_howto_button = Button.new()
+	pause_howto_button.text = "How To Play"
+	pause_howto_button.position = Vector2(286, 62)
+	pause_howto_button.size = Vector2(124, 44)
+	pause_howto_button.pressed.connect(_on_pause_howto_pressed)
+	pause_menu_panel.add_child(pause_howto_button)
+
 	var exit_btn = Button.new()
 	exit_btn.text = "Quit Game"
-	exit_btn.position = Vector2(378, 62)
-	exit_btn.size = Vector2(170, 44)
+	exit_btn.position = Vector2(418, 62)
+	exit_btn.size = Vector2(130, 44)
 	exit_btn.pressed.connect(_on_pause_exit_pressed)
 	pause_menu_panel.add_child(exit_btn)
 
@@ -3699,19 +4518,50 @@ func _create_pause_menu() -> void:
 
 	var controls_title = Label.new()
 	controls_title.text = "Controls"
-	controls_title.position = Vector2(14, 12)
+	controls_title.position = Vector2(14, 10)
 	controls_title.add_theme_font_size_override("font_size", 22)
 	pause_controls_panel.add_child(controls_title)
 
+	var controls_scroll = ScrollContainer.new()
+	controls_scroll.position = Vector2(12, 44)
+	controls_scroll.size = Vector2(502, 208)
+	controls_scroll.follow_focus = true
+	pause_controls_panel.add_child(controls_scroll)
+
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick\nV: Drop carried stick\nHold R: Pee and claim trees/poles\nSpace: Vomit (when meter is full)\nHold X near other dogs: Aggressive social barking\nTab (hold): Objectives\nEsc: Pause / resume"
-	controls.position = Vector2(16, 46)
-	controls.size = Vector2(496, 196)
+	controls.text = "WASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick / Eat bone / Eat store food\nV: Drop carried stick\nHold R: Claim trees, poles, and fire hydrants\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold X near other dogs: Aggressive social barking\nTab (hold): Objectives\nEsc: Pause / resume"
+	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
-	pause_controls_panel.add_child(controls)
+	controls_scroll.add_child(controls)
+
+	pause_howto_panel = Panel.new()
+	pause_howto_panel.position = Vector2(22, 120)
+	pause_howto_panel.size = Vector2(526, 262)
+	pause_howto_panel.add_theme_stylebox_override("panel", controls_bg.duplicate())
+	pause_menu_panel.add_child(pause_howto_panel)
+
+	var howto_title = Label.new()
+	howto_title.text = "How To Play"
+	howto_title.position = Vector2(14, 10)
+	howto_title.add_theme_font_size_override("font_size", 22)
+	pause_howto_panel.add_child(howto_title)
+
+	var howto_scroll = ScrollContainer.new()
+	howto_scroll.position = Vector2(12, 44)
+	howto_scroll.size = Vector2(502, 208)
+	howto_scroll.follow_focus = true
+	pause_howto_panel.add_child(howto_scroll)
+
+	var howto_text = Label.new()
+	howto_text.text = "You are Freya, the world's best dog. You're on a mission to own this city block. You can claim trees, light poles, and fire hydrants by peeing on them. Other dogs may not be happy about you claiming the city, so it's your job to make friends and allies to make this city belong to Friendly Freya (Supreme Ruler)"
+	howto_text.custom_minimum_size = Vector2(482, 420)
+	howto_text.autowrap_mode = TextServer.AUTOWRAP_WORD
+	howto_text.add_theme_font_size_override("font_size", 16)
+	howto_scroll.add_child(howto_text)
 
 	pause_controls_panel.visible = false
+	pause_howto_panel.visible = false
 	pause_menu_panel.visible = false
 
 func _toggle_pause_menu(force_state: int = -1) -> void:
@@ -3725,8 +4575,12 @@ func _toggle_pause_menu(force_state: int = -1) -> void:
 		pause_menu_panel.visible = open
 	if pause_controls_panel != null and not open:
 		pause_controls_panel.visible = false
+	if pause_howto_panel != null and not open:
+		pause_howto_panel.visible = false
 	if pause_controls_button != null and not open:
 		pause_controls_button.text = "Controls"
+	if pause_howto_button != null and not open:
+		pause_howto_button.text = "How To Play"
 	get_tree().paused = open
 
 func _on_pause_resume_pressed() -> void:
@@ -3736,8 +4590,23 @@ func _on_pause_controls_pressed() -> void:
 	if pause_controls_panel == null:
 		return
 	pause_controls_panel.visible = not pause_controls_panel.visible
+	if pause_howto_panel != null:
+		pause_howto_panel.visible = false
 	if pause_controls_button != null:
 		pause_controls_button.text = "Hide Controls" if pause_controls_panel.visible else "Controls"
+	if pause_howto_button != null:
+		pause_howto_button.text = "How To Play"
+
+func _on_pause_howto_pressed() -> void:
+	if pause_howto_panel == null:
+		return
+	pause_howto_panel.visible = not pause_howto_panel.visible
+	if pause_controls_panel != null:
+		pause_controls_panel.visible = false
+	if pause_howto_button != null:
+		pause_howto_button.text = "Hide How To Play" if pause_howto_panel.visible else "How To Play"
+	if pause_controls_button != null:
+		pause_controls_button.text = "Controls"
 
 func _on_pause_exit_pressed() -> void:
 	get_tree().quit()
@@ -3793,20 +4662,12 @@ func _update_ui() -> void:
 	hunger_bar.value = freya_hunger
 	vomit_bar.value = freya_vomit
 	social_bar.value = freya_social
+	strength_bar.value = freya_strength
 
 	hunger_value_label.text = "%d%%" % int(round(freya_hunger))
 	vomit_value_label.text = "%d%%" % int(round(freya_vomit))
 	social_value_label.text = "%d%%" % int(round(freya_social))
-
-	if freya_vomit >= 100.0:
-		action_hint_label.text = "Press SPACE to vomit | Hold X near dogs for aggressive barking | Hold R to claim"
-		action_hint_label.add_theme_color_override("font_color", Color(0.83, 0.95, 0.69, 0.98))
-	elif freya_has_stick:
-		action_hint_label.text = "Press V to drop stick | Press F to eat nearby poop | Hold X near dogs for aggressive barking | Hold R to claim"
-		action_hint_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.76, 0.98))
-	else:
-		action_hint_label.text = "Press F to eat poop or pick up a stick | Hold X near dogs for aggressive barking | Hold R to claim"
-		action_hint_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8, 0.96))
+	strength_value_label.text = "%d%%" % int(round(freya_strength))
 
 	_update_claim_meter_overlay()
 
@@ -3819,9 +4680,15 @@ func _sync_minimap_static() -> void:
 	minimap.sidewalks = sidewalks.duplicate()
 	minimap.dog_park = dog_park
 	var building_rects: Array[Rect2] = []
+	var store_points = PackedVector2Array()
 	for b in buildings:
 		building_rects.append(b["footprint"])
+		if bool(b.get("is_store", false)):
+			var sp: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
+			if sp.x >= 0.0 and sp.y >= 0.0:
+				store_points.append(sp)
 	minimap.buildings = building_rects
+	minimap.store_entries = store_points
 	minimap.queue_redraw()
 
 func _update_minimap_dynamic(delta: float) -> void:

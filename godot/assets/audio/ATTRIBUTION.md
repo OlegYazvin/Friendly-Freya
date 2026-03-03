@@ -16,5 +16,19 @@ Derived files:
 - `barks/bark_04.wav`
 - `barks/bark_05.wav`
 - `barks/bark_06.wav`
+- `barks/bark_real_01.wav`
+- `barks/bark_real_02.wav`
+- `barks/bark_real_03.wav`
+- `barks/bark_real_04.wav`
+- `barks/bark_real_05.wav`
+- `barks/bark_real_06.wav`
+- `barks/bark_real_07.wav`
+- `barks/bark_real_08.wav`
+- `barks/aggressive_bark_01.wav`
+- `barks/aggressive_bark_02.wav`
+- `barks/aggressive_bark_03.wav`
+- `barks/aggressive_bark_04.wav`
+- `barks/aggressive_bark_05.wav`
+- `barks/aggressive_bark_06.wav`
 
-The derived bark clips were trimmed and lightly processed from `dog_barking.wav`.
+The derived bark clips were trimmed and processed from `dog_barking.wav`.

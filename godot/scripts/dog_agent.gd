@@ -10,6 +10,8 @@ var bark_cooldown = 0.0
 var wander_timer = 0.0
 var scene_path = ""
 var model_scale = 1.0
+var breed_profile = "mixed"
+var variant_seed = 0
 
 var _step_time = 0.0
 var _head_pivot: Node3D
@@ -36,6 +38,8 @@ func configure(config: Dictionary) -> void:
 	speed = float(config.get("speed", 2.2))
 	scene_path = str(config.get("scene_path", ""))
 	model_scale = float(config.get("model_scale", 1.0))
+	breed_profile = str(config.get("breed_profile", "mixed")).to_lower()
+	variant_seed = int(config.get("variant_seed", 0))
 	_build_visual()
 
 func _build_visual() -> void:
@@ -95,6 +99,8 @@ func _try_build_custom_model() -> bool:
 		_apply_black_coat(model_root)
 		_hide_leg_candidates(model_root)
 		_enforce_hidden_leg_pose()
+	else:
+		_apply_custom_coat_tint(model_root)
 
 	return true
 
@@ -190,6 +196,42 @@ func _freya_styled_material(source: Material) -> Material:
 		base.clearcoat = 0.0
 	return styled
 
+func _apply_custom_coat_tint(root: Node) -> void:
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			var mesh_instance := n as MeshInstance3D
+			if mesh_instance.material_override != null:
+				mesh_instance.material_override = _npc_tinted_material(mesh_instance.material_override)
+			var mesh := mesh_instance.mesh
+			if mesh != null:
+				for surface_idx in range(mesh.get_surface_count()):
+					var source: Material = mesh_instance.get_active_material(surface_idx)
+					if source == null:
+						source = mesh.surface_get_material(surface_idx)
+					if source == null:
+						continue
+					mesh_instance.set_surface_override_material(surface_idx, _npc_tinted_material(source))
+		for c in n.get_children():
+			stack.append(c)
+
+func _npc_tinted_material(source: Material) -> Material:
+	if source == null:
+		var fallback := StandardMaterial3D.new()
+		fallback.albedo_color = coat_color
+		fallback.roughness = 0.88
+		return fallback
+	var styled: Material = source.duplicate(true)
+	if styled is BaseMaterial3D:
+		var base := styled as BaseMaterial3D
+		var src := base.albedo_color
+		var sat = maxf(src.r, maxf(src.g, src.b)) - minf(src.r, minf(src.g, src.b))
+		var tint_strength = 0.18 if sat < 0.36 else 0.1
+		base.albedo_color = src.lerp(coat_color, tint_strength)
+		base.roughness = clampf(base.roughness + 0.05, 0.0, 1.0)
+	return styled
+
 func _hide_node_branch(root: Node3D) -> void:
 	if root == null:
 		return
@@ -224,14 +266,6 @@ func _register_hidden_leg_chain(skel: Skeleton3D, root_bone: int) -> void:
 
 func _pick_hind_leg_bone(skel: Skeleton3D) -> int:
 	var preferred = [
-		"backleg.l",
-		"hindleg.l",
-		"rearleg.l",
-		"back_leg_l",
-		"hind_leg_l",
-		"rear_leg_l",
-		"thigh.l",
-		"upleg.l",
 		"backleg.r",
 		"hindleg.r",
 		"rearleg.r",
@@ -239,7 +273,15 @@ func _pick_hind_leg_bone(skel: Skeleton3D) -> int:
 		"hind_leg_r",
 		"rear_leg_r",
 		"thigh.r",
-		"upleg.r"
+		"upleg.r",
+		"backleg.l",
+		"hindleg.l",
+		"rearleg.l",
+		"back_leg_l",
+		"hind_leg_l",
+		"rear_leg_l",
+		"thigh.l",
+		"upleg.l"
 	]
 
 	for needle in preferred:
@@ -644,8 +686,132 @@ func _build_model() -> void:
 	eye_material.albedo_color = Color(0.07, 0.07, 0.07)
 	eye_material.roughness = 0.15
 
+	var variant_rng = RandomNumberGenerator.new()
+	if variant_seed != 0:
+		variant_rng.seed = variant_seed
+	else:
+		variant_rng.randomize()
+
+	var torso_scale = Vector3(1.25, 0.82, 1.95)
+	var chest_scale = Vector3(1.15, 1.0, 1.2)
+	var rump_scale = Vector3(1.2, 0.9, 1.2)
+	var head_scale = Vector3(1.1, 1.0, 1.18)
+	var muzzle_scale = Vector3(1.3, 0.85, 1.6)
+	var ear_scale = Vector3(1.0, 1.0, 1.0)
+	var leg_upper_h = 0.35
+	var leg_lower_h = 0.32
+	var paw_scale = Vector3(1.2, 0.7, 1.4)
+	var tail_len_scale = 1.0
+	var body_root_scale = Vector3(1.08, 1.02, 1.1) if is_freya else Vector3(0.96, 0.96, 0.96)
+	var base_body_y = 0.58
+
+	if not is_freya:
+		match breed_profile:
+			"retriever":
+				torso_scale = Vector3(1.32, 0.84, 2.05)
+				chest_scale = Vector3(1.2, 1.02, 1.26)
+				rump_scale = Vector3(1.16, 0.9, 1.2)
+				head_scale = Vector3(1.08, 0.98, 1.15)
+				muzzle_scale = Vector3(1.34, 0.86, 1.74)
+				ear_scale = Vector3(1.0, 1.08, 0.95)
+				tail_len_scale = 1.15
+			"shepherd":
+				torso_scale = Vector3(1.28, 0.82, 2.15)
+				chest_scale = Vector3(1.18, 1.0, 1.24)
+				rump_scale = Vector3(1.22, 0.9, 1.24)
+				head_scale = Vector3(1.16, 1.02, 1.2)
+				muzzle_scale = Vector3(1.24, 0.84, 1.52)
+				ear_scale = Vector3(0.92, 1.45, 0.9)
+				leg_upper_h = 0.37
+				leg_lower_h = 0.34
+				tail_len_scale = 1.25
+			"husky":
+				torso_scale = Vector3(1.2, 0.84, 2.0)
+				chest_scale = Vector3(1.18, 1.04, 1.2)
+				rump_scale = Vector3(1.16, 0.92, 1.18)
+				head_scale = Vector3(1.12, 1.05, 1.12)
+				muzzle_scale = Vector3(1.2, 0.86, 1.44)
+				ear_scale = Vector3(0.95, 1.35, 0.95)
+				leg_upper_h = 0.36
+				leg_lower_h = 0.33
+				paw_scale = Vector3(1.18, 0.72, 1.35)
+				tail_len_scale = 1.34
+			"terrier":
+				torso_scale = Vector3(1.08, 0.82, 1.72)
+				chest_scale = Vector3(1.05, 1.02, 1.08)
+				rump_scale = Vector3(1.06, 0.9, 1.05)
+				head_scale = Vector3(1.03, 0.98, 1.02)
+				muzzle_scale = Vector3(1.28, 0.83, 1.42)
+				ear_scale = Vector3(0.88, 1.24, 0.86)
+				leg_upper_h = 0.31
+				leg_lower_h = 0.3
+				paw_scale = Vector3(1.05, 0.72, 1.2)
+				tail_len_scale = 0.95
+			"hound":
+				torso_scale = Vector3(1.24, 0.8, 2.14)
+				chest_scale = Vector3(1.16, 0.97, 1.2)
+				rump_scale = Vector3(1.18, 0.88, 1.17)
+				head_scale = Vector3(1.08, 0.94, 1.15)
+				muzzle_scale = Vector3(1.36, 0.82, 1.9)
+				ear_scale = Vector3(1.0, 1.5, 0.94)
+				leg_upper_h = 0.38
+				leg_lower_h = 0.34
+				tail_len_scale = 1.08
+				base_body_y = 0.61
+			"bulldog":
+				torso_scale = Vector3(1.42, 0.93, 1.66)
+				chest_scale = Vector3(1.32, 1.13, 1.13)
+				rump_scale = Vector3(1.36, 0.95, 1.04)
+				head_scale = Vector3(1.26, 1.13, 1.02)
+				muzzle_scale = Vector3(1.28, 0.75, 1.08)
+				ear_scale = Vector3(0.95, 0.92, 0.96)
+				leg_upper_h = 0.25
+				leg_lower_h = 0.23
+				paw_scale = Vector3(1.36, 0.83, 1.44)
+				tail_len_scale = 0.68
+				base_body_y = 0.52
+			"poodle":
+				torso_scale = Vector3(1.1, 0.84, 1.86)
+				chest_scale = Vector3(1.08, 1.03, 1.1)
+				rump_scale = Vector3(1.08, 0.93, 1.06)
+				head_scale = Vector3(1.17, 1.09, 1.05)
+				muzzle_scale = Vector3(1.16, 0.84, 1.34)
+				ear_scale = Vector3(1.06, 1.3, 0.9)
+				leg_upper_h = 0.35
+				leg_lower_h = 0.35
+				paw_scale = Vector3(1.04, 0.72, 1.2)
+				tail_len_scale = 1.02
+			_:
+				pass
+
+		torso_scale *= Vector3(
+			variant_rng.randf_range(0.93, 1.09),
+			variant_rng.randf_range(0.94, 1.08),
+			variant_rng.randf_range(0.92, 1.1)
+		)
+		chest_scale *= Vector3(
+			variant_rng.randf_range(0.94, 1.08),
+			variant_rng.randf_range(0.95, 1.08),
+			variant_rng.randf_range(0.92, 1.09)
+		)
+		head_scale *= Vector3(
+			variant_rng.randf_range(0.92, 1.09),
+			variant_rng.randf_range(0.93, 1.1),
+			variant_rng.randf_range(0.92, 1.08)
+		)
+		muzzle_scale *= Vector3(
+			variant_rng.randf_range(0.9, 1.1),
+			variant_rng.randf_range(0.92, 1.06),
+			variant_rng.randf_range(0.9, 1.13)
+		)
+		ear_scale.y *= variant_rng.randf_range(0.84, 1.3)
+		leg_upper_h *= variant_rng.randf_range(0.92, 1.1)
+		leg_lower_h *= variant_rng.randf_range(0.92, 1.1)
+		tail_len_scale *= variant_rng.randf_range(0.84, 1.24)
+		body_root_scale *= variant_rng.randf_range(0.93, 1.08)
+
 	var body_root = Node3D.new()
-	body_root.position = Vector3(0.0, 0.58, 0.0)
+	body_root.position = Vector3(0.0, base_body_y, 0.0)
 	add_child(body_root)
 	_visual_root = body_root
 
@@ -654,7 +820,7 @@ func _build_model() -> void:
 	torso_mesh.radius = 0.34
 	torso_mesh.height = 0.68
 	torso.mesh = torso_mesh
-	torso.scale = Vector3(1.25, 0.82, 1.95)
+	torso.scale = torso_scale
 	torso.material_override = body_material
 	body_root.add_child(torso)
 
@@ -664,7 +830,7 @@ func _build_model() -> void:
 	chest_mesh.height = 0.52
 	chest.mesh = chest_mesh
 	chest.position = Vector3(0.0, 0.02, -0.45)
-	chest.scale = Vector3(1.15, 1.0, 1.2)
+	chest.scale = chest_scale
 	chest.material_override = body_material
 	body_root.add_child(chest)
 
@@ -674,7 +840,7 @@ func _build_model() -> void:
 	rump_mesh.height = 0.5
 	rump.mesh = rump_mesh
 	rump.position = Vector3(0.0, -0.03, 0.44)
-	rump.scale = Vector3(1.2, 0.9, 1.2)
+	rump.scale = rump_scale
 	rump.material_override = fur_dark
 	body_root.add_child(rump)
 
@@ -687,7 +853,7 @@ func _build_model() -> void:
 	head_mesh.radius = 0.23
 	head_mesh.height = 0.46
 	head.mesh = head_mesh
-	head.scale = Vector3(1.1, 1.0, 1.18)
+	head.scale = head_scale
 	head.material_override = fur_dark
 	_head_pivot.add_child(head)
 
@@ -697,7 +863,7 @@ func _build_model() -> void:
 	muzzle_mesh.height = 0.28
 	muzzle.mesh = muzzle_mesh
 	muzzle.position = Vector3(0.0, -0.02, -0.25)
-	muzzle.scale = Vector3(1.3, 0.85, 1.6)
+	muzzle.scale = muzzle_scale
 	muzzle.material_override = fur_dark
 	_head_pivot.add_child(muzzle)
 
@@ -733,7 +899,7 @@ func _build_model() -> void:
 		ear_mesh.height = 0.28
 		ear.mesh = ear_mesh
 		ear.position = Vector3(0.0, -0.15, 0.0)
-		ear.scale = Vector3(1.0, 1.15 if is_freya else 1.0, 1.0)
+		ear.scale = Vector3(ear_scale.x, ear_scale.y * (1.15 if is_freya else 1.0), ear_scale.z)
 		ear.material_override = fur_dark
 		ear_pivot.add_child(ear)
 
@@ -756,9 +922,10 @@ func _build_model() -> void:
 		var upper_mesh = CylinderMesh.new()
 		upper_mesh.top_radius = 0.055
 		upper_mesh.bottom_radius = 0.05
-		upper_mesh.height = 0.35
+		upper_mesh.height = leg_upper_h
 		upper.mesh = upper_mesh
-		upper.position = Vector3(0.0, -0.18, 0.0)
+		var upper_y = -0.18
+		upper.position = Vector3(0.0, upper_y, 0.0)
 		upper.material_override = fur_dark
 		pivot.add_child(upper)
 
@@ -766,9 +933,10 @@ func _build_model() -> void:
 		var lower_mesh = CylinderMesh.new()
 		lower_mesh.top_radius = 0.042
 		lower_mesh.bottom_radius = 0.038
-		lower_mesh.height = 0.32
+		lower_mesh.height = leg_lower_h
 		lower.mesh = lower_mesh
-		lower.position = Vector3(0.0, -0.5, 0.0)
+		var lower_y = upper_y - leg_upper_h * 0.5 - leg_lower_h * 0.5
+		lower.position = Vector3(0.0, lower_y, 0.0)
 		lower.material_override = fur_dark
 		pivot.add_child(lower)
 
@@ -777,8 +945,8 @@ func _build_model() -> void:
 		paw_mesh.radius = 0.055
 		paw_mesh.height = 0.11
 		paw.mesh = paw_mesh
-		paw.position = Vector3(0.0, -0.67, 0.03)
-		paw.scale = Vector3(1.2, 0.7, 1.4)
+		paw.position = Vector3(0.0, lower_y - leg_lower_h * 0.5 - 0.17, 0.03)
+		paw.scale = paw_scale
 		paw.material_override = nose_material
 		pivot.add_child(paw)
 
@@ -789,24 +957,24 @@ func _build_model() -> void:
 	var tail = MeshInstance3D.new()
 	var tail_mesh = CapsuleMesh.new()
 	tail_mesh.radius = 0.04
-	tail_mesh.height = 0.36
+	tail_mesh.height = 0.36 * tail_len_scale
 	tail.mesh = tail_mesh
 	tail.rotation_degrees.x = 90.0
-	tail.position = Vector3(0.0, 0.04, 0.2)
+	tail.position = Vector3(0.0, 0.04, 0.2 * tail_len_scale)
 	tail.material_override = fur_dark
 	_tail_pivot.add_child(tail)
 
 	_tail_tip_pivot = Node3D.new()
-	_tail_tip_pivot.position = Vector3(0.0, 0.06, 0.34)
+	_tail_tip_pivot.position = Vector3(0.0, 0.06, 0.34 * tail_len_scale)
 	_tail_pivot.add_child(_tail_tip_pivot)
 
 	var tail_tip = MeshInstance3D.new()
 	var tip_mesh = CapsuleMesh.new()
 	tip_mesh.radius = 0.03
-	tip_mesh.height = 0.22
+	tip_mesh.height = 0.22 * clampf(tail_len_scale, 0.84, 1.22)
 	tail_tip.mesh = tip_mesh
 	tail_tip.rotation_degrees.x = 90.0
-	tail_tip.position = Vector3(0.0, 0.02, 0.12)
+	tail_tip.position = Vector3(0.0, 0.02, 0.12 * tail_len_scale)
 	tail_tip.material_override = fur_dark
 	_tail_tip_pivot.add_child(tail_tip)
 
@@ -839,6 +1007,40 @@ func _build_model() -> void:
 			curl.material_override = curl_mat
 			body_root.add_child(curl)
 
-		body_root.scale = Vector3(1.08, 1.02, 1.1)
-	else:
-		body_root.scale = Vector3(0.96, 0.96, 0.96)
+	if not is_freya:
+		var patch_mat = StandardMaterial3D.new()
+		patch_mat.albedo_color = coat_color.lerp(Color(0.95, 0.93, 0.88), variant_rng.randf_range(0.35, 0.62))
+		patch_mat.roughness = 0.84
+		var patch_roll = variant_rng.randf()
+		if patch_roll < 0.72:
+			var chest_patch = MeshInstance3D.new()
+			var chest_patch_mesh = SphereMesh.new()
+			chest_patch_mesh.radius = 0.17
+			chest_patch_mesh.height = 0.34
+			chest_patch.mesh = chest_patch_mesh
+			chest_patch.position = Vector3(0.0, -0.02, -0.55)
+			chest_patch.scale = Vector3(0.8, 1.0, 0.56)
+			chest_patch.material_override = patch_mat
+			body_root.add_child(chest_patch)
+		if patch_roll > 0.3 and patch_roll < 0.9:
+			var muzzle_patch = MeshInstance3D.new()
+			var muzzle_patch_mesh = SphereMesh.new()
+			muzzle_patch_mesh.radius = 0.08
+			muzzle_patch_mesh.height = 0.16
+			muzzle_patch.mesh = muzzle_patch_mesh
+			muzzle_patch.position = Vector3(0.0, -0.03, -0.33)
+			muzzle_patch.scale = Vector3(0.62, 0.9, 1.3)
+			muzzle_patch.material_override = patch_mat
+			_head_pivot.add_child(muzzle_patch)
+		if patch_roll > 0.62:
+			var tail_patch = MeshInstance3D.new()
+			var tail_patch_mesh = SphereMesh.new()
+			tail_patch_mesh.radius = 0.035
+			tail_patch_mesh.height = 0.07
+			tail_patch.mesh = tail_patch_mesh
+			tail_patch.position = Vector3(0.0, 0.02, 0.17 * tail_len_scale)
+			tail_patch.scale = Vector3(1.0, 0.7, 1.0)
+			tail_patch.material_override = patch_mat
+			_tail_tip_pivot.add_child(tail_patch)
+
+	body_root.scale = body_root_scale

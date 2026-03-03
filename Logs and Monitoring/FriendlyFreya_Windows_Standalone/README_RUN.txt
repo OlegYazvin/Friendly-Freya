@@ -11,9 +11,10 @@ Controls:
 - WASD / Arrow keys: Move
 - Shift: Run
 - Q / E: Rotate camera
-- F: Eat nearby poop / pick up or drop stick
+- F: Interact (eat poop, bones, and store food / pick up stick)
 - V: Drop carried stick
-- Hold R: Claim trees/poles
+- Hold R: Claim trees, light poles, and fire hydrants
+- Hold R near dumpster: Search dumpster
 - Space: Vomit (when meter is full)
 - Hold X near other dogs: Aggressive social barking
-- Esc: Pause menu (Resume / Controls / Quit)
+- Esc: Pause menu (Resume / Controls / How To Play / Quit)

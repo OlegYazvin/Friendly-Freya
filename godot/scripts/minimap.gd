@@ -6,6 +6,7 @@ var roads: Array[Rect2] = []
 var alleys: Array[Rect2] = []
 var sidewalks: Array[Rect2] = []
 var buildings: Array[Rect2] = []
+var store_entries = PackedVector2Array()
 var dog_park = Rect2()
 
 var freya_position = Vector2.ZERO
@@ -102,6 +103,19 @@ func _draw() -> void:
 
 	for b in buildings:
 		_draw_map_rect(b, scale_vec, offset, angle, Color(0.45, 0.28, 0.2, 0.95), true)
+
+	var pulse = 0.62 + 0.38 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
+	for s in store_entries:
+		var center = _to_map_pos(s, scale_vec, offset, angle)
+		var r = 1.3 + pulse * 1.2
+		draw_circle(center, r + 1.2, Color(0.12, 0.79, 1.0, 0.26))
+		draw_circle(center, r, Color(0.18, 0.92, 1.0, 0.82))
+		var arrow = PackedVector2Array([
+			center + Vector2(0.0, -2.4 - pulse),
+			center + Vector2(-1.7, 1.4),
+			center + Vector2(1.7, 1.4)
+		])
+		draw_colored_polygon(arrow, Color(1.0, 0.96, 0.44, 0.88))
 
 	for p in poop_positions:
 		draw_circle(_to_map_pos(p, scale_vec, offset, angle), 1.4, Color(0.56, 0.35, 0.19, 1.0))
