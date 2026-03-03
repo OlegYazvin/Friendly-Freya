@@ -55,8 +55,8 @@ const CLAIM_PEE_SOURCE_RIGHT_OFFSET = 0.0
 const CLAIM_PEE_STREAM_RADIUS = 0.028
 const CLAIM_PEE_TARGET_POLE_HEIGHT = 0.44
 const CLAIM_PEE_TARGET_TREE_HEIGHT = 0.56
-const OCCLUSION_UPDATE_INTERVAL = 0.08
-const OCCLUSION_MOVE_EPS = 0.08
+const OCCLUSION_UPDATE_INTERVAL = 0.04
+const OCCLUSION_MOVE_EPS = 0.04
 const MINIMAP_UPDATE_INTERVAL = 0.08
 const FREYA_COLLISION_RADIUS = 0.34
 const DOG_COLLISION_RADIUS = 0.28
@@ -71,12 +71,12 @@ const BUILDING_COLLISION_PAD = 0.02
 const ROW_FRONT_SETBACK = 3.25
 const ROW_SIDE_SETBACK = 0.72
 const ALLEY_BUILDING_GAP = 0.2
-const STORE_WALL_THICKNESS = 0.34
-const STORE_DOOR_HALF_WIDTH = 0.78
+const STORE_WALL_THICKNESS = 0.28
+const STORE_DOOR_HALF_WIDTH = 1.1
 const STORE_DOOR_DEPTH = 0.86
-const STORE_INTERIOR_MARGIN = 0.24
+const STORE_INTERIOR_MARGIN = 0.34
 const STORE_INTERIOR_WALL_HEIGHT = 2.55
-const STORE_FOCUS_UPDATE_INTERVAL = 0.1
+const STORE_FOCUS_UPDATE_INTERVAL = 0.03
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
 const BONE_PICKUP_RANGE = 1.55
@@ -96,6 +96,10 @@ const NPC_DOG_MODEL_CANDIDATES = [
 const NPC_DOG_COUNT = 24
 const DOG_PARK_NPC_COUNT = 10
 const NPC_SIDEWALK_PREF_CHANCE = 0.82
+const FREYA_OCCLUSION_SAMPLE_BLOCK_THRESHOLD = 4
+const FREYA_SOCIAL_DANCE_RADIUS = 0.58
+const FREYA_SOCIAL_DANCE_SPEED = 2.15
+const FREYA_SOCIAL_DANCE_SPIN_SPEED = 6.7
 const NPC_MODEL_SCALE_OVERRIDES = {
 	"res://assets/models/dog_husky.glb": 0.76
 }
@@ -139,6 +143,7 @@ var freya_social = 24.0
 var freya_strength = 0.0
 var freya_vomit_timer = 0.0
 var freya_move_dir = Vector3.ZERO
+var freya_social_dance_phase = 0.0
 var camera_focus = Vector3.ZERO
 var camera_orbit_angle = 0.0
 
@@ -209,6 +214,7 @@ var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
 
 var minimap
+var minimap_zoom_slider: HSlider
 var store_focus_layer: CanvasLayer
 var store_focus_overlay: ColorRect
 var pause_menu_layer: CanvasLayer
@@ -264,6 +270,8 @@ func _ready() -> void:
 
 	if OS.has_feature("server") or OS.get_environment("FREYA_SMOKE") == "1":
 		_run_headless_smoke_checks()
+	if OS.get_environment("FREYA_VALIDATE") == "1":
+		_run_targeted_validation_checks()
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("menu"):
@@ -708,7 +716,7 @@ func _create_prop_materials() -> void:
 		store_food_materials.append(m)
 
 	freya_outline_material = _make_outline_material(Color(0.18, 0.96, 0.98, 1.0), 0.05)
-	freya_ghost_material = _make_ghost_material(Color(0.62, 0.94, 1.0, 0.44))
+	freya_ghost_material = _make_ghost_material(Color(0.72, 0.96, 1.0, 0.72))
 	object_outline_material = _make_outline_material(Color(0.98, 0.92, 0.42, 0.96), 0.036)
 
 func _make_outline_material(color: Color, thickness: float) -> ShaderMaterial:
@@ -742,13 +750,17 @@ func _make_ghost_material(color: Color) -> ShaderMaterial:
 	var shader := Shader.new()
 	shader.code = """
 shader_type spatial;
-render_mode blend_mix, cull_disabled, unshaded, depth_draw_never;
+render_mode blend_mix, cull_disabled, unshaded, depth_draw_never, depth_test_disabled;
 
-uniform vec4 ghost_color : source_color = vec4(0.6, 0.9, 1.0, 0.45);
+uniform vec4 ghost_color : source_color = vec4(0.72, 0.96, 1.0, 0.72);
 
 void fragment() {
-	ALBEDO = ghost_color.rgb;
-	ALPHA = ghost_color.a;
+	vec3 n = normalize(NORMAL);
+	vec3 v = normalize(VIEW);
+	float rim = pow(1.0 - abs(dot(n, v)), 1.8);
+	vec3 rim_color = mix(ghost_color.rgb, vec3(1.0), rim * 0.58);
+	ALBEDO = rim_color;
+	ALPHA = clamp(ghost_color.a + rim * 0.22, 0.0, 1.0);
 }
 """
 	var mat := ShaderMaterial.new()
@@ -885,8 +897,6 @@ func _generate_city_layout() -> void:
 	alley_shoulders.clear()
 	block_parcels.clear()
 
-	dog_park = Rect2(MAP_W - 26.0, 2.0, 22.0, 16.0)
-
 	for cx in [24.0, 48.0, 72.0, 96.0, 120.0]:
 		_add_road(Rect2(cx - ROAD_W * 0.5, 0.0, ROAD_W, MAP_H))
 
@@ -895,16 +905,43 @@ func _generate_city_layout() -> void:
 
 	var x_intervals = _compute_non_road_intervals(true)
 	var z_intervals = _compute_non_road_intervals(false)
+	var parcel_candidates: Array[Rect2] = []
 
 	for xr in x_intervals:
 		for zr in z_intervals:
 			var parcel = Rect2(xr.x, zr.x, xr.y, zr.y)
 			if parcel.size.x < 10.0 or parcel.size.y < 9.5:
 				continue
-			block_parcels.append(parcel)
-			if parcel.intersects(dog_park.grow(0.4)):
-				continue
-			_add_block_alleys(parcel)
+			parcel_candidates.append(parcel)
+
+	var map_center = Vector2(MAP_W * 0.5, MAP_H * 0.5)
+	var park_parcel = Rect2(MAP_W * 0.5 - 8.0, MAP_H * 0.5 - 7.0, 16.0, 14.0)
+	if not parcel_candidates.is_empty():
+		parcel_candidates.sort_custom(func(a: Rect2, b: Rect2):
+			var ac = a.position + a.size * 0.5
+			var bc = b.position + b.size * 0.5
+			return ac.distance_squared_to(map_center) < bc.distance_squared_to(map_center)
+		)
+		var pick_pool = mini(4, parcel_candidates.size())
+		park_parcel = parcel_candidates[rng.randi_range(0, pick_pool - 1)]
+
+	var park_size = Vector2(
+		clampf(minf(16.4, park_parcel.size.x - 0.9), 9.6, 17.0),
+		clampf(minf(13.9, park_parcel.size.y - 0.9), 8.8, 15.2)
+	)
+	var parcel_center = park_parcel.position + park_parcel.size * 0.5
+	var center_pull = (map_center - parcel_center) * 0.14
+	var jitter = Vector2(rng.randf_range(-0.45, 0.45), rng.randf_range(-0.34, 0.34))
+	var park_origin = parcel_center - park_size * 0.5 + center_pull + jitter
+	park_origin.x = clampf(park_origin.x, park_parcel.position.x + 0.28, park_parcel.position.x + park_parcel.size.x - park_size.x - 0.28)
+	park_origin.y = clampf(park_origin.y, park_parcel.position.y + 0.28, park_parcel.position.y + park_parcel.size.y - park_size.y - 0.28)
+	dog_park = Rect2(park_origin, park_size)
+
+	for parcel in parcel_candidates:
+		block_parcels.append(parcel)
+		if parcel.intersects(dog_park.grow(0.4)):
+			continue
+		_add_block_alleys(parcel)
 
 func _add_road(rect: Rect2) -> void:
 	if not _rect_valid(rect):
@@ -1192,7 +1229,8 @@ func _mark_store_buildings() -> void:
 		var store: Dictionary = buildings[idx]
 		store["is_store"] = true
 		store["enterable"] = true
-		store["store_food_slots"] = rng.randi_range(4, 6)
+		var fp_store: Rect2 = store.get("footprint", Rect2())
+		store["store_food_slots"] = clampi(int(round(fp_store.size.x * fp_store.size.y * 0.32)), 10, 26)
 		_decorate_storefront(store)
 		_create_store_entry_indicator(store)
 		buildings[idx] = store
@@ -1256,20 +1294,128 @@ func _clear_store_interiors() -> void:
 		b["store_interior_root"] = null
 		buildings[i] = b
 
-func _add_store_wall_box(parent: Node3D, wall_rect: Rect2, material: Material) -> void:
+func _add_store_wall_box(parent: Node3D, wall_rect: Rect2, material: Material, height: float = STORE_INTERIOR_WALL_HEIGHT) -> void:
 	if wall_rect.size.x <= 0.03 or wall_rect.size.y <= 0.03:
 		return
 	var wall = MeshInstance3D.new()
 	var mesh = BoxMesh.new()
-	mesh.size = Vector3(wall_rect.size.x, STORE_INTERIOR_WALL_HEIGHT, wall_rect.size.y)
+	mesh.size = Vector3(wall_rect.size.x, height, wall_rect.size.y)
 	wall.mesh = mesh
 	wall.position = Vector3(
 		wall_rect.position.x + wall_rect.size.x * 0.5,
-		STORE_INTERIOR_WALL_HEIGHT * 0.5,
+		height * 0.5,
 		wall_rect.position.y + wall_rect.size.y * 0.5
 	)
 	wall.material_override = material
 	parent.add_child(wall)
+
+func _add_store_stand(
+	parent: Node3D,
+	fixture_rect: Rect2,
+	frame_material: Material,
+	top_material: Material,
+	top_y: float = 1.0
+) -> void:
+	if fixture_rect.size.x < 0.16 or fixture_rect.size.y < 0.16:
+		return
+	var center = Vector3(
+		fixture_rect.position.x + fixture_rect.size.x * 0.5,
+		0.0,
+		fixture_rect.position.y + fixture_rect.size.y * 0.5
+	)
+
+	var top = MeshInstance3D.new()
+	var top_mesh = BoxMesh.new()
+	top_mesh.size = Vector3(fixture_rect.size.x, 0.08, fixture_rect.size.y)
+	top.mesh = top_mesh
+	top.position = center + Vector3(0.0, top_y, 0.0)
+	top.material_override = top_material
+	parent.add_child(top)
+
+	var shelf = MeshInstance3D.new()
+	var shelf_mesh = BoxMesh.new()
+	shelf_mesh.size = Vector3(maxf(0.08, fixture_rect.size.x - 0.08), 0.06, maxf(0.08, fixture_rect.size.y - 0.08))
+	shelf.mesh = shelf_mesh
+	shelf.position = center + Vector3(0.0, top_y * 0.56, 0.0)
+	shelf.material_override = frame_material
+	parent.add_child(shelf)
+
+	var leg_h = maxf(0.26, top_y - 0.06)
+	for dx in [-1.0, 1.0]:
+		for dz in [-1.0, 1.0]:
+			var leg = MeshInstance3D.new()
+			var leg_mesh = BoxMesh.new()
+			leg_mesh.size = Vector3(0.06, leg_h, 0.06)
+			leg.mesh = leg_mesh
+			leg.position = Vector3(
+				center.x + dx * (fixture_rect.size.x * 0.5 - 0.05),
+				leg_h * 0.5,
+				center.z + dz * (fixture_rect.size.y * 0.5 - 0.05)
+			)
+			leg.material_override = frame_material
+			parent.add_child(leg)
+
+func _add_store_wall_band(
+	parent: Node3D,
+	wall_rect: Rect2,
+	material: Material,
+	y: float,
+	band_h: float = 0.07
+) -> void:
+	if wall_rect.size.x <= 0.03 or wall_rect.size.y <= 0.03:
+		return
+	var band = MeshInstance3D.new()
+	var mesh = BoxMesh.new()
+	mesh.size = Vector3(wall_rect.size.x, band_h, wall_rect.size.y)
+	band.mesh = mesh
+	band.position = Vector3(
+		wall_rect.position.x + wall_rect.size.x * 0.5,
+		y,
+		wall_rect.position.y + wall_rect.size.y * 0.5
+	)
+	band.material_override = material
+	parent.add_child(band)
+
+func _add_bodega_stock_to_fixture(
+	parent: Node3D,
+	fixture_rect: Rect2,
+	top_y: float,
+	materials: Array,
+	slab_mode: bool = false
+) -> void:
+	if fixture_rect.size.x < 0.1 or fixture_rect.size.y < 0.1:
+		return
+	if materials.is_empty():
+		return
+	var area = fixture_rect.size.x * fixture_rect.size.y
+	var count = clampi(int(round(area * 15.0)), 5, 30)
+	for i in range(count):
+		var item = MeshInstance3D.new()
+		if slab_mode and i % 4 == 0:
+			var slab = BoxMesh.new()
+			slab.size = Vector3(
+				rng.randf_range(0.07, 0.13),
+				rng.randf_range(0.03, 0.055),
+				rng.randf_range(0.08, 0.14)
+			)
+			item.mesh = slab
+		else:
+			var produce = SphereMesh.new()
+			produce.radius = rng.randf_range(0.024, 0.056)
+			produce.height = produce.radius * 2.0
+			item.mesh = produce
+			item.scale = Vector3(
+				rng.randf_range(0.8, 1.2),
+				rng.randf_range(0.7, 1.16),
+				rng.randf_range(0.8, 1.2)
+			)
+		item.material_override = materials[rng.randi_range(0, materials.size() - 1)]
+		item.position = Vector3(
+			rng.randf_range(fixture_rect.position.x + 0.05, fixture_rect.position.x + fixture_rect.size.x - 0.05),
+			top_y + rng.randf_range(0.01, 0.06),
+			rng.randf_range(fixture_rect.position.y + 0.05, fixture_rect.position.y + fixture_rect.size.y - 0.05)
+		)
+		parent.add_child(item)
 
 func _build_store_interiors() -> void:
 	_clear_store_interiors()
@@ -1285,11 +1431,67 @@ func _build_store_interiors() -> void:
 	wall_mat.albedo_color = Color8(228, 223, 214)
 	wall_mat.roughness = 0.88
 	wall_mat.metallic = 0.02
+	wall_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var wall_trim_mat = StandardMaterial3D.new()
+	wall_trim_mat.albedo_color = Color8(176, 162, 145)
+	wall_trim_mat.roughness = 0.82
+	wall_trim_mat.metallic = 0.01
+
+	var wall_band_mat = StandardMaterial3D.new()
+	wall_band_mat.albedo_color = Color8(190, 176, 158)
+	wall_band_mat.roughness = 0.78
+	wall_band_mat.metallic = 0.0
+
+	var poster_mat = StandardMaterial3D.new()
+	poster_mat.albedo_color = Color8(223, 205, 166)
+	poster_mat.roughness = 0.52
+	poster_mat.metallic = 0.0
 
 	var shelf_mat = StandardMaterial3D.new()
 	shelf_mat.albedo_color = Color8(169, 145, 118)
 	shelf_mat.roughness = 0.84
 	shelf_mat.metallic = 0.0
+
+	var ceiling_mat = StandardMaterial3D.new()
+	ceiling_mat.albedo_color = Color8(230, 229, 224)
+	ceiling_mat.roughness = 0.92
+	ceiling_mat.metallic = 0.0
+
+	var light_mat = StandardMaterial3D.new()
+	light_mat.albedo_color = Color8(244, 234, 202)
+	light_mat.roughness = 0.22
+	light_mat.emission_enabled = true
+	light_mat.emission = Color(1.0, 0.93, 0.74)
+	light_mat.emission_energy_multiplier = 1.1
+
+	var fridge_mat = StandardMaterial3D.new()
+	fridge_mat.albedo_color = Color8(172, 179, 186)
+	fridge_mat.roughness = 0.55
+	fridge_mat.metallic = 0.18
+
+	var produce_mats: Array = []
+	for c in [
+		Color8(201, 53, 47),
+		Color8(236, 144, 43),
+		Color8(219, 191, 65),
+		Color8(121, 172, 62),
+		Color8(78, 147, 66),
+		Color8(164, 105, 61)
+	]:
+		var m = StandardMaterial3D.new()
+		m.albedo_color = c
+		m.roughness = 0.76
+		m.metallic = 0.0
+		produce_mats.append(m)
+
+	var meat_mats: Array = []
+	for c in [Color8(161, 66, 61), Color8(188, 84, 74), Color8(145, 54, 58)]:
+		var m = StandardMaterial3D.new()
+		m.albedo_color = c
+		m.roughness = 0.64
+		m.metallic = 0.03
+		meat_mats.append(m)
 
 	for idx in store_building_indices:
 		if idx < 0 or idx >= buildings.size():
@@ -1319,53 +1521,178 @@ func _build_store_interiors() -> void:
 		floor.material_override = floor_mat
 		interior_root.add_child(floor)
 
+		var ceiling = MeshInstance3D.new()
+		var ceiling_mesh = BoxMesh.new()
+		ceiling_mesh.size = Vector3(inner_w, 0.05, inner_d)
+		ceiling.mesh = ceiling_mesh
+		ceiling.position = Vector3(x0 + inner_w * 0.5, STORE_INTERIOR_WALL_HEIGHT + 0.02, z0 + inner_d * 0.5)
+		ceiling.material_override = ceiling_mat
+		interior_root.add_child(ceiling)
+
+		var light_count = clampi(int(round(inner_w / 2.3)), 2, 4)
+		for li in range(light_count):
+			var t = (float(li) + 0.5) / float(light_count)
+			var bulb = MeshInstance3D.new()
+			var bulb_mesh = SphereMesh.new()
+			bulb_mesh.radius = 0.08
+			bulb_mesh.height = 0.16
+			bulb.mesh = bulb_mesh
+			bulb.position = Vector3(lerpf(x0 + 0.8, x1 - 0.8, t), STORE_INTERIOR_WALL_HEIGHT - 0.26, z0 + inner_d * 0.5)
+			bulb.material_override = light_mat
+			interior_root.add_child(bulb)
+
 		var wall_t = STORE_WALL_THICKNESS
 		var door_half = minf(STORE_DOOR_HALF_WIDTH, inner_w * 0.24)
 		var center_x = x0 + inner_w * 0.5
 		var front_is_south = bool(b.get("front_is_south", true))
 		var blockers: Array[Rect2] = []
+		var wall_visuals: Array[Rect2] = []
+		var produce_fixtures: Array[Rect2] = []
+		var meat_fixtures: Array[Rect2] = []
 
 		var left_wall = Rect2(x0, z0, wall_t, inner_d)
 		var right_wall = Rect2(x1 - wall_t, z0, wall_t, inner_d)
 		blockers.append(left_wall)
 		blockers.append(right_wall)
+		wall_visuals.append(left_wall)
+		wall_visuals.append(right_wall)
 
 		if front_is_south:
 			var back_wall = Rect2(x0, z0, inner_w, wall_t)
 			blockers.append(back_wall)
+			wall_visuals.append(back_wall)
 			var front_left_w = maxf(0.0, center_x - door_half - x0)
 			var front_right_x = center_x + door_half
 			var front_right_w = maxf(0.0, x1 - front_right_x)
 			if front_left_w > 0.05:
-				blockers.append(Rect2(x0, z1 - wall_t, front_left_w, wall_t))
+				var front_left_wall = Rect2(x0, z1 - wall_t, front_left_w, wall_t)
+				blockers.append(front_left_wall)
+				wall_visuals.append(front_left_wall)
 			if front_right_w > 0.05:
-				blockers.append(Rect2(front_right_x, z1 - wall_t, front_right_w, wall_t))
+				var front_right_wall = Rect2(front_right_x, z1 - wall_t, front_right_w, wall_t)
+				blockers.append(front_right_wall)
+				wall_visuals.append(front_right_wall)
 			var jamb_d = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
-			blockers.append(Rect2(center_x - door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d))
-			blockers.append(Rect2(center_x + door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d))
+			var jamb_l = Rect2(center_x - door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
+			var jamb_r = Rect2(center_x + door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
+			wall_visuals.append(jamb_l)
+			wall_visuals.append(jamb_r)
 		else:
 			var back_wall_north = Rect2(x0, z1 - wall_t, inner_w, wall_t)
 			blockers.append(back_wall_north)
+			wall_visuals.append(back_wall_north)
 			var front_left_w_n = maxf(0.0, center_x - door_half - x0)
 			var front_right_x_n = center_x + door_half
 			var front_right_w_n = maxf(0.0, x1 - front_right_x_n)
 			if front_left_w_n > 0.05:
-				blockers.append(Rect2(x0, z0, front_left_w_n, wall_t))
+				var front_left_wall_n = Rect2(x0, z0, front_left_w_n, wall_t)
+				blockers.append(front_left_wall_n)
+				wall_visuals.append(front_left_wall_n)
 			if front_right_w_n > 0.05:
-				blockers.append(Rect2(front_right_x_n, z0, front_right_w_n, wall_t))
+				var front_right_wall_n = Rect2(front_right_x_n, z0, front_right_w_n, wall_t)
+				blockers.append(front_right_wall_n)
+				wall_visuals.append(front_right_wall_n)
 			var jamb_d_n = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
-			blockers.append(Rect2(center_x - door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n))
-			blockers.append(Rect2(center_x + door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n))
+			var jamb_n_l = Rect2(center_x - door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
+			var jamb_n_r = Rect2(center_x + door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
+			wall_visuals.append(jamb_n_l)
+			wall_visuals.append(jamb_n_r)
+
+		if inner_d > 3.2:
+			var side_depth = inner_d - 1.9
+			var fixture_l = Rect2(x0 + wall_t + 0.16, z0 + 0.92, 0.5, side_depth)
+			var fixture_r = Rect2(x1 - wall_t - 0.66, z0 + 0.92, 0.5, side_depth)
+			if fixture_l.size.y > 1.0:
+				blockers.append(fixture_l)
+				produce_fixtures.append(fixture_l)
+			if fixture_r.size.y > 1.0:
+				blockers.append(fixture_r)
+				produce_fixtures.append(fixture_r)
 
 		if inner_w > 6.2 and inner_d > 4.0:
 			var aisle_depth = clampf(inner_d * 0.44, 1.9, inner_d - 1.2)
 			var aisle_z = z0 + (inner_d - aisle_depth) * 0.5
-			blockers.append(Rect2(x0 + inner_w * 0.33 - 0.12, aisle_z, 0.24, aisle_depth))
-			blockers.append(Rect2(x0 + inner_w * 0.67 - 0.12, aisle_z, 0.24, aisle_depth))
+			var aisle_a = Rect2(x0 + inner_w * 0.33 - 0.18, aisle_z, 0.36, aisle_depth)
+			var aisle_b = Rect2(x0 + inner_w * 0.67 - 0.18, aisle_z, 0.36, aisle_depth)
+			blockers.append(aisle_a)
+			blockers.append(aisle_b)
+			produce_fixtures.append(aisle_a)
+			produce_fixtures.append(aisle_b)
 
-		for wall_rect in blockers:
-			var mat = shelf_mat if wall_rect.size.x <= 0.28 and wall_rect.size.y > 1.7 else wall_mat
-			_add_store_wall_box(interior_root, wall_rect, mat)
+		var meat_counter_w = clampf(inner_w * 0.46, 1.3, inner_w - 1.1)
+		var meat_counter_x = x0 + (inner_w - meat_counter_w) * 0.5
+		var meat_counter = Rect2(
+			meat_counter_x,
+			(z0 + wall_t + 0.26) if front_is_south else (z1 - wall_t - 0.74),
+			meat_counter_w,
+			0.48
+		)
+		blockers.append(meat_counter)
+		meat_fixtures.append(meat_counter)
+
+		if inner_w > 4.2 and inner_d > 3.4:
+			var island_w = clampf(inner_w * 0.24, 0.82, 1.5)
+			var island_d = clampf(inner_d * 0.2, 0.88, 1.6)
+			var island = Rect2(
+				x0 + inner_w * 0.5 - island_w * 0.5,
+				z0 + inner_d * 0.54 - island_d * 0.5,
+				island_w,
+				island_d
+			)
+			blockers.append(island)
+			produce_fixtures.append(island)
+
+		if inner_w > 7.2 and inner_d > 4.2:
+			var island2_w = clampf(inner_w * 0.2, 0.76, 1.3)
+			var island2_d = clampf(inner_d * 0.16, 0.82, 1.28)
+			var island2 = Rect2(
+				x0 + inner_w * 0.28 - island2_w * 0.5,
+				z0 + inner_d * 0.46 - island2_d * 0.5,
+				island2_w,
+				island2_d
+			)
+			blockers.append(island2)
+			produce_fixtures.append(island2)
+
+		for wall_rect in wall_visuals:
+			_add_store_wall_box(interior_root, wall_rect, wall_mat, STORE_INTERIOR_WALL_HEIGHT)
+			var trim_rect = wall_rect.grow(-0.02)
+			if trim_rect.size.x > 0.03 and trim_rect.size.y > 0.03:
+				_add_store_wall_box(interior_root, trim_rect, wall_trim_mat, 0.11)
+			_add_store_wall_band(interior_root, wall_rect, wall_band_mat, 0.58, 0.08)
+			_add_store_wall_band(interior_root, wall_rect, wall_trim_mat, 1.74, 0.06)
+
+		var poster_count = clampi(int(round(inner_w / 2.8)), 1, 3)
+		for pi in range(poster_count):
+			var poster = MeshInstance3D.new()
+			var poster_mesh = BoxMesh.new()
+			poster_mesh.size = Vector3(0.52, 0.66, 0.02)
+			poster.mesh = poster_mesh
+			var t = (float(pi) + 0.5) / float(poster_count)
+			var poster_x = lerpf(x0 + 0.75, x1 - 0.75, t)
+			var poster_z = z0 + wall_t * 0.45 if front_is_south else z1 - wall_t * 0.45
+			poster.position = Vector3(poster_x, 1.42, poster_z)
+			poster.material_override = poster_mat
+			interior_root.add_child(poster)
+
+		for fixture in produce_fixtures:
+			_add_store_stand(interior_root, fixture, shelf_mat, wall_trim_mat, 1.02)
+			_add_bodega_stock_to_fixture(interior_root, fixture.grow(-0.02), 1.06, produce_mats, false)
+
+		for fixture in meat_fixtures:
+			_add_store_stand(interior_root, fixture, shelf_mat, wall_trim_mat, 0.88)
+			_add_bodega_stock_to_fixture(interior_root, fixture.grow(-0.02), 0.92, meat_mats, true)
+
+		var fridge_count = clampi(int(round(inner_w / 3.2)), 1, 3)
+		for fi in range(fridge_count):
+			var t = (float(fi) + 0.5) / float(fridge_count)
+			var fridge = MeshInstance3D.new()
+			var fridge_mesh = BoxMesh.new()
+			fridge_mesh.size = Vector3(0.46, 1.85, 0.34)
+			fridge.mesh = fridge_mesh
+			fridge.position = Vector3(lerpf(x0 + 0.85, x1 - 0.85, t), 0.93, z0 + 0.54 if front_is_south else z1 - 0.54)
+			fridge.material_override = fridge_mat
+			interior_root.add_child(fridge)
 
 		b["store_walk_blockers"] = blockers
 		b["store_interior_rect"] = Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
@@ -1404,33 +1731,99 @@ func _create_store_entry_indicator(building: Dictionary) -> void:
 	marker.position = base_local
 	node.add_child(marker)
 
+	var border_mat = StandardMaterial3D.new()
+	border_mat.albedo_color = Color(0.01, 0.01, 0.01, 0.97)
+	border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	border_mat.no_depth_test = true
+
 	var arrow_mat = StandardMaterial3D.new()
-	arrow_mat.albedo_color = Color(0.16, 0.9, 1.0, 0.9)
+	arrow_mat.albedo_color = Color(1.0, 0.31, 0.06, 0.99)
 	arrow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	arrow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	arrow_mat.no_depth_test = true
 	arrow_mat.emission_enabled = true
-	arrow_mat.emission = Color(0.16, 0.9, 1.0)
-	arrow_mat.emission_energy_multiplier = 1.35
+	arrow_mat.emission = Color(1.0, 0.44, 0.05)
+	arrow_mat.emission_energy_multiplier = 2.12
+
+	var core_mat = StandardMaterial3D.new()
+	core_mat.albedo_color = Color(1.0, 0.97, 0.38, 0.98)
+	core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	core_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	core_mat.no_depth_test = true
+	core_mat.emission_enabled = true
+	core_mat.emission = Color(1.0, 0.95, 0.4)
+	core_mat.emission_energy_multiplier = 1.25
+
+	var backplate = MeshInstance3D.new()
+	var backplate_mesh = BoxMesh.new()
+	backplate_mesh.size = Vector3(0.38, 0.075, 0.74)
+	backplate.mesh = backplate_mesh
+	backplate.position = Vector3(0.0, -0.015, -front_sign * 0.1)
+	backplate.material_override = border_mat
+	marker.add_child(backplate)
+
+	var stem_border = MeshInstance3D.new()
+	var stem_border_mesh = BoxMesh.new()
+	stem_border_mesh.size = Vector3(0.14, 0.055, 0.34)
+	stem_border.mesh = stem_border_mesh
+	stem_border.position = Vector3(0.0, 0.0, front_sign * 0.09)
+	stem_border.material_override = border_mat
+	marker.add_child(stem_border)
 
 	var shaft = MeshInstance3D.new()
 	var shaft_mesh = BoxMesh.new()
-	shaft_mesh.size = Vector3(0.18, 0.05, 0.48)
+	shaft_mesh.size = Vector3(0.09, 0.045, 0.29)
 	shaft.mesh = shaft_mesh
-	shaft.position = Vector3(0.0, 0.0, -front_sign * 0.14)
+	shaft.position = Vector3(0.0, 0.008, front_sign * 0.1)
 	shaft.material_override = arrow_mat
 	marker.add_child(shaft)
 
-	var tip = MeshInstance3D.new()
-	var tip_mesh = CylinderMesh.new()
-	tip_mesh.top_radius = 0.0
-	tip_mesh.bottom_radius = 0.15
-	tip_mesh.height = 0.2
-	tip.mesh = tip_mesh
-	tip.rotation_degrees.x = 90.0
-	tip.position = Vector3(0.0, 0.0, -front_sign * 0.34)
-	tip.material_override = arrow_mat
-	marker.add_child(tip)
+	var head_border = MeshInstance3D.new()
+	var head_border_mesh = BoxMesh.new()
+	head_border_mesh.size = Vector3(0.2, 0.055, 0.18)
+	head_border.mesh = head_border_mesh
+	head_border.position = Vector3(0.0, 0.0, -front_sign * 0.17)
+	head_border.material_override = border_mat
+	marker.add_child(head_border)
+
+	var head = MeshInstance3D.new()
+	var head_mesh = BoxMesh.new()
+	head_mesh.size = Vector3(0.15, 0.045, 0.14)
+	head.mesh = head_mesh
+	head.position = Vector3(0.0, 0.008, -front_sign * 0.17)
+	head.material_override = arrow_mat
+	marker.add_child(head)
+
+	for side in [-1.0, 1.0]:
+		var wing_border = MeshInstance3D.new()
+		var wing_border_mesh = BoxMesh.new()
+		wing_border_mesh.size = Vector3(0.13, 0.055, 0.29)
+		wing_border.mesh = wing_border_mesh
+		wing_border.position = Vector3(side * 0.101, 0.0, -front_sign * 0.255)
+		wing_border.rotation_degrees.y = side * 50.0
+		wing_border.material_override = border_mat
+		marker.add_child(wing_border)
+
+		var wing = MeshInstance3D.new()
+		var wing_mesh = BoxMesh.new()
+		wing_mesh.size = Vector3(0.087, 0.045, 0.24)
+		wing.mesh = wing_mesh
+		wing.position = Vector3(side * 0.094, 0.008, -front_sign * 0.255)
+		wing.rotation_degrees.y = side * 50.0
+		wing.material_override = arrow_mat
+		marker.add_child(wing)
+
+	var core = MeshInstance3D.new()
+	var core_mesh = BoxMesh.new()
+	core_mesh.size = Vector3(0.04, 0.035, 0.2)
+	core.mesh = core_mesh
+	core.position = Vector3(0.0, 0.012, -front_sign * 0.06)
+	core.material_override = core_mat
+	marker.add_child(core)
 
 	var entry_center = Vector2(fp.position.x + fp.size.x * 0.5, fp.position.y + (fp.size.y if front_is_south else 0.0))
 	var entry_dir = Vector2(0.0, -front_sign)
@@ -1488,27 +1881,66 @@ func _spawn_store_food_in_building(building: Dictionary) -> bool:
 func _create_store_food_node() -> Node3D:
 	var root = Node3D.new()
 	root.name = "StoreFood"
-	var plate = MeshInstance3D.new()
-	var plate_mesh = CylinderMesh.new()
-	plate_mesh.top_radius = 0.14
-	plate_mesh.bottom_radius = 0.15
-	plate_mesh.height = 0.025
-	plate.mesh = plate_mesh
-	plate.position = Vector3(0.0, 0.015, 0.0)
-	plate.material_override = bone_material
-	root.add_child(plate)
 
-	var top = MeshInstance3D.new()
-	var top_mesh = SphereMesh.new()
-	top_mesh.radius = 0.1
-	top_mesh.height = 0.2
-	top.mesh = top_mesh
-	top.position = Vector3(rng.randf_range(-0.015, 0.015), 0.08, rng.randf_range(-0.015, 0.015))
-	if store_food_materials.is_empty():
-		top.material_override = poop_material
+	var tray_mat = StandardMaterial3D.new()
+	tray_mat.albedo_color = Color8(186, 166, 138)
+	tray_mat.roughness = 0.82
+	tray_mat.metallic = 0.02
+
+	var tray = MeshInstance3D.new()
+	var tray_mesh = BoxMesh.new()
+	tray_mesh.size = Vector3(0.26, 0.04, 0.2)
+	tray.mesh = tray_mesh
+	tray.position = Vector3(0.0, 0.02, 0.0)
+	tray.material_override = tray_mat
+	root.add_child(tray)
+
+	var style = rng.randi_range(0, 2)
+	if style == 2:
+		var meat_mat = StandardMaterial3D.new()
+		meat_mat.albedo_color = Color8(173, 72, 68)
+		meat_mat.roughness = 0.63
+		meat_mat.metallic = 0.02
+		var slab_count = rng.randi_range(2, 4)
+		for i in range(slab_count):
+			var slab = MeshInstance3D.new()
+			var slab_mesh = BoxMesh.new()
+			slab_mesh.size = Vector3(
+				rng.randf_range(0.06, 0.11),
+				rng.randf_range(0.028, 0.05),
+				rng.randf_range(0.07, 0.11)
+			)
+			slab.mesh = slab_mesh
+			slab.material_override = meat_mat
+			slab.position = Vector3(
+				rng.randf_range(-0.08, 0.08),
+				0.055 + rng.randf_range(0.0, 0.018),
+				rng.randf_range(-0.055, 0.055)
+			)
+			root.add_child(slab)
 	else:
-		top.material_override = store_food_materials[rng.randi_range(0, store_food_materials.size() - 1)]
-	root.add_child(top)
+		var produce_count = rng.randi_range(3, 6)
+		for i in range(produce_count):
+			var produce = MeshInstance3D.new()
+			var produce_mesh = SphereMesh.new()
+			produce_mesh.radius = rng.randf_range(0.03, 0.052)
+			produce_mesh.height = produce_mesh.radius * 2.0
+			produce.mesh = produce_mesh
+			produce.scale = Vector3(
+				rng.randf_range(0.82, 1.18),
+				rng.randf_range(0.74, 1.15),
+				rng.randf_range(0.82, 1.18)
+			)
+			if store_food_materials.is_empty():
+				produce.material_override = poop_material
+			else:
+				produce.material_override = store_food_materials[rng.randi_range(0, store_food_materials.size() - 1)]
+			produce.position = Vector3(
+				rng.randf_range(-0.085, 0.085),
+				0.06 + rng.randf_range(0.0, 0.026),
+				rng.randf_range(-0.06, 0.06)
+			)
+			root.add_child(produce)
 	return root
 
 func _clip_rect_to_map(rect: Rect2) -> Rect2:
@@ -2219,64 +2651,71 @@ func _spawn_freya_and_dogs() -> void:
 	var city_dogs = max(0, total_dogs - park_dogs)
 	var city_points = _spawn_points_even(city_dogs, "sidewalk")
 	var park_points = _spawn_points_in_rect(dog_park.grow(-0.45), park_dogs, "grass")
+	var coat_options = [
+		Color8(58, 48, 42),
+		Color8(92, 80, 70),
+		Color8(120, 93, 70),
+		Color8(164, 126, 93),
+		Color8(188, 159, 118),
+		Color8(205, 192, 171),
+		Color8(216, 206, 187),
+		Color8(178, 140, 102),
+		Color8(76, 78, 84),
+		Color8(132, 127, 120),
+		Color8(37, 34, 33),
+		Color8(228, 220, 206)
+	]
+	var breed_profiles = [
+		"retriever",
+		"shepherd",
+		"husky",
+		"terrier",
+		"hound",
+		"bulldog",
+		"poodle",
+		"mixed"
+	]
 
 	for i in range(total_dogs):
 		var dog = DogAgentScript.new()
 		var cosmetic_rng = RandomNumberGenerator.new()
 		cosmetic_rng.seed = int(146959810 + i * 2654435761)
+		var in_park = i < park_dogs
+		var pos_idx = i if in_park else i - park_dogs
+		var spawn_pos = Vector3.ZERO
+		if in_park and pos_idx < park_points.size():
+			spawn_pos = park_points[pos_idx]
+		elif (not in_park) and pos_idx < city_points.size():
+			spawn_pos = city_points[pos_idx]
+		else:
+			spawn_pos = _random_walkable_point(true, DOG_COLLISION_RADIUS)
+		dog.position = spawn_pos
+
+		var zone_x = clampi(int(floor(spawn_pos.x / maxf(0.001, MAP_W / 4.0))), 0, 3)
+		var zone_z = clampi(int(floor(spawn_pos.z / maxf(0.001, MAP_H / 4.0))), 0, 3)
+		var zone_idx = zone_z * 4 + zone_x
+		var breed = breed_profiles[posmod(i + zone_idx * 3 + (2 if in_park else 0), breed_profiles.size())]
+		var coat = coat_options[posmod(i * 2 + zone_idx + (3 if in_park else 0), coat_options.size())]
 		var dog_model = ""
 		if npc_model_paths.size() > 0:
-			dog_model = npc_model_paths[int(cosmetic_rng.randi()) % npc_model_paths.size()]
-			# Keep RNG progression aligned with prior logic so layout/AI tests remain stable.
+			dog_model = npc_model_paths[posmod(i + zone_idx + (1 if in_park else 0), npc_model_paths.size())]
 			rng.randi_range(0, npc_model_paths.size() - 1)
-		var coat_options = [
-			Color8(58, 48, 42),
-			Color8(92, 80, 70),
-			Color8(120, 93, 70),
-			Color8(164, 126, 93),
-			Color8(188, 159, 118),
-			Color8(205, 192, 171),
-			Color8(216, 206, 187),
-			Color8(178, 140, 102),
-			Color8(76, 78, 84),
-			Color8(132, 127, 120),
-			Color8(37, 34, 33),
-			Color8(228, 220, 206)
-		]
-		var breed_profiles = [
-			"retriever",
-			"shepherd",
-			"husky",
-			"terrier",
-			"hound",
-			"bulldog",
-			"poodle",
-			"mixed"
-		]
 		var dog_speed = rng.randf_range(1.7, 2.6)
-		var model_scale = _npc_model_scale_for_path(dog_model) * cosmetic_rng.randf_range(0.9, 1.13)
+		var model_scale = _npc_model_scale_for_path(dog_model) * cosmetic_rng.randf_range(0.84, 1.2)
 		rng.randi_range(0, coat_options.size() - 1)
-		rng.randf_range(0.9, 1.13)
+		rng.randf_range(0.84, 1.2)
 		rng.randi_range(0, breed_profiles.size() - 1)
 		rng.randi()
 		dog.configure({
 			"is_freya": false,
-			"coat_color": coat_options[int(cosmetic_rng.randi()) % coat_options.size()],
+			"coat_color": coat,
 			"speed": dog_speed,
 			"scene_path": dog_model,
 			"model_scale": model_scale,
-			"breed_profile": breed_profiles[int(cosmetic_rng.randi()) % breed_profiles.size()],
+			"breed_profile": breed,
 			"variant_seed": int(cosmetic_rng.randi())
 		})
 		dog.scale = Vector3.ONE
-		var in_park = i < park_dogs
-		var pos_idx = i if in_park else i - park_dogs
-		if in_park and pos_idx < park_points.size():
-			dog.position = park_points[pos_idx]
-		elif (not in_park) and pos_idx < city_points.size():
-			dog.position = city_points[pos_idx]
-		else:
-			dog.position = _random_walkable_point(true, DOG_COLLISION_RADIUS)
 		dynamic_root.add_child(dog)
 		var pref_surface = _pick_dog_pref_surface(in_park)
 		dogs.append({
@@ -2532,7 +2971,7 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 	var p = Vector2(x, z)
 	if _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
 		return false
-	if _point_in_store_wall(p, maxf(0.02, radius * 0.82)):
+	if _point_in_store_wall(p, maxf(0.02, radius * 0.56)):
 		return false
 	if _point_in_tree_trunk(p, maxf(0.2, radius * 0.95)):
 		return false
@@ -2694,6 +3133,9 @@ func _compute_freya_move_speed(running: bool) -> float:
 func _update_dogs(delta: float) -> void:
 	var aggressive_social = Input.is_action_pressed("aggressive_social")
 	aggressive_bark_nearby_count = 0
+	var passive_social_target = Vector3.ZERO
+	var passive_social_target_dist = 1000000.0
+	var has_passive_social_target = false
 	if aggressive_social:
 		for d in dogs:
 			var dn: Node3D = d.get("node", null)
@@ -2760,6 +3202,10 @@ func _update_dogs(delta: float) -> void:
 		var near: float = dog.global_position.distance_to(freya.global_position)
 		if near < 4.2:
 			freya_social = clamp(freya_social + delta * (31.0 if aggressive_social else 22.0), 0.0, 100.0)
+			if (not aggressive_social) and near < 3.4 and near < passive_social_target_dist:
+				passive_social_target = dog.global_position
+				passive_social_target_dist = near
+				has_passive_social_target = true
 			if float(state["bark"]) <= 0.0:
 				if aggressive_social:
 					var pack = max(1, aggressive_bark_nearby_count)
@@ -2781,6 +3227,58 @@ func _update_dogs(delta: float) -> void:
 					state["bark"] = rng.randf_range(0.52, 0.96)
 
 		dogs[i] = state
+
+	_update_passive_social_dance(delta, aggressive_social, has_passive_social_target, passive_social_target)
+
+func _freya_is_idle_for_social_dance() -> bool:
+	if freya == null:
+		return false
+	if freya_vomit_timer > 0.0:
+		return false
+	if Input.is_action_pressed("claim"):
+		return false
+	var input_x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
+	var input_y = Input.get_action_strength("move_up") - Input.get_action_strength("move_down")
+	return Vector2(input_x, input_y).length_squared() < 0.0001
+
+func _update_passive_social_dance(delta: float, aggressive_social: bool, has_target: bool, target_pos: Vector3) -> void:
+	if freya == null:
+		freya_social_dance_phase = 0.0
+		return
+	if aggressive_social or (not has_target) or (not _freya_is_idle_for_social_dance()):
+		freya_social_dance_phase = fposmod(freya_social_dance_phase, TAU)
+		return
+
+	freya_social_dance_phase = fposmod(freya_social_dance_phase + delta * FREYA_SOCIAL_DANCE_SPIN_SPEED, TAU)
+	var center = Vector2(target_pos.x, target_pos.z)
+	var freya_pos2 = Vector2(freya.global_position.x, freya.global_position.z)
+	var radius = FREYA_SOCIAL_DANCE_RADIUS + 0.06 * sin(world_time * 2.2)
+	var orbit_offset = Vector2(cos(freya_social_dance_phase), sin(freya_social_dance_phase)) * radius
+	var desired = center + orbit_offset
+	var catchup = desired - freya_pos2
+	var tangent = Vector2(-sin(freya_social_dance_phase), cos(freya_social_dance_phase))
+	var drive = tangent * 0.72 + catchup * 1.05
+	if drive.length_squared() < 0.0001:
+		return
+	var move2 = drive.normalized()
+	var move3 = Vector3(move2.x, 0.0, move2.y)
+
+	var next = freya.global_position + move3 * FREYA_SOCIAL_DANCE_SPEED * delta
+	var moved = false
+	if _is_walkable(next.x, freya.global_position.z, FREYA_COLLISION_RADIUS):
+		freya.global_position.x = next.x
+		moved = true
+	if _is_walkable(freya.global_position.x, next.z, FREYA_COLLISION_RADIUS):
+		freya.global_position.z = next.z
+		moved = true
+	if not moved:
+		return
+
+	freya_move_dir = move3
+	freya.update_motion(delta, move3, false, false)
+	var spin_dir = Vector3(tangent.x, 0.0, tangent.y)
+	if freya.has_method("force_face_direction"):
+		freya.call("force_face_direction", spin_dir, delta * 6.0)
 
 func _spawn_bark_pulse(pos: Vector3, color: Color) -> void:
 	var node = MeshInstance3D.new()
@@ -3772,25 +4270,91 @@ func _update_store_entry_indicators(delta: float = 0.016) -> void:
 		var glide = (0.5 + 0.5 * sin(t)) * 0.24
 		marker.position = base + Vector3(0.0, bob, -front_sign * glide)
 
+func _point_in_rect_list(rects: Array, p: Vector2, pad: float = 0.0) -> bool:
+	for item in rects:
+		if item is Rect2:
+			var rect: Rect2 = item
+			if rect.grow(pad).has_point(p):
+				return true
+	return false
+
+func _is_inside_store_index(store_idx: int, p: Vector2) -> bool:
+	if store_idx < 0 or store_idx >= buildings.size():
+		return false
+	var b: Dictionary = buildings[store_idx]
+	var interior_rect: Rect2 = b.get("store_interior_rect", Rect2())
+	if interior_rect.size.x > 0.0 and interior_rect.size.y > 0.0 and interior_rect.grow(0.18).has_point(p):
+		return true
+	var fp: Rect2 = b.get("footprint", Rect2())
+	if fp.size.x <= 0.0 or fp.size.y <= 0.0:
+		return false
+	var entry_pos: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
+	if (
+		entry_pos.x >= 0.0
+		and entry_pos.y >= 0.0
+		and fp.grow(0.18).has_point(p)
+		and p.distance_to(entry_pos) <= 1.7
+	):
+		return true
+	if fp.grow(-0.08).has_point(p):
+		var blockers = b.get("store_walk_blockers", [])
+		return not _point_in_rect_list(blockers, p, 0.1)
+	return false
+
+func _is_inside_store_interior(store_idx: int, p: Vector2) -> bool:
+	if store_idx < 0 or store_idx >= buildings.size():
+		return false
+	var b: Dictionary = buildings[store_idx]
+	var interior_rect: Rect2 = b.get("store_interior_rect", Rect2())
+	if interior_rect.size.x <= 0.0 or interior_rect.size.y <= 0.0:
+		return false
+	return interior_rect.grow(0.08).has_point(p)
+
 func _store_index_containing_freya() -> int:
 	if freya == null or store_building_indices.is_empty():
 		return -1
 	var p = Vector2(freya.global_position.x, freya.global_position.z)
+	var fallback_idx = -1
+	var fallback_dist_sq = 1000000.0
 	for idx in store_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
+		if _is_inside_store_index(idx, p):
+			return idx
 		var b: Dictionary = buildings[idx]
-		var interior_rect: Rect2 = b.get("store_interior_rect", Rect2())
-		if interior_rect.size.x > 0.0 and interior_rect.size.y > 0.0 and interior_rect.grow(0.08).has_point(p):
-			return idx
 		var fp: Rect2 = b.get("footprint", Rect2())
+		if fp.size.x <= 0.0 or fp.size.y <= 0.0:
+			continue
 		var entry_pos: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
-		if entry_pos.x >= 0.0 and entry_pos.y >= 0.0 and fp.grow(-0.04).has_point(p) and p.distance_to(entry_pos) <= 1.1:
-			return idx
-	return -1
+		var near_entry = (
+			entry_pos.x >= 0.0
+			and entry_pos.y >= 0.0
+			and p.distance_to(entry_pos) <= 1.9
+		)
+		if fp.grow(-0.08).has_point(p):
+			var blockers = b.get("store_walk_blockers", [])
+			if (not _point_in_rect_list(blockers, p, 0.1)) or near_entry:
+				return idx
+			if entry_pos.x >= 0.0 and entry_pos.y >= 0.0:
+				var d_sq = p.distance_squared_to(entry_pos)
+				if d_sq < fallback_dist_sq:
+					fallback_dist_sq = d_sq
+					fallback_idx = idx
+		if near_entry and fp.grow(0.22).has_point(p):
+			var near_d_sq = p.distance_squared_to(entry_pos)
+			if near_d_sq < fallback_dist_sq:
+				fallback_dist_sq = near_d_sq
+				fallback_idx = idx
+	return fallback_idx
 
 func _apply_store_focus_visuals() -> void:
-	var inside_store = active_store_index >= 0
+	var inside_store = false
+	var active_idx = -1
+	if freya != null and active_store_index >= 0 and active_store_index < buildings.size():
+		var p = Vector2(freya.global_position.x, freya.global_position.z)
+		if _is_inside_store_interior(active_store_index, p):
+			inside_store = true
+			active_idx = active_store_index
 	if store_focus_overlay != null:
 		store_focus_overlay.visible = inside_store
 	for idx in store_building_indices:
@@ -3799,21 +4363,24 @@ func _apply_store_focus_visuals() -> void:
 		var b: Dictionary = buildings[idx]
 		var shell: Node3D = b.get("node", null)
 		var interior_root: Node3D = b.get("store_interior_root", null)
-		var is_active = inside_store and idx == active_store_index
+		var is_active = inside_store and idx == active_idx
 		if shell != null and is_instance_valid(shell):
 			shell.visible = not is_active
+		var roof_parts: Array = b.get("roof_parts", [])
+		for part in roof_parts:
+			if part is Node3D and is_instance_valid(part as Node3D):
+				(part as Node3D).visible = not is_active
 		if interior_root != null and is_instance_valid(interior_root):
 			interior_root.visible = is_active
 
 func _update_store_focus(delta: float) -> void:
-	store_focus_timer = maxf(0.0, store_focus_timer - delta)
-	if store_focus_timer > 0.0:
-		return
-	store_focus_timer = STORE_FOCUS_UPDATE_INTERVAL
 	var store_idx = _store_index_containing_freya()
-	if store_idx == active_store_index:
-		return
-	active_store_index = store_idx
+	if store_idx < 0 and active_store_index >= 0 and active_store_index < buildings.size():
+		var p = Vector2(freya.global_position.x, freya.global_position.z)
+		if _is_inside_store_index(active_store_index, p):
+			store_idx = active_store_index
+	if store_idx != active_store_index:
+		active_store_index = store_idx
 	_apply_store_focus_visuals()
 
 func _has_back_alley_rowhouse_corridor() -> bool:
@@ -4071,6 +4638,129 @@ func _nonpark_dogs_distributed() -> bool:
 		if int(count) > 0:
 			occupied += 1
 	return occupied >= 3
+
+func _count_mesh_instances(root: Node) -> int:
+	if root == null:
+		return 0
+	var count = 0
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			count += 1
+		for c in n.get_children():
+			stack.append(c)
+	return count
+
+func _run_targeted_validation_checks() -> void:
+	var failures: Array[String] = []
+	var saved_pos = freya.global_position
+	var saved_cam_pos = camera_node.global_position
+	var saved_active = active_store_index
+	var saved_timer = store_focus_timer
+
+	if store_building_indices.is_empty():
+		failures.append("target_no_store_buildings")
+	else:
+		var idx = store_building_indices[0]
+		var b: Dictionary = buildings[idx]
+		var interior_rect: Rect2 = b.get("store_interior_rect", Rect2())
+		if interior_rect.size.x < 0.7 or interior_rect.size.y < 0.7:
+			failures.append("target_store_interior_rect_invalid")
+		else:
+			var center = interior_rect.position + interior_rect.size * 0.5
+			freya.global_position = Vector3(center.x, freya.global_position.y, center.y)
+			active_store_index = -1
+			store_focus_timer = 0.0
+			_update_store_focus(0.2)
+			if active_store_index != idx:
+				failures.append("target_store_focus_not_entering")
+			var shell: Node3D = b.get("node", null)
+			var interior_root: Node3D = b.get("store_interior_root", null)
+			if interior_root == null or not is_instance_valid(interior_root) or not interior_root.visible:
+				failures.append("target_store_interior_not_visible")
+			if shell == null or not is_instance_valid(shell):
+				failures.append("target_store_shell_missing")
+			elif shell.visible:
+				failures.append("target_store_shell_not_hidden_inside")
+			if store_focus_overlay == null or not store_focus_overlay.visible:
+				failures.append("target_store_overlay_not_visible")
+			if interior_root != null and is_instance_valid(interior_root):
+				var mesh_count = _count_mesh_instances(interior_root)
+				if mesh_count < 38:
+					failures.append("target_store_mesh_count_low_%d" % mesh_count)
+			var fp: Rect2 = b.get("footprint", Rect2())
+			var entry_pos: Vector2 = b.get("entry_pos", fp.position + fp.size * 0.5)
+			var outward = (entry_pos - (fp.position + fp.size * 0.5))
+			if outward.length_squared() < 0.0001:
+				outward = Vector2(0.0, 1.0)
+			outward = outward.normalized()
+			var outside = entry_pos + outward * 2.2
+			if fp.grow(0.08).has_point(outside):
+				outside = entry_pos - outward * 2.2
+			if _is_walkable(outside.x, outside.y, FREYA_COLLISION_RADIUS):
+				freya.global_position = Vector3(outside.x, freya.global_position.y, outside.y)
+				store_focus_timer = 0.0
+				_update_store_focus(0.2)
+				if active_store_index == idx:
+					failures.append("target_store_focus_not_exiting")
+				if interior_root != null and is_instance_valid(interior_root) and interior_root.visible:
+					failures.append("target_store_interior_still_visible_after_exit")
+				if shell != null and is_instance_valid(shell) and not shell.visible:
+					failures.append("target_store_shell_not_restored_after_exit")
+				if store_focus_overlay != null and store_focus_overlay.visible:
+					failures.append("target_store_overlay_still_visible_after_exit")
+
+	var occlusion_test_idx = -1
+	for i in range(buildings.size()):
+		var b: Dictionary = buildings[i]
+		if bool(b.get("is_store", false)):
+			continue
+		occlusion_test_idx = i
+		break
+	if occlusion_test_idx < 0 and buildings.size() > 0:
+		occlusion_test_idx = 0
+	if occlusion_test_idx < 0:
+		failures.append("target_no_buildings_for_occlusion")
+	else:
+		var ob: Dictionary = buildings[occlusion_test_idx]
+		var rect: Rect2 = ob.get("collision_rect", ob.get("footprint", Rect2()))
+		var cx = rect.position.x + rect.size.x * 0.5
+		var cz = rect.position.y + rect.size.y * 0.5
+		var cam_pos = Vector3(cx, 9.6, rect.position.y - rect.size.y * 2.35)
+		var blocked_pos = Vector3(cx, 0.0, rect.position.y + rect.size.y * 2.35)
+		var clear_pos = Vector3(cam_pos.x + 0.15, 0.0, cam_pos.z + 0.2)
+		if not _freya_occluded_by_buildings(cam_pos, blocked_pos):
+			failures.append("target_ghost_not_blocked_when_hidden")
+		if _freya_occluded_by_buildings(cam_pos, clear_pos):
+			failures.append("target_ghost_blocked_when_clear")
+		if _freya_occluded_by_buildings(cam_pos, Vector3(cx, 0.0, cz)) and rect.size.x < 4.0:
+			failures.append("target_ghost_false_positive_small_building")
+
+		camera_node.global_position = cam_pos
+		freya.global_position = blocked_pos
+		_update_roof_occlusion(0.0)
+		if outlined_freya_meshes.is_empty():
+			failures.append("target_ghost_outline_not_shown")
+		freya.global_position = clear_pos
+		_update_roof_occlusion(0.0)
+		if not outlined_freya_meshes.is_empty():
+			failures.append("target_ghost_outline_not_cleared")
+		freya.global_position = blocked_pos
+		_update_roof_occlusion(0.0)
+		if outlined_freya_meshes.is_empty():
+			failures.append("target_ghost_outline_not_restored")
+
+	freya.global_position = saved_pos
+	camera_node.global_position = saved_cam_pos
+	active_store_index = saved_active
+	store_focus_timer = saved_timer
+	_apply_store_focus_visuals()
+
+	if failures.is_empty():
+		print("TARGET_OK: store+ghost validations passed")
+	else:
+		push_error("TARGET_FAIL: " + ", ".join(failures))
 
 func _run_headless_smoke_checks() -> void:
 	var failures: Array[String] = []
@@ -4356,26 +5046,29 @@ func _segment_rect_intersection_2d(a: Vector2, b: Vector2, rect: Rect2) -> Dicti
 	}
 
 func _building_blocks_view(building: Dictionary, cam_pos: Vector3, freya_pos: Vector3) -> bool:
+	return _building_blocks_view_to_target(building, cam_pos, freya_pos + Vector3(0.0, 0.8, 0.0))
+
+func _building_blocks_view_to_target(building: Dictionary, cam_pos: Vector3, target_pos: Vector3) -> bool:
 	var fp: Rect2 = building.get("collision_rect", building["footprint"])
-	var expanded = fp.grow(0.04)
+	var expanded = fp.grow(0.01)
 	var cam2 = Vector2(cam_pos.x, cam_pos.z)
-	var freya2 = Vector2(freya_pos.x, freya_pos.z)
-	var hit = _segment_rect_intersection_2d(cam2, freya2, expanded)
+	var target2 = Vector2(target_pos.x, target_pos.z)
+	var hit = _segment_rect_intersection_2d(cam2, target2, expanded)
 	if not bool(hit.get("hit", false)):
 		return false
 	var t_enter = float(hit.get("t_enter", 0.0))
 	var t_exit = float(hit.get("t_exit", 0.0))
-	if t_exit < 0.03 or t_enter > 0.98:
+	if t_enter < 0.08 or t_exit > 0.94:
 		return false
-	if t_exit - t_enter < 0.01:
+	if t_exit - t_enter < 0.07:
 		return false
 
 	var building_h = float(building.get("height", 8.0))
 	var eye_y = cam_pos.y + 0.1
-	var freya_target_y = freya_pos.y + 0.8
+	var target_y = target_pos.y
 	var t_mid = (t_enter + t_exit) * 0.5
-	var y_mid = lerpf(eye_y, freya_target_y, t_mid)
-	return building_h >= y_mid - 0.02
+	var y_mid = lerpf(eye_y, target_y, t_mid)
+	return building_h >= y_mid + 0.08
 
 func _segment_circle_intersection_2d(a: Vector2, b: Vector2, center: Vector2, radius: float) -> Dictionary:
 	var d = b - a
@@ -4445,25 +5138,69 @@ func _nonbuilding_blocks_view(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 			return true
 	return false
 
+func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3) -> bool:
+	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
+	var inside_active_store = _is_inside_store_interior(active_store_index, freya_pos_2d)
+	if inside_active_store:
+		return false
+	var samples: Array[Vector3] = [
+		freya_pos + Vector3(0.0, 0.16, 0.0),
+		freya_pos + Vector3(0.0, 0.54, 0.0),
+		freya_pos + Vector3(0.0, 0.92, 0.0),
+		freya_pos + Vector3(0.24, 0.62, 0.0),
+		freya_pos + Vector3(-0.24, 0.62, 0.0),
+		freya_pos + Vector3(0.0, 0.62, 0.24),
+		freya_pos + Vector3(0.0, 0.62, -0.24)
+	]
+	var blocked_count = 0
+	var clear_count = 0
+	var torso_blocked = false
+	var head_blocked = false
+	var side_blocked = 0
+	for sample_idx in range(samples.size()):
+		var sample = samples[sample_idx]
+		var blocked = false
+		for b_idx in range(buildings.size()):
+			if inside_active_store and active_store_index >= 0 and b_idx == active_store_index:
+				continue
+			var b: Dictionary = buildings[b_idx]
+			if _building_blocks_view_to_target(b, cam_pos, sample):
+				blocked = true
+				break
+		if blocked:
+			blocked_count += 1
+			if sample_idx == 1:
+				torso_blocked = true
+			elif sample_idx == 2:
+				head_blocked = true
+			elif sample_idx >= 3:
+				side_blocked += 1
+		else:
+			clear_count += 1
+	if blocked_count <= 2:
+		return false
+	if clear_count >= 4 and (not torso_blocked or not head_blocked):
+		return false
+	if torso_blocked and head_blocked and side_blocked >= 1:
+		return true
+	if torso_blocked and blocked_count >= 5:
+		return true
+	if head_blocked and blocked_count >= 6:
+		return true
+	return false
+
 func _freya_occluded_from_camera(cam_pos: Vector3, freya_pos: Vector3) -> bool:
-	for i in range(buildings.size()):
-		if active_store_index >= 0 and i == active_store_index:
-			continue
-		var b: Dictionary = buildings[i]
-		if _building_blocks_view(b, cam_pos, freya_pos):
-			return true
-	return _nonbuilding_blocks_view(cam_pos, freya_pos)
+	return _freya_occluded_by_buildings(cam_pos, freya_pos)
 
 func _update_roof_occlusion(delta: float) -> void:
 	var cam_pos = camera_node.global_position
 	var freya_pos = freya.global_position
-	if delta > 0.0:
-		occlusion_update_timer = maxf(0.0, occlusion_update_timer - delta)
-		var cam_moved = cam_pos.distance_squared_to(last_occlusion_cam_pos) >= OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
-		var freya_moved = freya_pos.distance_squared_to(last_occlusion_freya_pos) >= OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
-		if occlusion_update_timer > 0.0 and (not cam_moved) and (not freya_moved):
-			return
-		occlusion_update_timer = OCCLUSION_UPDATE_INTERVAL
+	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
+	var store_idx_now = _store_index_containing_freya()
+	if store_idx_now != active_store_index:
+		active_store_index = store_idx_now
+	_apply_store_focus_visuals()
+	var inside_active_store = _is_inside_store_interior(active_store_index, freya_pos_2d)
 	last_occlusion_cam_pos = cam_pos
 	last_occlusion_freya_pos = freya_pos
 
@@ -4471,18 +5208,19 @@ func _update_roof_occlusion(delta: float) -> void:
 		var b: Dictionary = buildings[i]
 		var roof_parts: Array = b["roof_parts"]
 		var hide_roof = _building_blocks_view(b, cam_pos, freya_pos)
-		if active_store_index >= 0 and i == active_store_index and bool(b.get("is_store", false)):
-			hide_roof = true
+		if store_idx_now >= 0 and i == store_idx_now and bool(b.get("is_store", false)):
+			hide_roof = inside_active_store or hide_roof
 
 		for part in roof_parts:
 			(part as Node3D).visible = not hide_roof
 
 	_clear_occlusion_outlines()
-	var occluded = _freya_occluded_from_camera(cam_pos, freya_pos)
-	var ghost_freya = occluded or active_store_index >= 0
+	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos)
+	var occluded_props = _nonbuilding_blocks_view(cam_pos, freya_pos)
+	var ghost_freya = occluded_building
 	if ghost_freya:
 		_apply_outline_recursive(freya, freya_ghost_material, outlined_freya_meshes)
-	if occluded:
+	if occluded_building or occluded_props:
 		_apply_nearby_object_outlines(3.0)
 
 func _create_ui() -> void:
@@ -4493,7 +5231,7 @@ func _create_ui() -> void:
 	store_focus_overlay = ColorRect.new()
 	store_focus_overlay.anchor_right = 1.0
 	store_focus_overlay.anchor_bottom = 1.0
-	store_focus_overlay.color = Color(0.39, 0.41, 0.45, 0.34)
+	store_focus_overlay.color = Color(0.33, 0.35, 0.39, 0.58)
 	store_focus_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	store_focus_overlay.visible = false
 	store_focus_layer.add_child(store_focus_overlay)
@@ -4596,10 +5334,11 @@ func _create_ui() -> void:
 	minimap_panel.anchor_top = 0.0
 	minimap_panel.anchor_right = 1.0
 	minimap_panel.anchor_bottom = 0.0
-	minimap_panel.offset_left = -404.0
-	minimap_panel.offset_top = 16.0
-	minimap_panel.offset_right = -16.0
-	minimap_panel.offset_bottom = 304.0
+	minimap_panel.offset_left = -360.0
+	minimap_panel.offset_top = 8.0
+	minimap_panel.offset_right = -10.0
+	minimap_panel.offset_bottom = 274.0
+	minimap_panel.clip_contents = true
 	var mm_style = StyleBoxFlat.new()
 	mm_style.bg_color = Color(0.05, 0.08, 0.11, 0.86)
 	mm_style.border_color = Color(0.74, 0.85, 0.9, 0.75)
@@ -4620,16 +5359,40 @@ func _create_ui() -> void:
 	mini_title.add_theme_font_size_override("font_size", 16)
 	minimap_panel.add_child(mini_title)
 
+	var zoom_label = Label.new()
+	zoom_label.text = "Zoom"
+	zoom_label.position = Vector2(96, 10)
+	zoom_label.add_theme_font_size_override("font_size", 13)
+	zoom_label.add_theme_color_override("font_color", Color(0.92, 0.94, 0.9, 0.92))
+	minimap_panel.add_child(zoom_label)
+
+	minimap_zoom_slider = HSlider.new()
+	minimap_zoom_slider.anchor_left = 0.0
+	minimap_zoom_slider.anchor_top = 0.0
+	minimap_zoom_slider.anchor_right = 1.0
+	minimap_zoom_slider.anchor_bottom = 0.0
+	minimap_zoom_slider.offset_left = 148.0
+	minimap_zoom_slider.offset_top = 11.0
+	minimap_zoom_slider.offset_right = -12.0
+	minimap_zoom_slider.offset_bottom = 29.0
+	minimap_zoom_slider.min_value = 1.0
+	minimap_zoom_slider.max_value = 4.5
+	minimap_zoom_slider.step = 0.05
+	minimap_zoom_slider.value = 2.6
+	minimap_zoom_slider.value_changed.connect(_on_minimap_zoom_changed)
+	minimap_panel.add_child(minimap_zoom_slider)
+
 	minimap = MiniMapScript.new()
 	minimap.anchor_left = 0.0
 	minimap.anchor_top = 0.0
 	minimap.anchor_right = 1.0
 	minimap.anchor_bottom = 1.0
 	minimap.offset_left = 10.0
-	minimap.offset_top = 34.0
+	minimap.offset_top = 38.0
 	minimap.offset_right = -10.0
 	minimap.offset_bottom = -10.0
 	minimap_panel.add_child(minimap)
+	minimap.set_zoom(minimap_zoom_slider.value)
 
 	_create_objectives_overlay()
 	_create_pause_menu()
@@ -4965,20 +5728,24 @@ func _sync_minimap_static() -> void:
 	var building_rects: Array[Rect2] = []
 	var store_building_rects: Array[Rect2] = []
 	var store_points = PackedVector2Array()
+	var store_dirs = PackedVector2Array()
 	for b in buildings:
 		building_rects.append(b["footprint"])
 		if bool(b.get("is_store", false)):
 			var fp: Rect2 = b["footprint"]
 			store_building_rects.append(fp)
-			# Always mark store center in minimap so stores are visible even if
-			# entrance points end up close to edges/overlap.
-			store_points.append(fp.position + fp.size * 0.5)
+			var center = fp.position + fp.size * 0.5
 			var sp: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
 			if sp.x >= 0.0 and sp.y >= 0.0:
 				store_points.append(sp)
+				store_dirs.append((center - sp).normalized())
+			else:
+				store_points.append(center)
+				store_dirs.append(Vector2.ZERO)
 	minimap.buildings = building_rects
 	minimap.store_buildings = store_building_rects
 	minimap.store_entries = store_points
+	minimap.store_entry_dirs = store_dirs
 	minimap.queue_redraw()
 
 func _update_minimap_dynamic(delta: float) -> void:
@@ -5016,3 +5783,7 @@ func _update_minimap_dynamic(delta: float) -> void:
 		vomit_points,
 		Vector2(map_forward.x, map_forward.z)
 	)
+
+func _on_minimap_zoom_changed(value: float) -> void:
+	if minimap != null and minimap.has_method("set_zoom"):
+		minimap.set_zoom(value)

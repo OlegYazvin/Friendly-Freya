@@ -2,11 +2,13 @@
 
 This is the Godot-native version of Friendly Freya.
 
-## Run (Linux Mint 21.3 with Flatpak Godot)
+## Run (Linux Mint 21.3 with Flatpak Godot, OpenGL compatibility)
 
 ```bash
 flatpak run org.godotengine.Godot --path ./godot
 ```
+
+Project default renderer is set to `gl_compatibility` for Linux-native runs on this machine.
 
 ## Run (Windows 10/11)
 
