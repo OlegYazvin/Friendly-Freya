@@ -2023,6 +2023,8 @@ func _spawn_freya_and_dogs() -> void:
 		var dog_model = ""
 		if npc_model_paths.size() > 0:
 			dog_model = npc_model_paths[int(cosmetic_rng.randi()) % npc_model_paths.size()]
+			# Keep RNG progression aligned with prior logic so layout/AI tests remain stable.
+			rng.randi_range(0, npc_model_paths.size() - 1)
 		var coat_options = [
 			Color8(58, 48, 42),
 			Color8(92, 80, 70),
@@ -2049,6 +2051,10 @@ func _spawn_freya_and_dogs() -> void:
 		]
 		var dog_speed = rng.randf_range(1.7, 2.6)
 		var model_scale = _npc_model_scale_for_path(dog_model) * cosmetic_rng.randf_range(0.9, 1.13)
+		rng.randi_range(0, coat_options.size() - 1)
+		rng.randf_range(0.9, 1.13)
+		rng.randi_range(0, breed_profiles.size() - 1)
+		rng.randi()
 		dog.configure({
 			"is_freya": false,
 			"coat_color": coat_options[int(cosmetic_rng.randi()) % coat_options.size()],
