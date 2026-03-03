@@ -6,6 +6,7 @@ var roads: Array[Rect2] = []
 var alleys: Array[Rect2] = []
 var sidewalks: Array[Rect2] = []
 var buildings: Array[Rect2] = []
+var store_buildings: Array[Rect2] = []
 var store_entries = PackedVector2Array()
 var dog_park = Rect2()
 
@@ -104,16 +105,20 @@ func _draw() -> void:
 	for b in buildings:
 		_draw_map_rect(b, scale_vec, offset, angle, Color(0.45, 0.28, 0.2, 0.95), true)
 
+	for s in store_buildings:
+		_draw_map_rect(s, scale_vec, offset, angle, Color(0.17, 0.66, 0.78, 0.44), true)
+		_draw_map_rect(s, scale_vec, offset, angle, Color(0.29, 0.93, 1.0, 0.95), false, 1.8)
+
 	var pulse = 0.62 + 0.38 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
 	for s in store_entries:
 		var center = _to_map_pos(s, scale_vec, offset, angle)
-		var r = 1.3 + pulse * 1.2
-		draw_circle(center, r + 1.2, Color(0.12, 0.79, 1.0, 0.26))
-		draw_circle(center, r, Color(0.18, 0.92, 1.0, 0.82))
+		var r = 2.8 + pulse * 1.6
+		draw_circle(center, r + 2.0, Color(0.12, 0.79, 1.0, 0.26))
+		draw_circle(center, r, Color(0.18, 0.92, 1.0, 0.94))
 		var arrow = PackedVector2Array([
-			center + Vector2(0.0, -2.4 - pulse),
-			center + Vector2(-1.7, 1.4),
-			center + Vector2(1.7, 1.4)
+			center + Vector2(0.0, -4.6 - pulse * 1.1),
+			center + Vector2(-3.1, 2.7),
+			center + Vector2(3.1, 2.7)
 		])
 		draw_colored_polygon(arrow, Color(1.0, 0.96, 0.44, 0.88))
 
