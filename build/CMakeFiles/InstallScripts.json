@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/data/projects/Friendly Freya/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

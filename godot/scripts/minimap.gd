@@ -106,21 +106,35 @@ func _draw() -> void:
 		_draw_map_rect(b, scale_vec, offset, angle, Color(0.45, 0.28, 0.2, 0.95), true)
 
 	for s in store_buildings:
-		_draw_map_rect(s, scale_vec, offset, angle, Color(0.17, 0.66, 0.78, 0.44), true)
-		_draw_map_rect(s, scale_vec, offset, angle, Color(0.29, 0.93, 1.0, 0.95), false, 1.8)
+		_draw_map_rect(s, scale_vec, offset, angle, Color(0.1, 0.56, 0.72, 0.55), true)
+		_draw_map_rect(s, scale_vec, offset, angle, Color(0.25, 1.0, 1.0, 0.98), false, 2.2)
 
-	var pulse = 0.62 + 0.38 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
+	var pulse = 0.72 + 0.28 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
 	for s in store_entries:
 		var center = _to_map_pos(s, scale_vec, offset, angle)
-		var r = 2.8 + pulse * 1.6
-		draw_circle(center, r + 2.0, Color(0.12, 0.79, 1.0, 0.26))
-		draw_circle(center, r, Color(0.18, 0.92, 1.0, 0.94))
-		var arrow = PackedVector2Array([
-			center + Vector2(0.0, -4.6 - pulse * 1.1),
-			center + Vector2(-3.1, 2.7),
-			center + Vector2(3.1, 2.7)
+		var to_center = (size * 0.5 - center)
+		if to_center.length_squared() < 0.0001:
+			to_center = Vector2(0.0, -1.0)
+		else:
+			to_center = to_center.normalized()
+		var side = Vector2(-to_center.y, to_center.x)
+		var tip = center + to_center * (4.1 + pulse * 1.2)
+		var base = center - to_center * (1.4 + pulse * 0.7)
+		var half_w = 1.55 + pulse * 0.36
+		var arrow_shadow = PackedVector2Array([
+			tip + Vector2(0.8, 0.8),
+			base + side * half_w + Vector2(0.8, 0.8),
+			base - side * half_w + Vector2(0.8, 0.8)
 		])
-		draw_colored_polygon(arrow, Color(1.0, 0.96, 0.44, 0.88))
+		draw_colored_polygon(arrow_shadow, Color(0.0, 0.0, 0.0, 0.35))
+		var arrow = PackedVector2Array([
+			tip,
+			base + side * half_w,
+			base - side * half_w
+		])
+		draw_colored_polygon(arrow, Color(1.0, 0.95, 0.28, 0.98))
+		var stem_end = center - to_center * 2.0
+		draw_line(base, stem_end, Color(0.12, 0.82, 1.0, 0.9), 1.2, true)
 
 	for p in poop_positions:
 		draw_circle(_to_map_pos(p, scale_vec, offset, angle), 1.4, Color(0.56, 0.35, 0.19, 1.0))

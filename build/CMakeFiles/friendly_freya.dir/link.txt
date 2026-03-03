@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/friendly_freya.dir/link.d CMakeFiles/friendly_freya.dir/src/main.cpp.o -o friendly_freya  -lSDL2 -lGL

@@ -68,9 +68,15 @@ const STREET_POLE_SPACING = 10.8
 const STREET_POLE_END_MARGIN = 2.6
 const BUILDING_SIDEWALK_W = 0.95
 const BUILDING_COLLISION_PAD = 0.02
-const ROW_FRONT_SETBACK = 4.15
+const ROW_FRONT_SETBACK = 3.25
 const ROW_SIDE_SETBACK = 0.72
 const ALLEY_BUILDING_GAP = 0.2
+const STORE_WALL_THICKNESS = 0.34
+const STORE_DOOR_HALF_WIDTH = 0.78
+const STORE_DOOR_DEPTH = 0.86
+const STORE_INTERIOR_MARGIN = 0.24
+const STORE_INTERIOR_WALL_HEIGHT = 2.55
+const STORE_FOCUS_UPDATE_INTERVAL = 0.1
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
 const BONE_PICKUP_RANGE = 1.55
@@ -120,6 +126,10 @@ var street_poles: Array = []
 var vomit_puddles: Array = []
 var bark_pulses: Array = []
 var store_entry_indicators: Array = []
+var store_interior_nodes: Array[Node3D] = []
+var store_building_indices: Array[int] = []
+var blocking_building_rects: Array[Rect2] = []
+var store_walk_blockers: Array[Rect2] = []
 
 var dog_park = Rect2()
 var freya
@@ -138,6 +148,8 @@ var occlusion_update_timer = 0.0
 var last_occlusion_cam_pos = Vector3(100000.0, 100000.0, 100000.0)
 var last_occlusion_freya_pos = Vector3(-100000.0, -100000.0, -100000.0)
 var minimap_update_timer = 0.0
+var store_focus_timer = 0.0
+var active_store_index = -1
 
 var grass_material: Material
 var road_material: Material
@@ -165,6 +177,7 @@ var bone_material: StandardMaterial3D
 var store_food_materials: Array[StandardMaterial3D] = []
 
 var freya_outline_material: ShaderMaterial
+var freya_ghost_material: ShaderMaterial
 var object_outline_material: ShaderMaterial
 var outlined_freya_meshes: Array[MeshInstance3D] = []
 var outlined_object_meshes: Array[MeshInstance3D] = []
@@ -196,6 +209,8 @@ var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
 
 var minimap
+var store_focus_layer: CanvasLayer
+var store_focus_overlay: ColorRect
 var pause_menu_layer: CanvasLayer
 var pause_menu_panel: Panel
 var pause_menu_open = false
@@ -266,6 +281,7 @@ func _process(delta: float) -> void:
 
 	_update_camera_orbit_input(delta)
 	_update_freya(delta)
+	_update_store_focus(delta)
 	_update_dogs(delta)
 	_handle_actions()
 	_update_carried_stick_pose()
@@ -273,7 +289,7 @@ func _process(delta: float) -> void:
 	_update_vomit_puddles(delta)
 	_update_bark_sequences(delta)
 	_update_bark_pulses(delta)
-	_update_store_entry_indicators()
+	_update_store_entry_indicators(delta)
 	_update_camera(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
@@ -692,6 +708,7 @@ func _create_prop_materials() -> void:
 		store_food_materials.append(m)
 
 	freya_outline_material = _make_outline_material(Color(0.18, 0.96, 0.98, 1.0), 0.05)
+	freya_ghost_material = _make_ghost_material(Color(0.62, 0.94, 1.0, 0.44))
 	object_outline_material = _make_outline_material(Color(0.98, 0.92, 0.42, 0.96), 0.036)
 
 func _make_outline_material(color: Color, thickness: float) -> ShaderMaterial:
@@ -719,6 +736,24 @@ void fragment() {
 	mat.set_shader_parameter("outline_color", color)
 	mat.set_shader_parameter("outline_width", thickness)
 	mat.set_shader_parameter("fill_alpha", clampf(0.1 + thickness * 1.8, 0.12, 0.34))
+	return mat
+
+func _make_ghost_material(color: Color) -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode blend_mix, cull_disabled, unshaded, depth_draw_never;
+
+uniform vec4 ghost_color : source_color = vec4(0.6, 0.9, 1.0, 0.45);
+
+void fragment() {
+	ALBEDO = ghost_color.rgb;
+	ALPHA = ghost_color.a;
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("ghost_color", color)
 	return mat
 
 func _create_ground_materials() -> void:
@@ -1073,21 +1108,19 @@ func _build_city_buildings() -> void:
 		if not bool(layout.get("valid", false)):
 			continue
 
-		var alley_mid = float(layout["alley_mid"])
 		var alley_z0 = float(layout["alley_z0"])
 		var alley_z1 = float(layout["alley_z1"])
 		var alley_gap = float(layout["alley_gap"])
 		var x0 = float(layout["x0"])
-		var x1 = float(layout["x1"])
 		var run_w = float(layout["run_w"])
-		var lot_count = max(3, int(floor(run_w / 5.9)))
-		var lot_stride = run_w / float(lot_count)
-		var north_depth = float(layout["north_depth"])
-		var south_depth = float(layout["south_depth"])
+		var lot_count = max(2, int(floor(run_w / 8.6)))
+		var lot_stride = run_w / float(maxi(1, lot_count))
+		var north_depth = maxf(4.2, float(layout["north_depth"]))
+		var south_depth = maxf(4.2, float(layout["south_depth"]))
 
 		for i in range(lot_count):
-			var bx = x0 + float(i) * lot_stride + 0.04
-			var width = lot_stride - 0.08
+			var bx = x0 + float(i) * lot_stride + 0.03
+			var width = lot_stride - 0.06
 			var by_n = alley_z0 - north_depth - alley_gap
 			var by_s = alley_z1 + alley_gap
 			_add_building(Rect2(bx, by_n, width, north_depth), 3, false)
@@ -1099,10 +1132,15 @@ func _build_city_buildings() -> void:
 		_add_building(Rect2(17.0, 8.2, 5.2, 4.5), 3, true)
 		_add_building(Rect2(33.0, 27.0, 6.1, 5.0), 3, false)
 		_add_building(Rect2(58.0, 50.0, 5.9, 4.8), 3, true)
+	_rebuild_walkability_cache()
 
 func _mark_store_buildings() -> void:
 	_clear_store_entry_indicators()
+	_clear_store_interiors()
+	store_building_indices.clear()
+	active_store_index = -1
 	if buildings.is_empty():
+		_rebuild_walkability_cache()
 		return
 	var candidates: Array[int] = []
 	for i in range(buildings.size()):
@@ -1111,10 +1149,13 @@ func _mark_store_buildings() -> void:
 		b["enterable"] = false
 		b["store_food_slots"] = 0
 		b["entry_pos"] = Vector2(-1.0, -1.0)
+		b["store_walk_blockers"] = []
+		b["store_interior_rect"] = Rect2()
+		b["store_interior_root"] = null
 		buildings[i] = b
 
 		var fp: Rect2 = b["footprint"]
-		if fp.size.x < 4.8:
+		if fp.size.x < 6.0 or fp.size.y < 4.4:
 			continue
 		var center_x = fp.position.x + fp.size.x * 0.5
 		var front_is_south = bool(b.get("front_is_south", true))
@@ -1128,10 +1169,21 @@ func _mark_store_buildings() -> void:
 			continue
 		candidates.append(i)
 
+	# Fallback: if strict frontage checks fail on a generated block, still designate
+	# obvious larger buildings as stores so the feature is always present.
 	if candidates.is_empty():
+		for i in range(buildings.size()):
+			var b: Dictionary = buildings[i]
+			var fp: Rect2 = b["footprint"]
+			if fp.size.x >= 5.6 and fp.size.y >= 4.2:
+				candidates.append(i)
+
+	if candidates.is_empty():
+		_rebuild_walkability_cache()
+		_apply_store_focus_visuals()
 		return
 
-	var target_count = clampi(int(round(float(candidates.size()) * 0.28)), 3, 12)
+	var target_count = clampi(int(round(float(candidates.size()) * 0.28)), 4, 12)
 	target_count = mini(target_count, candidates.size())
 	for n in range(target_count):
 		var pick = rng.randi_range(0, candidates.size() - 1)
@@ -1140,10 +1192,14 @@ func _mark_store_buildings() -> void:
 		var store: Dictionary = buildings[idx]
 		store["is_store"] = true
 		store["enterable"] = true
-		store["store_food_slots"] = rng.randi_range(3, 5)
+		store["store_food_slots"] = rng.randi_range(4, 6)
 		_decorate_storefront(store)
 		_create_store_entry_indicator(store)
 		buildings[idx] = store
+		store_building_indices.append(idx)
+	_build_store_interiors()
+	_rebuild_walkability_cache()
+	_apply_store_focus_visuals()
 
 func _decorate_storefront(building: Dictionary) -> void:
 	var node: Node3D = building.get("node", null)
@@ -1186,6 +1242,148 @@ func _clear_store_entry_indicators() -> void:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 	store_entry_indicators.clear()
+
+func _clear_store_interiors() -> void:
+	for n in store_interior_nodes:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	store_interior_nodes.clear()
+	store_walk_blockers.clear()
+	for i in range(buildings.size()):
+		var b: Dictionary = buildings[i]
+		b["store_walk_blockers"] = []
+		b["store_interior_rect"] = Rect2()
+		b["store_interior_root"] = null
+		buildings[i] = b
+
+func _add_store_wall_box(parent: Node3D, wall_rect: Rect2, material: Material) -> void:
+	if wall_rect.size.x <= 0.03 or wall_rect.size.y <= 0.03:
+		return
+	var wall = MeshInstance3D.new()
+	var mesh = BoxMesh.new()
+	mesh.size = Vector3(wall_rect.size.x, STORE_INTERIOR_WALL_HEIGHT, wall_rect.size.y)
+	wall.mesh = mesh
+	wall.position = Vector3(
+		wall_rect.position.x + wall_rect.size.x * 0.5,
+		STORE_INTERIOR_WALL_HEIGHT * 0.5,
+		wall_rect.position.y + wall_rect.size.y * 0.5
+	)
+	wall.material_override = material
+	parent.add_child(wall)
+
+func _build_store_interiors() -> void:
+	_clear_store_interiors()
+	if store_building_indices.is_empty():
+		return
+
+	var floor_mat = StandardMaterial3D.new()
+	floor_mat.albedo_color = Color8(206, 206, 198)
+	floor_mat.roughness = 0.92
+	floor_mat.metallic = 0.0
+
+	var wall_mat = StandardMaterial3D.new()
+	wall_mat.albedo_color = Color8(228, 223, 214)
+	wall_mat.roughness = 0.88
+	wall_mat.metallic = 0.02
+
+	var shelf_mat = StandardMaterial3D.new()
+	shelf_mat.albedo_color = Color8(169, 145, 118)
+	shelf_mat.roughness = 0.84
+	shelf_mat.metallic = 0.0
+
+	for idx in store_building_indices:
+		if idx < 0 or idx >= buildings.size():
+			continue
+		var b: Dictionary = buildings[idx]
+		var fp: Rect2 = b.get("footprint", Rect2())
+		var x0 = fp.position.x + STORE_INTERIOR_MARGIN
+		var x1 = fp.position.x + fp.size.x - STORE_INTERIOR_MARGIN
+		var z0 = fp.position.y + STORE_INTERIOR_MARGIN
+		var z1 = fp.position.y + fp.size.y - STORE_INTERIOR_MARGIN
+		var inner_w = x1 - x0
+		var inner_d = z1 - z0
+		if inner_w < 2.2 or inner_d < 2.2:
+			continue
+
+		var interior_root = Node3D.new()
+		interior_root.name = "StoreInterior"
+		interior_root.visible = false
+		static_root.add_child(interior_root)
+		store_interior_nodes.append(interior_root)
+
+		var floor = MeshInstance3D.new()
+		var floor_mesh = PlaneMesh.new()
+		floor_mesh.size = Vector2(inner_w, inner_d)
+		floor.mesh = floor_mesh
+		floor.position = Vector3(x0 + inner_w * 0.5, 0.032, z0 + inner_d * 0.5)
+		floor.material_override = floor_mat
+		interior_root.add_child(floor)
+
+		var wall_t = STORE_WALL_THICKNESS
+		var door_half = minf(STORE_DOOR_HALF_WIDTH, inner_w * 0.24)
+		var center_x = x0 + inner_w * 0.5
+		var front_is_south = bool(b.get("front_is_south", true))
+		var blockers: Array[Rect2] = []
+
+		var left_wall = Rect2(x0, z0, wall_t, inner_d)
+		var right_wall = Rect2(x1 - wall_t, z0, wall_t, inner_d)
+		blockers.append(left_wall)
+		blockers.append(right_wall)
+
+		if front_is_south:
+			var back_wall = Rect2(x0, z0, inner_w, wall_t)
+			blockers.append(back_wall)
+			var front_left_w = maxf(0.0, center_x - door_half - x0)
+			var front_right_x = center_x + door_half
+			var front_right_w = maxf(0.0, x1 - front_right_x)
+			if front_left_w > 0.05:
+				blockers.append(Rect2(x0, z1 - wall_t, front_left_w, wall_t))
+			if front_right_w > 0.05:
+				blockers.append(Rect2(front_right_x, z1 - wall_t, front_right_w, wall_t))
+			var jamb_d = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
+			blockers.append(Rect2(center_x - door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d))
+			blockers.append(Rect2(center_x + door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d))
+		else:
+			var back_wall_north = Rect2(x0, z1 - wall_t, inner_w, wall_t)
+			blockers.append(back_wall_north)
+			var front_left_w_n = maxf(0.0, center_x - door_half - x0)
+			var front_right_x_n = center_x + door_half
+			var front_right_w_n = maxf(0.0, x1 - front_right_x_n)
+			if front_left_w_n > 0.05:
+				blockers.append(Rect2(x0, z0, front_left_w_n, wall_t))
+			if front_right_w_n > 0.05:
+				blockers.append(Rect2(front_right_x_n, z0, front_right_w_n, wall_t))
+			var jamb_d_n = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
+			blockers.append(Rect2(center_x - door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n))
+			blockers.append(Rect2(center_x + door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n))
+
+		if inner_w > 6.2 and inner_d > 4.0:
+			var aisle_depth = clampf(inner_d * 0.44, 1.9, inner_d - 1.2)
+			var aisle_z = z0 + (inner_d - aisle_depth) * 0.5
+			blockers.append(Rect2(x0 + inner_w * 0.33 - 0.12, aisle_z, 0.24, aisle_depth))
+			blockers.append(Rect2(x0 + inner_w * 0.67 - 0.12, aisle_z, 0.24, aisle_depth))
+
+		for wall_rect in blockers:
+			var mat = shelf_mat if wall_rect.size.x <= 0.28 and wall_rect.size.y > 1.7 else wall_mat
+			_add_store_wall_box(interior_root, wall_rect, mat)
+
+		b["store_walk_blockers"] = blockers
+		b["store_interior_rect"] = Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
+		b["store_interior_root"] = interior_root
+		buildings[idx] = b
+
+func _rebuild_walkability_cache() -> void:
+	blocking_building_rects.clear()
+	store_walk_blockers.clear()
+	for b in buildings:
+		var rect: Rect2 = b.get("collision_rect", b["footprint"])
+		if not bool(b.get("enterable", false)):
+			blocking_building_rects.append(rect)
+		var blockers = b.get("store_walk_blockers", [])
+		if blockers is Array:
+			for wall in blockers:
+				if wall is Rect2:
+					store_walk_blockers.append(wall)
 
 func _create_store_entry_indicator(building: Dictionary) -> void:
 	var node: Node3D = building.get("node", null)
@@ -1262,10 +1460,13 @@ func _spawn_store_food_in_building(building: Dictionary) -> bool:
 	var fp: Rect2 = building.get("footprint", Rect2())
 	if fp.size.x < 1.6 or fp.size.y < 1.6:
 		return false
+	var interior_rect: Rect2 = building.get("store_interior_rect", fp.grow(-0.42))
+	if interior_rect.size.x < 0.8 or interior_rect.size.y < 0.8:
+		interior_rect = fp.grow(-0.42)
 	for attempt in range(24):
 		var p = Vector2(
-			rng.randf_range(fp.position.x + 0.42, fp.position.x + fp.size.x - 0.42),
-			rng.randf_range(fp.position.y + 0.42, fp.position.y + fp.size.y - 0.42)
+			rng.randf_range(interior_rect.position.x, interior_rect.position.x + interior_rect.size.x),
+			rng.randf_range(interior_rect.position.y, interior_rect.position.y + interior_rect.size.y)
 		)
 		if not _is_walkable(p.x, p.y, 0.12):
 			continue
@@ -1745,6 +1946,9 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 	created["is_store"] = false
 	created["enterable"] = false
 	created["store_food_slots"] = 0
+	created["store_walk_blockers"] = []
+	created["store_interior_rect"] = Rect2()
+	created["store_interior_root"] = null
 	var node: Node3D = created["node"]
 	static_root.add_child(node)
 	buildings.append(created)
@@ -2328,6 +2532,8 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 	var p = Vector2(x, z)
 	if _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
 		return false
+	if _point_in_store_wall(p, maxf(0.02, radius * 0.82)):
+		return false
 	if _point_in_tree_trunk(p, maxf(0.2, radius * 0.95)):
 		return false
 	if _point_in_dumpster(p, maxf(0.08, radius * 0.9)):
@@ -2346,10 +2552,13 @@ func _point_in_building(p: Vector2, pad: float) -> bool:
 	return false
 
 func _point_in_blocking_building(p: Vector2, pad: float) -> bool:
-	for b in buildings:
-		if bool(b.get("enterable", false)):
-			continue
-		var rect: Rect2 = b.get("collision_rect", b["footprint"])
+	for rect in blocking_building_rects:
+		if rect.grow(pad).has_point(p):
+			return true
+	return false
+
+func _point_in_store_wall(p: Vector2, pad: float) -> bool:
+	for rect in store_walk_blockers:
 		if rect.grow(pad).has_point(p):
 			return true
 	return false
@@ -3546,7 +3755,9 @@ func _update_bark_pulses(delta: float) -> void:
 		mat.albedo_color = c
 		bark_pulses[i] = pulse
 
-func _update_store_entry_indicators() -> void:
+func _update_store_entry_indicators(delta: float = 0.016) -> void:
+	if delta > 0.0 and int(world_time * 32.0) % 2 != 0:
+		return
 	for i in range(store_entry_indicators.size() - 1, -1, -1):
 		var item: Dictionary = store_entry_indicators[i]
 		var marker: Node3D = item.get("node", null)
@@ -3560,6 +3771,50 @@ func _update_store_entry_indicators() -> void:
 		var bob = 0.06 * sin(t * 1.7)
 		var glide = (0.5 + 0.5 * sin(t)) * 0.24
 		marker.position = base + Vector3(0.0, bob, -front_sign * glide)
+
+func _store_index_containing_freya() -> int:
+	if freya == null or store_building_indices.is_empty():
+		return -1
+	var p = Vector2(freya.global_position.x, freya.global_position.z)
+	for idx in store_building_indices:
+		if idx < 0 or idx >= buildings.size():
+			continue
+		var b: Dictionary = buildings[idx]
+		var interior_rect: Rect2 = b.get("store_interior_rect", Rect2())
+		if interior_rect.size.x > 0.0 and interior_rect.size.y > 0.0 and interior_rect.grow(0.08).has_point(p):
+			return idx
+		var fp: Rect2 = b.get("footprint", Rect2())
+		var entry_pos: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
+		if entry_pos.x >= 0.0 and entry_pos.y >= 0.0 and fp.grow(-0.04).has_point(p) and p.distance_to(entry_pos) <= 1.1:
+			return idx
+	return -1
+
+func _apply_store_focus_visuals() -> void:
+	var inside_store = active_store_index >= 0
+	if store_focus_overlay != null:
+		store_focus_overlay.visible = inside_store
+	for idx in store_building_indices:
+		if idx < 0 or idx >= buildings.size():
+			continue
+		var b: Dictionary = buildings[idx]
+		var shell: Node3D = b.get("node", null)
+		var interior_root: Node3D = b.get("store_interior_root", null)
+		var is_active = inside_store and idx == active_store_index
+		if shell != null and is_instance_valid(shell):
+			shell.visible = not is_active
+		if interior_root != null and is_instance_valid(interior_root):
+			interior_root.visible = is_active
+
+func _update_store_focus(delta: float) -> void:
+	store_focus_timer = maxf(0.0, store_focus_timer - delta)
+	if store_focus_timer > 0.0:
+		return
+	store_focus_timer = STORE_FOCUS_UPDATE_INTERVAL
+	var store_idx = _store_index_containing_freya()
+	if store_idx == active_store_index:
+		return
+	active_store_index = store_idx
+	_apply_store_focus_visuals()
 
 func _has_back_alley_rowhouse_corridor() -> bool:
 	for alley in alleys:
@@ -4191,7 +4446,10 @@ func _nonbuilding_blocks_view(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 	return false
 
 func _freya_occluded_from_camera(cam_pos: Vector3, freya_pos: Vector3) -> bool:
-	for b in buildings:
+	for i in range(buildings.size()):
+		if active_store_index >= 0 and i == active_store_index:
+			continue
+		var b: Dictionary = buildings[i]
 		if _building_blocks_view(b, cam_pos, freya_pos):
 			return true
 	return _nonbuilding_blocks_view(cam_pos, freya_pos)
@@ -4209,21 +4467,39 @@ func _update_roof_occlusion(delta: float) -> void:
 	last_occlusion_cam_pos = cam_pos
 	last_occlusion_freya_pos = freya_pos
 
-	for b in buildings:
+	for i in range(buildings.size()):
+		var b: Dictionary = buildings[i]
 		var roof_parts: Array = b["roof_parts"]
 		var hide_roof = _building_blocks_view(b, cam_pos, freya_pos)
+		if active_store_index >= 0 and i == active_store_index and bool(b.get("is_store", false)):
+			hide_roof = true
 
 		for part in roof_parts:
 			(part as Node3D).visible = not hide_roof
 
 	_clear_occlusion_outlines()
 	var occluded = _freya_occluded_from_camera(cam_pos, freya_pos)
+	var ghost_freya = occluded or active_store_index >= 0
+	if ghost_freya:
+		_apply_outline_recursive(freya, freya_ghost_material, outlined_freya_meshes)
 	if occluded:
-		_apply_outline_recursive(freya, freya_outline_material, outlined_freya_meshes)
 		_apply_nearby_object_outlines(3.0)
 
 func _create_ui() -> void:
+	store_focus_layer = CanvasLayer.new()
+	store_focus_layer.layer = 1
+	add_child(store_focus_layer)
+
+	store_focus_overlay = ColorRect.new()
+	store_focus_overlay.anchor_right = 1.0
+	store_focus_overlay.anchor_bottom = 1.0
+	store_focus_overlay.color = Color(0.39, 0.41, 0.45, 0.34)
+	store_focus_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	store_focus_overlay.visible = false
+	store_focus_layer.add_child(store_focus_overlay)
+
 	ui_layer = CanvasLayer.new()
+	ui_layer.layer = 2
 	add_child(ui_layer)
 
 	var panel = Panel.new()
@@ -4320,10 +4596,10 @@ func _create_ui() -> void:
 	minimap_panel.anchor_top = 0.0
 	minimap_panel.anchor_right = 1.0
 	minimap_panel.anchor_bottom = 0.0
-	minimap_panel.offset_left = -316.0
+	minimap_panel.offset_left = -404.0
 	minimap_panel.offset_top = 16.0
 	minimap_panel.offset_right = -16.0
-	minimap_panel.offset_bottom = 226.0
+	minimap_panel.offset_bottom = 304.0
 	var mm_style = StyleBoxFlat.new()
 	mm_style.bg_color = Color(0.05, 0.08, 0.11, 0.86)
 	mm_style.border_color = Color(0.74, 0.85, 0.9, 0.75)
@@ -4445,6 +4721,7 @@ func _claimed_fire_hydrant_count() -> int:
 
 func _create_pause_menu() -> void:
 	pause_menu_layer = CanvasLayer.new()
+	pause_menu_layer.layer = 4
 	pause_menu_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(pause_menu_layer)
 
@@ -4686,14 +4963,21 @@ func _sync_minimap_static() -> void:
 	minimap.sidewalks = sidewalks.duplicate()
 	minimap.dog_park = dog_park
 	var building_rects: Array[Rect2] = []
+	var store_building_rects: Array[Rect2] = []
 	var store_points = PackedVector2Array()
 	for b in buildings:
 		building_rects.append(b["footprint"])
 		if bool(b.get("is_store", false)):
+			var fp: Rect2 = b["footprint"]
+			store_building_rects.append(fp)
+			# Always mark store center in minimap so stores are visible even if
+			# entrance points end up close to edges/overlap.
+			store_points.append(fp.position + fp.size * 0.5)
 			var sp: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
 			if sp.x >= 0.0 and sp.y >= 0.0:
 				store_points.append(sp)
 	minimap.buildings = building_rects
+	minimap.store_buildings = store_building_rects
 	minimap.store_entries = store_points
 	minimap.queue_redraw()
 
