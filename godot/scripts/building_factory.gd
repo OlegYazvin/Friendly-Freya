@@ -9,13 +9,19 @@ const EXTERNAL_BUILDING_MODEL_PATHS = [
 	"res://assets/models/buildings/building_roofgarden.glb",
 	"res://assets/models/buildings/building_big.glb"
 ]
+const CHICAGO_BRICK_PATTERN_WIDTH_PX = 24
+const CHICAGO_BRICK_PATTERN_HEIGHT_PX = 10
+const CHICAGO_MORTAR_WIDTH_PX = 2
+const CHICAGO_BRICK_UV_SCALE = 9.2
 
 static var _materials_ready = false
 static var _wall_materials: Array[StandardMaterial3D] = []
+static var _chicago_brick_materials: Array[StandardMaterial3D] = []
 static var _roof_material: StandardMaterial3D
 static var _trim_material: StandardMaterial3D
 static var _glass_material: StandardMaterial3D
 static var _stone_material: StandardMaterial3D
+static var _chicago_limestone_material: StandardMaterial3D
 static var _external_models_scanned = false
 static var _external_building_scenes: Array[PackedScene] = []
 
@@ -38,6 +44,23 @@ static func _ensure_materials() -> void:
 		mat.ao_enabled = true
 		_wall_materials.append(mat)
 
+	_chicago_brick_materials.clear()
+	_chicago_brick_materials.append(_make_chicago_brick_material(
+		Color8(146, 73, 50),
+		Color8(190, 104, 70),
+		Color8(196, 181, 165)
+	))
+	_chicago_brick_materials.append(_make_chicago_brick_material(
+		Color8(138, 68, 48),
+		Color8(182, 97, 67),
+		Color8(205, 188, 171)
+	))
+	_chicago_brick_materials.append(_make_chicago_brick_material(
+		Color8(158, 82, 58),
+		Color8(198, 113, 79),
+		Color8(210, 194, 178)
+	))
+
 	_roof_material = StandardMaterial3D.new()
 	_roof_material.albedo_color = Color8(78, 70, 64)
 	_roof_material.roughness = 0.92
@@ -58,6 +81,11 @@ static func _ensure_materials() -> void:
 	_stone_material = StandardMaterial3D.new()
 	_stone_material.albedo_color = Color8(156, 154, 151)
 	_stone_material.roughness = 0.9
+
+	_chicago_limestone_material = StandardMaterial3D.new()
+	_chicago_limestone_material.albedo_color = Color8(206, 196, 180)
+	_chicago_limestone_material.roughness = 0.86
+	_chicago_limestone_material.metallic = 0.0
 
 static func _ensure_external_models() -> void:
 	if _external_models_scanned:
@@ -196,6 +224,9 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 		bay.material_override = _wall_materials[(rng.randi_range(0, _wall_materials.size() - 1))]
 		root.add_child(bay)
 
+	var brick_height = _chicago_brick_base_height(floors, body_h)
+	_add_chicago_brick_base(root, width, depth, brick_height, rng)
+
 	var resolved_h = max(body_h + parapet_h, _snap_building_to_ground(root))
 	return {
 		"node": root,
@@ -257,6 +288,159 @@ static func _snap_building_to_ground(root: Node3D, ground_y: float = 0.018) -> f
 	var dy = ground_y - bounds.position.y
 	root.position.y += dy
 	return bounds.position.y + bounds.size.y + root.position.y
+
+static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, mortar_color: Color) -> Texture2D:
+	var tex_w = 256
+	var tex_h = 256
+	var mortar_px = CHICAGO_MORTAR_WIDTH_PX
+	var brick_w = CHICAGO_BRICK_PATTERN_WIDTH_PX
+	var brick_h = CHICAGO_BRICK_PATTERN_HEIGHT_PX
+	var row_step = brick_h + mortar_px
+	var col_step = brick_w + mortar_px
+	var img = Image.create(tex_w, tex_h, false, Image.FORMAT_RGBA8)
+	img.fill(mortar_color)
+
+	var row_count = int(ceil(float(tex_h + row_step) / float(row_step)))
+	var col_count = int(ceil(float(tex_w + col_step * 2) / float(col_step)))
+	for row in range(row_count):
+		var y0 = row * row_step + mortar_px
+		var row_shift = col_step / 2 if row % 2 == 1 else 0
+		for col in range(col_count):
+			var x0 = col * col_step - row_shift + mortar_px
+			var x1 = x0 + brick_w
+			var y1 = y0 + brick_h
+			if x1 <= 0 or x0 >= tex_w or y1 <= 0 or y0 >= tex_h:
+				continue
+
+			var tone_mix = clampf(0.48 + 0.52 * sin(float(row) * 1.79 + float(col) * 2.21), 0.0, 1.0)
+			var brick_color = base_color.lerp(accent_color, tone_mix * 0.56)
+			if posmod(row + col * 2, 11) == 0:
+				brick_color = brick_color.lerp(Color8(92, 57, 44), 0.36)
+			elif posmod(row * 3 + col, 13) == 0:
+				brick_color = brick_color.lerp(Color8(208, 140, 99), 0.24)
+			var tone_mul = 0.9 + 0.13 * sin(float(row) * 3.4 + float(col) * 5.1)
+			brick_color = Color(
+				clampf(brick_color.r * tone_mul, 0.0, 1.0),
+				clampf(brick_color.g * tone_mul, 0.0, 1.0),
+				clampf(brick_color.b * tone_mul, 0.0, 1.0),
+				1.0
+			)
+
+			var draw_x0 = maxi(0, x0)
+			var draw_x1 = mini(tex_w, x1)
+			var draw_y0 = maxi(0, y0)
+			var draw_y1 = mini(tex_h, y1)
+			for py in range(draw_y0, draw_y1):
+				var local_y = py - y0
+				var y_mul = 1.0
+				if local_y <= 1:
+					y_mul = 0.84
+				elif local_y >= brick_h - 2:
+					y_mul = 1.05
+				for px in range(draw_x0, draw_x1):
+					var local_x = px - x0
+					var edge_mul = y_mul
+					if local_x <= 1 or local_x >= brick_w - 2:
+						edge_mul *= 0.88
+					var soot_mix = clampf(0.1 + 0.2 * sin(float(px) * 0.13 + float(py) * 0.09), 0.0, 0.24)
+					if posmod(row, 8) == 0:
+						edge_mul *= (1.0 - soot_mix * 0.35)
+					img.set_pixel(
+						px,
+						py,
+						Color(
+							clampf(brick_color.r * edge_mul, 0.0, 1.0),
+							clampf(brick_color.g * edge_mul, 0.0, 1.0),
+							clampf(brick_color.b * edge_mul, 0.0, 1.0),
+							1.0
+						)
+					)
+
+	return ImageTexture.create_from_image(img)
+
+static func _make_chicago_brick_material(base_color: Color, accent_color: Color, mortar_color: Color) -> StandardMaterial3D:
+	var mat = StandardMaterial3D.new()
+	mat.albedo_texture = _make_chicago_brick_texture(base_color, accent_color, mortar_color)
+	mat.albedo_color = Color.WHITE
+	mat.roughness = 0.92
+	mat.metallic = 0.0
+	mat.ao_enabled = true
+	mat.uv1_scale = Vector3(CHICAGO_BRICK_UV_SCALE, CHICAGO_BRICK_UV_SCALE, 1.0)
+	return mat
+
+static func brick_style_metrics() -> Dictionary:
+	return {
+		"uv_scale": CHICAGO_BRICK_UV_SCALE,
+		"brick_px_w": CHICAGO_BRICK_PATTERN_WIDTH_PX,
+		"brick_px_h": CHICAGO_BRICK_PATTERN_HEIGHT_PX,
+		"mortar_px": CHICAGO_MORTAR_WIDTH_PX
+	}
+
+static func _chicago_brick_base_height(floors: int, total_height: float) -> float:
+	var story_count = clampi(floors, 1, 3)
+	var desired = float(story_count) * 4.7 + 0.55
+	return clampf(desired, 3.35, maxf(3.35, total_height - 0.75))
+
+static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, brick_height: float, rng: RandomNumberGenerator) -> void:
+	if parent == null:
+		return
+	if width <= 1.3 or depth <= 1.3 or brick_height <= 0.2:
+		return
+
+	var brick_material: Material = _wall_materials[0]
+	if not _chicago_brick_materials.is_empty():
+		brick_material = _chicago_brick_materials[rng.randi_range(0, _chicago_brick_materials.size() - 1)]
+	var band_material: Material = _trim_material if _trim_material != null else brick_material
+	if _chicago_limestone_material != null:
+		band_material = _chicago_limestone_material
+
+	var shell_t = clampf(minf(width, depth) * 0.045, 0.18, 0.32)
+	var edge_inset = clampf(minf(width, depth) * 0.012, 0.02, 0.08)
+	var half_w = width * 0.5
+	var half_d = depth * 0.5
+	var ns_width = maxf(0.7, width - edge_inset * 2.0)
+	var ew_depth = maxf(0.7, depth - edge_inset * 2.0 - shell_t * 2.0)
+
+	var side_panels = [
+		{
+			"size": Vector3(ns_width, brick_height, shell_t),
+			"pos": Vector3(0.0, brick_height * 0.5, -half_d + edge_inset + shell_t * 0.5)
+		},
+		{
+			"size": Vector3(ns_width, brick_height, shell_t),
+			"pos": Vector3(0.0, brick_height * 0.5, half_d - edge_inset - shell_t * 0.5)
+		},
+		{
+			"size": Vector3(shell_t, brick_height, ew_depth),
+			"pos": Vector3(-half_w + edge_inset + shell_t * 0.5, brick_height * 0.5, 0.0)
+		},
+		{
+			"size": Vector3(shell_t, brick_height, ew_depth),
+			"pos": Vector3(half_w - edge_inset - shell_t * 0.5, brick_height * 0.5, 0.0)
+		}
+	]
+	for spec in side_panels:
+		var panel = MeshInstance3D.new()
+		var mesh = BoxMesh.new()
+		var panel_size: Vector3 = spec.get("size", Vector3.ONE)
+		var panel_pos: Vector3 = spec.get("pos", Vector3.ZERO)
+		mesh.size = panel_size
+		panel.mesh = mesh
+		panel.position = panel_pos
+		panel.material_override = brick_material
+		parent.add_child(panel)
+
+	var belt = MeshInstance3D.new()
+	var belt_mesh = BoxMesh.new()
+	belt_mesh.size = Vector3(
+		maxf(0.8, width - edge_inset * 2.0 + 0.04),
+		0.14,
+		maxf(0.8, depth - edge_inset * 2.0 + 0.04)
+	)
+	belt.mesh = belt_mesh
+	belt.position = Vector3(0.0, brick_height + 0.07, 0.0)
+	belt.material_override = band_material
+	parent.add_child(belt)
 
 static func _make_external_roof_cap(width: float, depth: float, top_y: float) -> MeshInstance3D:
 	var cap = MeshInstance3D.new()
@@ -320,6 +504,8 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 
 		bounds = _compute_model_bounds(model_root)
 		var top_y = bounds.position.y + bounds.size.y
+		var brick_height = _chicago_brick_base_height(floors, top_y)
+		_add_chicago_brick_base(root, width * 0.94, depth * 0.94, brick_height, rng)
 		var roof_cap = _make_external_roof_cap(width, depth, top_y)
 		root.add_child(roof_cap)
 
@@ -344,6 +530,8 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 	fallback_body.position = Vector3(0.0, fallback_mesh.size.y * 0.5, 0.0)
 	fallback_body.material_override = _wall_materials[rng.randi_range(0, _wall_materials.size() - 1)]
 	root.add_child(fallback_body)
+	var fallback_brick_height = _chicago_brick_base_height(floors, fallback_mesh.size.y)
+	_add_chicago_brick_base(root, width, depth, fallback_brick_height, rng)
 	var fallback_h = max(fallback_mesh.size.y, _snap_building_to_ground(root))
 	return {
 		"node": root,

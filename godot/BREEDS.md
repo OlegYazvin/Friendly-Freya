@@ -13,6 +13,13 @@ Each breed definition controls:
 - `coat_palette` (allowed coat colors for that breed)
 - `speed_range` (NPC movement range)
 - `base_scale` + `scale_jitter` (model scale behavior)
+- `target_length_mult` + `target_height_mult` (realistic relative size profile vs Freya baseline)
+
+## Current Runtime Model Policy
+
+- NPC spawn uses animated models only.
+- If a breed's model candidates do not contain walk/run animations, spawn falls back to the animated Freya Portuguese water dog rig.
+- This keeps visual style + walk animation consistency across all dogs.
 
 ## Current Breed IDs
 

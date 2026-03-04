@@ -100,17 +100,13 @@ const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
 const BONE_PICKUP_RANGE = 1.55
 const FREYA_PRIMARY_MODEL = "res://assets/models/freya_portuguese_water_dog.glb"
+const FREYA_MODEL_TARGET_LENGTH = 1.56
+const FREYA_MODEL_TARGET_HEIGHT = 1.06
 const FREYA_MODEL_CANDIDATES = [
-	"res://assets/models/freya_portuguese_water_dog.glb",
-	"res://assets/models/freya_black_lab.glb",
-	"res://assets/models/freya_dog.glb"
+	"res://assets/models/freya_portuguese_water_dog.glb"
 ]
 const NPC_DOG_MODEL_CANDIDATES = [
-	"res://assets/models/dog_labrador.glb",
-	"res://assets/models/dog_golden.glb",
-	"res://assets/models/dog_husky.glb",
-	"res://assets/models/dog_neighbor_01.glb",
-	"res://assets/models/dog_neighbor_02.glb"
+	"res://assets/models/freya_portuguese_water_dog.glb"
 ]
 const NPC_BREED_SEQUENCE = [
 	"retriever",
@@ -127,8 +123,7 @@ const DOG_BREED_DEFINITIONS = {
 		"display_name": "Retriever",
 		"breed_profile": "retriever",
 		"model_candidates": [
-			"res://assets/models/dog_golden.glb",
-			"res://assets/models/dog_labrador.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(195, 158, 120),
@@ -138,14 +133,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.9, 2.55),
 		"base_scale": 1.02,
 		"scale_jitter": 0.1,
+		"target_length_mult": 1.01,
+		"target_height_mult": 0.99,
 		"mixable": true
 	},
 	"shepherd": {
 		"display_name": "Shepherd",
 		"breed_profile": "shepherd",
 		"model_candidates": [
-			"res://assets/models/dog_neighbor_01.glb",
-			"res://assets/models/dog_labrador.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(132, 101, 78),
@@ -155,13 +151,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(2.0, 2.7),
 		"base_scale": 1.03,
 		"scale_jitter": 0.11,
+		"target_length_mult": 1.05,
+		"target_height_mult": 1.03,
 		"mixable": true
 	},
 	"husky": {
 		"display_name": "Husky",
 		"breed_profile": "husky",
 		"model_candidates": [
-			"res://assets/models/dog_husky.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(98, 101, 112),
@@ -171,14 +169,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(2.05, 2.78),
 		"base_scale": 0.93,
 		"scale_jitter": 0.09,
+		"target_length_mult": 0.96,
+		"target_height_mult": 0.94,
 		"mixable": true
 	},
 	"terrier": {
 		"display_name": "Terrier",
 		"breed_profile": "terrier",
 		"model_candidates": [
-			"res://assets/models/dog_neighbor_02.glb",
-			"res://assets/models/dog_labrador.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(116, 94, 76),
@@ -188,14 +187,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.85, 2.62),
 		"base_scale": 0.9,
 		"scale_jitter": 0.12,
+		"target_length_mult": 0.84,
+		"target_height_mult": 0.82,
 		"mixable": true
 	},
 	"hound": {
 		"display_name": "Hound",
 		"breed_profile": "hound",
 		"model_candidates": [
-			"res://assets/models/dog_labrador.glb",
-			"res://assets/models/dog_neighbor_01.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(151, 111, 86),
@@ -205,14 +205,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.88, 2.52),
 		"base_scale": 0.98,
 		"scale_jitter": 0.1,
+		"target_length_mult": 1.02,
+		"target_height_mult": 0.96,
 		"mixable": true
 	},
 	"bulldog": {
 		"display_name": "Bulldog",
 		"breed_profile": "bulldog",
 		"model_candidates": [
-			"res://assets/models/dog_neighbor_02.glb",
-			"res://assets/models/dog_labrador.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(172, 140, 116),
@@ -222,14 +223,15 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.65, 2.28),
 		"base_scale": 0.9,
 		"scale_jitter": 0.09,
+		"target_length_mult": 0.84,
+		"target_height_mult": 0.8,
 		"mixable": true
 	},
 	"poodle": {
 		"display_name": "Poodle",
 		"breed_profile": "poodle",
 		"model_candidates": [
-			"res://assets/models/dog_golden.glb",
-			"res://assets/models/dog_labrador.glb"
+			FREYA_PRIMARY_MODEL
 		],
 		"coat_palette": [
 			Color8(38, 36, 35),
@@ -239,6 +241,8 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.92, 2.6),
 		"base_scale": 0.92,
 		"scale_jitter": 0.11,
+		"target_length_mult": 0.9,
+		"target_height_mult": 0.88,
 		"mixable": true
 	},
 	"mixed": {
@@ -263,6 +267,8 @@ const DOG_BREED_DEFINITIONS = {
 		"speed_range": Vector2(1.8, 2.58),
 		"base_scale": 0.97,
 		"scale_jitter": 0.13,
+		"target_length_mult": 0.95,
+		"target_height_mult": 0.92,
 		"mixable": false
 	}
 }
@@ -457,9 +463,10 @@ func _ready() -> void:
 	_update_roof_occlusion(0.0)
 	_update_ui()
 
-	if OS.has_feature("server") or OS.get_environment("FREYA_SMOKE") == "1":
+	var run_headless_checks = OS.has_feature("server") or DisplayServer.get_name() == "headless"
+	if run_headless_checks or OS.get_environment("FREYA_SMOKE") == "1":
 		_run_headless_smoke_checks()
-	if OS.get_environment("FREYA_VALIDATE") == "1":
+	if run_headless_checks or OS.get_environment("FREYA_VALIDATE") == "1":
 		_run_targeted_validation_checks()
 
 func _process(delta: float) -> void:
@@ -3324,8 +3331,8 @@ func _spawn_freya_and_dogs() -> void:
 	var npc_model_paths = _animated_model_paths(NPC_DOG_MODEL_CANDIDATES)
 	if npc_model_paths.is_empty() and not freya_model.is_empty() and _model_has_walk_animation(freya_model):
 		npc_model_paths = [freya_model]
-	if npc_model_paths.is_empty():
-		npc_model_paths = _existing_model_paths(NPC_DOG_MODEL_CANDIDATES)
+	if npc_model_paths.is_empty() and _model_has_walk_animation(FREYA_PRIMARY_MODEL):
+		npc_model_paths = [FREYA_PRIMARY_MODEL]
 	var breed_model_cache := {}
 	for breed_id in NPC_BREED_SEQUENCE:
 		breed_model_cache[breed_id] = _resolve_breed_model_path(breed_id, npc_model_paths)
@@ -3336,7 +3343,9 @@ func _spawn_freya_and_dogs() -> void:
 		"coat_color": Color(0.07, 0.07, 0.07),
 		"speed": FREYA_BASE_SPEED,
 		"scene_path": freya_model,
-		"model_scale": 1.0
+		"model_scale": 1.0,
+		"target_length": FREYA_MODEL_TARGET_LENGTH,
+		"target_height": FREYA_MODEL_TARGET_HEIGHT
 	})
 	freya.position = _random_walkable_point(true, FREYA_COLLISION_RADIUS)
 	dynamic_root.add_child(freya)
@@ -3407,8 +3416,14 @@ func _spawn_freya_and_dogs() -> void:
 		var jitter_secondary = float(secondary_def.get("scale_jitter", jitter_primary))
 		var base_scale = lerpf(scale_secondary, scale_primary, primary_ratio)
 		var scale_jitter = lerpf(jitter_secondary, jitter_primary, primary_ratio)
+		var size_mult = base_scale * cosmetic_rng.randf_range(maxf(0.88, 1.0 - scale_jitter), 1.0 + scale_jitter * 0.6)
+		var length_mult_primary = float(primary_def.get("target_length_mult", 1.0))
+		var length_mult_secondary = float(secondary_def.get("target_length_mult", length_mult_primary))
+		var height_mult_primary = float(primary_def.get("target_height_mult", 1.0))
+		var height_mult_secondary = float(secondary_def.get("target_height_mult", height_mult_primary))
+		var target_length = FREYA_MODEL_TARGET_LENGTH * lerpf(length_mult_secondary, length_mult_primary, primary_ratio) * size_mult
+		var target_height = FREYA_MODEL_TARGET_HEIGHT * lerpf(height_mult_secondary, height_mult_primary, primary_ratio) * size_mult
 		var model_scale = _npc_model_scale_for_path(dog_model)
-		model_scale *= base_scale * cosmetic_rng.randf_range(maxf(0.75, 1.0 - scale_jitter), 1.0 + scale_jitter)
 
 		var breed_profile = str(primary_def.get("breed_profile", "mixed"))
 		if is_mix and cosmetic_rng.randf() > primary_ratio:
@@ -3419,6 +3434,8 @@ func _spawn_freya_and_dogs() -> void:
 			"speed": dog_speed,
 			"scene_path": dog_model,
 			"model_scale": model_scale,
+			"target_length": target_length,
+			"target_height": target_height,
 			"breed_profile": breed_profile,
 			"breed_id": primary_breed,
 			"breed_mix": {
@@ -3494,13 +3511,13 @@ func _resolve_breed_model_path(breed_id: String, fallback_models: Array) -> Stri
 	var candidates: Array = definition.get("model_candidates", [])
 	var animated_candidates = _animated_model_paths(candidates)
 	if not animated_candidates.is_empty():
-		return str(animated_candidates[0])
-	var existing_candidates = _existing_model_paths(candidates)
-	if not existing_candidates.is_empty():
-		return str(existing_candidates[0])
+		var animated_idx = posmod(abs(int(hash("%s_anim" % breed_id))), animated_candidates.size())
+		return str(animated_candidates[animated_idx])
 	if fallback_models.is_empty():
+		if _model_has_walk_animation(FREYA_PRIMARY_MODEL):
+			return FREYA_PRIMARY_MODEL
 		return ""
-	var idx = posmod(abs(int(hash(breed_id))), fallback_models.size())
+	var idx = posmod(abs(int(hash("%s_fallback" % breed_id))), fallback_models.size())
 	return str(fallback_models[idx])
 
 func _color_from_palette(palette: Array, seed_idx: int, fallback: Color) -> Color:
@@ -5713,6 +5730,110 @@ func _count_mesh_instances(root: Node) -> int:
 			stack.append(c)
 	return count
 
+func _node_visual_dimensions(node: Node3D) -> Vector3:
+	if node == null or not is_instance_valid(node):
+		return Vector3.ZERO
+	if node.has_method("visual_dimensions"):
+		var dims_value = node.call("visual_dimensions")
+		if dims_value is Vector3:
+			return dims_value
+
+	var node_stack: Array[Node3D] = [node]
+	var xf_stack: Array[Transform3D] = [Transform3D.IDENTITY]
+	var has_point := false
+	var min_v := Vector3.ZERO
+	var max_v := Vector3.ZERO
+	while not node_stack.is_empty():
+		var n: Node3D = node_stack.pop_back()
+		var xf: Transform3D = xf_stack.pop_back()
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			if mi.mesh != null:
+				var local_aabb := mi.mesh.get_aabb().merge(mi.get_aabb())
+				if local_aabb.size.x > 0.000001 and local_aabb.size.y > 0.000001 and local_aabb.size.z > 0.000001:
+					for corner in _aabb_corners(local_aabb):
+						var p = xf * corner
+						if not has_point:
+							min_v = p
+							max_v = p
+							has_point = true
+						else:
+							min_v = min_v.min(p)
+							max_v = max_v.max(p)
+		for c in n.get_children():
+			if c is Node3D:
+				var child := c as Node3D
+				node_stack.append(child)
+				xf_stack.append(xf * child.transform)
+
+	if not has_point:
+		return Vector3.ZERO
+	return max_v - min_v
+
+func _append_size_validation_failures(failures: Array[String]) -> void:
+	var freya_dims = _node_visual_dimensions(freya)
+	if freya_dims.y < 0.82 or freya_dims.y > 1.35:
+		failures.append("freya_height_out_of_range_%.2f" % freya_dims.y)
+	if freya_dims.z < 1.0 or freya_dims.z > 2.05:
+		failures.append("freya_length_out_of_range_%.2f" % freya_dims.z)
+
+	var npc_checked = 0
+	var npc_invalid = 0
+	var npc_too_small = 0
+	var npc_too_large = 0
+	var npc_min_h = 1000000.0
+	var npc_max_h = 0.0
+	for d in dogs:
+		var dog_node: Node3D = d.get("node", null)
+		var dims = _node_visual_dimensions(dog_node)
+		if dims.y <= 0.05 or dims.z <= 0.1:
+			npc_invalid += 1
+			continue
+		npc_checked += 1
+		npc_min_h = minf(npc_min_h, dims.y)
+		npc_max_h = maxf(npc_max_h, dims.y)
+		var ratio = dims.y / maxf(0.01, freya_dims.y)
+		if ratio < 0.62:
+			npc_too_small += 1
+		elif ratio > 1.15:
+			npc_too_large += 1
+	if npc_checked <= 0:
+		failures.append("npc_size_check_no_dogs")
+	else:
+		if npc_invalid > 0:
+			failures.append("npc_size_invalid_%d" % npc_invalid)
+		if npc_too_small > 0:
+			failures.append("npc_too_small_vs_freya_%d" % npc_too_small)
+		if npc_too_large > 0:
+			failures.append("npc_too_large_vs_freya_%d" % npc_too_large)
+		if npc_max_h > 0.01:
+			var spread = npc_max_h / maxf(0.01, npc_min_h)
+			if spread < 1.1:
+				failures.append("npc_size_spread_low")
+
+	var building_count = 0
+	var building_height_sum = 0.0
+	for b in buildings:
+		var h = float(b.get("height", 0.0))
+		if h <= 0.0:
+			continue
+		building_count += 1
+		building_height_sum += h
+	if building_count > 0:
+		var avg_building_height = building_height_sum / float(building_count)
+		var building_to_dog_ratio = avg_building_height / maxf(0.01, freya_dims.y)
+		if building_to_dog_ratio < 8.0 or building_to_dog_ratio > 24.0:
+			failures.append("building_dog_scale_ratio_bad_%.2f" % building_to_dog_ratio)
+
+	var metrics = BuildingFactoryScript.brick_style_metrics()
+	var uv_scale = float(metrics.get("uv_scale", 0.0))
+	var brick_px_w = float(metrics.get("brick_px_w", 0.0))
+	var brick_px_h = float(metrics.get("brick_px_h", 0.0))
+	if uv_scale < 7.2:
+		failures.append("brick_uv_scale_too_low_%.2f" % uv_scale)
+	if brick_px_w > 30.0 or brick_px_h > 13.0:
+		failures.append("brick_pattern_too_large")
+
 func _run_targeted_validation_checks() -> void:
 	var failures: Array[String] = []
 	var saved_pos = freya.global_position
@@ -5950,6 +6071,7 @@ func _run_headless_smoke_checks() -> void:
 			dogs_without_walk += 1
 	if dogs_without_walk > 0:
 		failures.append("npc_missing_walk_animation_%d" % dogs_without_walk)
+	_append_size_validation_failures(failures)
 
 	# Street + distribution checks
 	if not _road_sidewalk_coverage_ok():

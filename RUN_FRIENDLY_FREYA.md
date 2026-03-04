@@ -22,3 +22,13 @@ host-spawn flatpak ps
 ```
 
 You should see `org.godotengine.Godot` in the list.
+
+## Required Before Deploy
+
+Run the size/animation/layout guardrail checks before every deploy:
+
+```sh
+./scripts/predeploy_size_checks.sh
+```
+
+This runs headless smoke + targeted validations, including dog/building relative-size checks.

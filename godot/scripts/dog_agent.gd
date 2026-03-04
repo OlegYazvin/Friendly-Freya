@@ -10,6 +10,8 @@ var bark_cooldown = 0.0
 var wander_timer = 0.0
 var scene_path = ""
 var model_scale = 1.0
+var model_target_length = -1.0
+var model_target_height = -1.0
 var breed_profile = "mixed"
 var breed_id = "mixed"
 var breed_mix: Dictionary = {}
@@ -40,6 +42,8 @@ func configure(config: Dictionary) -> void:
 	speed = float(config.get("speed", 2.2))
 	scene_path = str(config.get("scene_path", ""))
 	model_scale = float(config.get("model_scale", 1.0))
+	model_target_length = float(config.get("target_length", -1.0))
+	model_target_height = float(config.get("target_height", -1.0))
 	breed_profile = str(config.get("breed_profile", "mixed")).to_lower()
 	breed_id = str(config.get("breed_id", breed_profile)).to_lower()
 	var mix_cfg = config.get("breed_mix", {})
@@ -102,8 +106,6 @@ func _try_build_custom_model() -> bool:
 
 	if is_freya:
 		_apply_black_coat(model_root)
-		_hide_leg_candidates(model_root)
-		_enforce_hidden_leg_pose()
 	else:
 		_apply_custom_coat_tint(model_root)
 
@@ -457,8 +459,8 @@ func _normalize_external_model(root: Node3D) -> void:
 		root.rotation.y += PI * 0.5
 		bounds = _compute_model_bounds(root, true)
 
-	var target_len := 1.58 if is_freya else 1.30
-	var target_h := 1.08 if is_freya else 0.92
+	var target_len: float = model_target_length if model_target_length > 0.01 else (1.58 if is_freya else 1.30)
+	var target_h: float = model_target_height if model_target_height > 0.01 else (1.08 if is_freya else 0.92)
 	var s_len: float = target_len / maxf(bounds.size.x, bounds.size.z)
 	var s_h: float = target_h / bounds.size.y
 	var uniform: float = clampf(minf(s_len, s_h) * model_scale, 0.0004, 8.0)
@@ -668,6 +670,10 @@ func mouth_world_position() -> Vector3:
 
 func has_move_animation() -> bool:
 	return _anim_player != null and _has_move_animation
+
+func visual_dimensions() -> Vector3:
+	var bounds := _compute_model_bounds(self)
+	return bounds.size
 
 func _build_model() -> void:
 	for child in get_children():
@@ -933,8 +939,6 @@ func _build_model() -> void:
 	]
 
 	for i in range(leg_points.size()):
-		if is_freya and i == 2:
-			continue
 		var pivot = Node3D.new()
 		pivot.position = leg_points[i]
 		body_root.add_child(pivot)

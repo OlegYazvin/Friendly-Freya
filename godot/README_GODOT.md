@@ -31,7 +31,7 @@ Or open `godot/project.godot` from the Godot editor and press Play.
 ## Gameplay Systems Included
 
 - Isometric overhead 3D camera with follow/zoom on Freya
-- Freya (3-legged black Portuguese Water Dog style model)
+- Freya (realistic black Portuguese Water Dog model)
 - Hunger / Vomit / Social meters
 - Bark socialization pulses when near other dogs
 - Poop eating reduces hunger (lightly) and raises vomit meter
@@ -45,3 +45,11 @@ Or open `godot/project.godot` from the Godot editor and press Play.
 - Put `.glb` dog models in `godot/assets/models/`
 - Follow filename mapping in `godot/assets/models/README_MODELS.md`
 - The game auto-loads those models for Freya/NPC dogs and falls back to built-in procedural dogs if none are present
+
+## Predeploy Validation
+
+Run this before every deploy:
+
+```bash
+./scripts/predeploy_size_checks.sh
+```
