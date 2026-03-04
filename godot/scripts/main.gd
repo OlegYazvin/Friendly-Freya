@@ -40,7 +40,7 @@ const BARK_AGGRESSIVE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/barks/aggressive_bark_06.wav"
 ]
 const PEE_SAMPLE_CANDIDATES = [
-	"res://assets/audio/pee/urinating_bathroom_17120.mp3"
+	"res://assets/audio/pee/dog_urination_stream_330024.mp3"
 ]
 const EAT_FOOD_SAMPLE_CANDIDATES = [
 	"res://assets/audio/eat/dog_eating_dinner_760336.mp3"
@@ -53,8 +53,14 @@ const EAT_BONE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/eat/dog_chewing_crunchy_456376.mp3"
 ]
 const VOMIT_SAMPLE_CANDIDATES = [
-	"res://assets/audio/vomit/dog_gagging_135415.mp3"
+	"res://assets/audio/vomit/dog_wheezing_coughing_825417.mp3"
 ]
+const EAT_SOUND_START_OFFSET_SEC = 0.1
+const EAT_BONE_SOUND_START_OFFSET_SEC = 0.05
+const PEE_SOUND_START_OFFSET_SEC = 0.04
+const VOMIT_SOUND_START_OFFSET_SEC = 0.18
+const FREYA_STRENGTH_MIN_LEVEL = 1
+const FREYA_STRENGTH_MAX_LEVEL = 5
 const OBJECTIVE_CLAIM_TARGET = 10
 const OBJECTIVE_HYDRANT_TARGET = 8
 const CLAIM_TARGET_NONE = 0
@@ -109,6 +115,10 @@ const NPC_DOG_MODEL_CANDIDATES = [
 	"res://assets/models/freya_portuguese_water_dog.glb"
 ]
 const NPC_BREED_SEQUENCE = [
+	"labrador",
+	"pitbull",
+	"boxer",
+	"chihuahua",
 	"retriever",
 	"shepherd",
 	"husky",
@@ -119,6 +129,78 @@ const NPC_BREED_SEQUENCE = [
 	"mixed"
 ]
 const DOG_BREED_DEFINITIONS = {
+	"labrador": {
+		"display_name": "Labrador",
+		"breed_profile": "labrador",
+		"model_candidates": [
+			FREYA_PRIMARY_MODEL
+		],
+		"coat_palette": [
+			Color8(198, 169, 130),
+			Color8(121, 98, 79),
+			Color8(42, 39, 37)
+		],
+		"speed_range": Vector2(1.84, 2.48),
+		"base_scale": 1.04,
+		"scale_jitter": 0.08,
+		"target_length_mult": 1.08,
+		"target_height_mult": 1.03,
+		"mixable": true
+	},
+	"pitbull": {
+		"display_name": "Pitbull",
+		"breed_profile": "pitbull",
+		"model_candidates": [
+			FREYA_PRIMARY_MODEL
+		],
+		"coat_palette": [
+			Color8(144, 124, 107),
+			Color8(86, 78, 74),
+			Color8(193, 180, 169)
+		],
+		"speed_range": Vector2(1.76, 2.42),
+		"base_scale": 0.95,
+		"scale_jitter": 0.08,
+		"target_length_mult": 0.9,
+		"target_height_mult": 0.9,
+		"mixable": true
+	},
+	"boxer": {
+		"display_name": "Boxer",
+		"breed_profile": "boxer",
+		"model_candidates": [
+			FREYA_PRIMARY_MODEL
+		],
+		"coat_palette": [
+			Color8(170, 120, 90),
+			Color8(124, 92, 72),
+			Color8(62, 55, 50)
+		],
+		"speed_range": Vector2(1.9, 2.62),
+		"base_scale": 0.98,
+		"scale_jitter": 0.09,
+		"target_length_mult": 0.96,
+		"target_height_mult": 0.96,
+		"mixable": true
+	},
+	"chihuahua": {
+		"display_name": "Chihuahua",
+		"breed_profile": "chihuahua",
+		"model_candidates": [
+			FREYA_PRIMARY_MODEL
+		],
+		"coat_palette": [
+			Color8(194, 163, 128),
+			Color8(160, 123, 92),
+			Color8(80, 62, 50)
+		],
+		"speed_range": Vector2(2.06, 2.95),
+		"base_scale": 0.9,
+		"scale_jitter": 0.08,
+		"target_length_mult": 0.78,
+		"target_height_mult": 0.78,
+		"mixable": true
+	},
 	"retriever": {
 		"display_name": "Retriever",
 		"breed_profile": "retriever",
@@ -250,6 +332,10 @@ const DOG_BREED_DEFINITIONS = {
 		"breed_profile": "mixed",
 		"model_candidates": NPC_DOG_MODEL_CANDIDATES,
 		"mix_components": [
+			"labrador",
+			"pitbull",
+			"boxer",
+			"chihuahua",
 			"retriever",
 			"shepherd",
 			"husky",
@@ -321,7 +407,7 @@ var freya
 var freya_hunger = 34.0
 var freya_vomit = 0.0
 var freya_social = 24.0
-var freya_strength = 0.0
+var freya_strength = FREYA_STRENGTH_MIN_LEVEL
 var freya_vomit_timer = 0.0
 var freya_eat_timer = 0.0
 var freya_move_dir = Vector3.ZERO
@@ -377,15 +463,15 @@ var ui_layer: CanvasLayer
 var hunger_bar: ProgressBar
 var vomit_bar: ProgressBar
 var social_bar: ProgressBar
-var strength_bar: ProgressBar
 var hunger_value_label: Label
 var vomit_value_label: Label
 var social_value_label: Label
-var strength_value_label: Label
 var status_label: Label
 var status_timer = 0.0
 var objectives_panel: Panel
 var objectives_list_label: Label
+var stats_panel: Panel
+var stats_list_label: Label
 var objective_puke_on_dog_complete = false
 var claim_meter_panel: Panel
 var claim_meter_label: Label
@@ -397,8 +483,6 @@ var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
 var claim_pee_audio_player: AudioStreamPlayer
 var claim_pee_stream: AudioStream
-var claim_pee_uses_real_sample = false
-var claim_pee_audio_timer = 0.0
 var interact_highlight_root: Node3D
 var interact_highlights := {}
 
@@ -464,10 +548,15 @@ func _ready() -> void:
 	_update_ui()
 
 	var run_headless_checks = OS.has_feature("server") or DisplayServer.get_name() == "headless"
+	var checks_failed = false
 	if run_headless_checks or OS.get_environment("FREYA_SMOKE") == "1":
-		_run_headless_smoke_checks()
+		if not _run_headless_smoke_checks():
+			checks_failed = true
 	if run_headless_checks or OS.get_environment("FREYA_VALIDATE") == "1":
-		_run_targeted_validation_checks()
+		if not _run_targeted_validation_checks():
+			checks_failed = true
+	if checks_failed:
+		get_tree().quit(1)
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("menu"):
@@ -477,6 +566,7 @@ func _process(delta: float) -> void:
 		_hide_claim_pee_effect()
 		_hide_interactable_highlights()
 		_update_objectives_overlay()
+		_update_stats_overlay()
 		return
 
 	world_time += delta
@@ -504,6 +594,7 @@ func _process(delta: float) -> void:
 	_update_roof_occlusion(delta)
 	_update_ui()
 	_update_objectives_overlay()
+	_update_stats_overlay()
 	_update_minimap_dynamic(delta)
 
 func _configure_input() -> void:
@@ -631,11 +722,9 @@ func _create_audio_setup() -> void:
 	claim_pee_audio_player = AudioStreamPlayer.new()
 	claim_pee_audio_player.bus = "Master"
 	claim_pee_stream = _load_first_stream_from_candidates(PEE_SAMPLE_CANDIDATES)
-	claim_pee_uses_real_sample = claim_pee_stream != null
-	claim_pee_audio_player.volume_db = -10.6
+	claim_pee_audio_player.volume_db = -11.2
 	claim_pee_audio_player.stream = claim_pee_stream
 	add_child(claim_pee_audio_player)
-	claim_pee_audio_timer = 0.0
 
 	eat_sfx_streams_food.clear()
 	for stream in _load_bark_streams_from_files(EAT_FOOD_SAMPLE_CANDIDATES):
@@ -672,7 +761,7 @@ func _create_audio_setup() -> void:
 		vomit_sfx_player.queue_free()
 	vomit_sfx_player = AudioStreamPlayer.new()
 	vomit_sfx_player.bus = "Master"
-	vomit_sfx_player.volume_db = -9.6
+	vomit_sfx_player.volume_db = -10.2
 	add_child(vomit_sfx_player)
 
 func _load_audio_stream_from_file(path: String) -> AudioStream:
@@ -744,16 +833,23 @@ func _play_claim_pee_sound() -> void:
 		return
 	if claim_pee_stream == null:
 		claim_pee_stream = _load_first_stream_from_candidates(PEE_SAMPLE_CANDIDATES)
-		claim_pee_uses_real_sample = claim_pee_stream != null
 		claim_pee_audio_player.stream = claim_pee_stream
 	if claim_pee_stream == null:
 		return
 	claim_pee_audio_player.stop()
-	claim_pee_audio_player.pitch_scale = rng.randf_range(0.97, 1.02)
-	claim_pee_audio_player.volume_db = -10.9 + rng.randf_range(-0.55, 0.55)
-	claim_pee_audio_player.play()
+	claim_pee_audio_player.pitch_scale = rng.randf_range(0.99, 1.01)
+	claim_pee_audio_player.volume_db = -11.0 + rng.randf_range(-0.3, 0.3)
+	claim_pee_audio_player.play(PEE_SOUND_START_OFFSET_SEC)
 
-func _play_random_clip(player: AudioStreamPlayer, pool: Array[AudioStream], pitch_min: float, pitch_max: float, base_volume_db: float, volume_jitter_db: float) -> void:
+func _play_random_clip(
+	player: AudioStreamPlayer,
+	pool: Array[AudioStream],
+	pitch_min: float,
+	pitch_max: float,
+	base_volume_db: float,
+	volume_jitter_db: float,
+	start_offset_sec: float = 0.0
+) -> void:
 	if player == null or not is_instance_valid(player) or pool.is_empty():
 		return
 	var clip_idx = rng.randi_range(0, pool.size() - 1)
@@ -762,7 +858,7 @@ func _play_random_clip(player: AudioStreamPlayer, pool: Array[AudioStream], pitc
 	player.stream = clip
 	player.pitch_scale = rng.randf_range(pitch_min, pitch_max)
 	player.volume_db = base_volume_db + rng.randf_range(-absf(volume_jitter_db), absf(volume_jitter_db))
-	player.play()
+	player.play(maxf(0.0, start_offset_sec))
 
 func _play_eat_sound(kind: String) -> void:
 	var pool: Array[AudioStream] = eat_sfx_streams_food
@@ -773,10 +869,11 @@ func _play_eat_sound(kind: String) -> void:
 			pool = eat_sfx_streams_bone
 		_:
 			pool = eat_sfx_streams_food
-	_play_random_clip(eat_sfx_player, pool, 0.96, 1.04, -10.4, 0.6)
+	var start_offset = EAT_BONE_SOUND_START_OFFSET_SEC if kind == "bone" else EAT_SOUND_START_OFFSET_SEC
+	_play_random_clip(eat_sfx_player, pool, 0.96, 1.04, -10.4, 0.6, start_offset)
 
 func _play_vomit_sound() -> void:
-	_play_random_clip(vomit_sfx_player, vomit_sfx_streams, 0.97, 1.03, -9.6, 0.5)
+	_play_random_clip(vomit_sfx_player, vomit_sfx_streams, 0.98, 1.01, -10.2, 0.35, VOMIT_SOUND_START_OFFSET_SEC)
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
 	if barks <= 0:
@@ -3474,6 +3571,59 @@ func _non_mixed_breed_ids() -> Array[String]:
 			ids.append(id)
 	return ids
 
+func _breed_definition_issues() -> Array[String]:
+	var issues: Array[String] = []
+	var required_keys = [
+		"display_name",
+		"breed_profile",
+		"model_candidates",
+		"coat_palette",
+		"speed_range",
+		"base_scale",
+		"scale_jitter",
+		"target_length_mult",
+		"target_height_mult",
+		"mixable"
+	]
+	for breed_id in DOG_BREED_DEFINITIONS.keys():
+		var def: Dictionary = DOG_BREED_DEFINITIONS[breed_id]
+		for k in required_keys:
+			if not def.has(k):
+				issues.append("breed_%s_missing_%s" % [breed_id, str(k)])
+		var model_candidates = def.get("model_candidates", [])
+		if not (model_candidates is Array) or (model_candidates as Array).is_empty():
+			issues.append("breed_%s_missing_model_candidates" % breed_id)
+		var coat_palette = def.get("coat_palette", [])
+		if not (coat_palette is Array) or (coat_palette as Array).is_empty():
+			issues.append("breed_%s_missing_coat_palette" % breed_id)
+		var speed_range = def.get("speed_range", Vector2(0.0, 0.0))
+		if not (speed_range is Vector2) or speed_range.x <= 0.0 or speed_range.y <= speed_range.x:
+			issues.append("breed_%s_invalid_speed_range" % breed_id)
+		var tl = float(def.get("target_length_mult", 0.0))
+		var th = float(def.get("target_height_mult", 0.0))
+		if tl <= 0.0 or th <= 0.0:
+			issues.append("breed_%s_invalid_target_dimensions" % breed_id)
+
+	for seq_id in NPC_BREED_SEQUENCE:
+		if not DOG_BREED_DEFINITIONS.has(seq_id):
+			issues.append("npc_breed_sequence_unknown_%s" % seq_id)
+
+	var mixed_def: Dictionary = DOG_BREED_DEFINITIONS.get("mixed", {})
+	var mix_components = mixed_def.get("mix_components", [])
+	if not (mix_components is Array) or (mix_components as Array).is_empty():
+		issues.append("mixed_missing_mix_components")
+	else:
+		for component in mix_components:
+			var cid = str(component)
+			if not DOG_BREED_DEFINITIONS.has(cid):
+				issues.append("mixed_component_unknown_%s" % cid)
+				continue
+			if cid == "mixed":
+				issues.append("mixed_component_cannot_reference_mixed")
+			elif not bool(DOG_BREED_DEFINITIONS[cid].get("mixable", false)):
+				issues.append("mixed_component_not_mixable_%s" % cid)
+	return issues
+
 func _resolve_breed_identity(index: int, zone_idx: int, in_park: bool) -> Dictionary:
 	var base_breed = NPC_BREED_SEQUENCE[posmod(index + zone_idx * 3 + (2 if in_park else 0), NPC_BREED_SEQUENCE.size())]
 	if base_breed != "mixed":
@@ -4739,7 +4889,6 @@ func _update_claiming(delta: float) -> void:
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
-		claim_pee_audio_timer = 0.0
 		if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
 			claim_pee_audio_player.stop()
 		return
@@ -4756,7 +4905,6 @@ func _update_claiming(delta: float) -> void:
 				_reset_claim_progress(prev_type, prev_index)
 				active_claim_target_type = CLAIM_TARGET_NONE
 				active_claim_target_index = -1
-				claim_pee_audio_timer = 0.0
 				if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
 					claim_pee_audio_player.stop()
 				_try_search_dumpster(dumpster_idx)
@@ -4766,7 +4914,6 @@ func _update_claiming(delta: float) -> void:
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
-		claim_pee_audio_timer = 0.0
 		if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
 			claim_pee_audio_player.stop()
 		if Input.is_action_just_pressed("claim"):
@@ -4780,10 +4927,8 @@ func _update_claiming(delta: float) -> void:
 
 	active_claim_target_type = target_type
 	active_claim_target_index = target_index
-	claim_pee_audio_timer = maxf(0.0, claim_pee_audio_timer - delta)
-	if claim_pee_audio_timer <= 0.0:
+	if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player) and not claim_pee_audio_player.playing:
 		_play_claim_pee_sound()
-		claim_pee_audio_timer = 0.72 if claim_pee_uses_real_sample else 0.38
 
 	var claimed_now = false
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
@@ -4820,6 +4965,8 @@ func _update_claiming(delta: float) -> void:
 	_ensure_claim_ring_for_target(target_type, target_index)
 	active_claim_target_type = CLAIM_TARGET_NONE
 	active_claim_target_index = -1
+	if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
+		claim_pee_audio_player.stop()
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
 		if _claimed_light_pole_count() >= OBJECTIVE_CLAIM_TARGET:
 			_show_status("Objective complete: Claim 10 light poles", 1.35)
@@ -5060,7 +5207,7 @@ func _drop_carried_stick() -> bool:
 	return true
 
 func _trigger_freya_eat_feedback(kind: String) -> void:
-	var eat_duration = 0.72 if kind == "poop" else 0.58
+	var eat_duration = 0.88 if kind == "poop" else 0.74
 	freya_eat_timer = maxf(freya_eat_timer, eat_duration)
 	_play_eat_sound(kind)
 
@@ -5085,10 +5232,10 @@ func _try_eat_bone(show_fail_status: bool = false) -> bool:
 		node.queue_free()
 	bones.remove_at(best_idx)
 
-	freya_strength = clamp(freya_strength + 18.0, 0.0, 100.0)
+	freya_strength = clampi(freya_strength + 1, FREYA_STRENGTH_MIN_LEVEL, FREYA_STRENGTH_MAX_LEVEL)
 	freya_hunger = clamp(freya_hunger - 3.0, 0.0, 100.0)
 	_trigger_freya_eat_feedback("bone")
-	_show_status("Crunch! Strength increased", 0.95)
+	_show_status("Crunch! Strength level %d/%d" % [freya_strength, FREYA_STRENGTH_MAX_LEVEL], 0.95)
 	return true
 
 func _try_eat_store_food(show_fail_status: bool = false) -> bool:
@@ -5182,22 +5329,35 @@ func _try_vomit() -> void:
 		_show_status("Bleaaargh!", 1.0)
 
 func _freya_vomit_origin_and_direction() -> Dictionary:
-	var origin = freya.global_position + Vector3(0.0, 0.38, 0.0)
-	var forward = -freya.global_transform.basis.z
-	if freya != null and freya.has_method("mouth_world_position"):
-		origin = freya.call("mouth_world_position")
-	var head = origin - forward * 0.3
+	var body_forward = -freya.global_transform.basis.z
+	body_forward.y = 0.0
+	if body_forward.length_squared() < 0.0001:
+		body_forward = Vector3.FORWARD
+	body_forward = body_forward.normalized()
+
+	var head_pos = freya.global_position + Vector3(0.0, 0.9, 0.0)
 	if freya != null and freya.has_method("head_world_position"):
-		head = freya.call("head_world_position")
-	var mouth_forward = origin - head
-	mouth_forward.y = 0.0
-	if mouth_forward.length_squared() > 0.0001:
-		forward = mouth_forward
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = Vector3.FORWARD
-	forward = forward.normalized()
-	return {"origin": origin, "forward": forward}
+		head_pos = freya.call("head_world_position")
+
+	var origin = head_pos + body_forward * 0.26 + Vector3(0.0, -0.07, 0.0)
+	var forward = body_forward
+	if freya != null and freya.has_method("mouth_world_position"):
+		var candidate_origin: Vector3 = freya.call("mouth_world_position")
+		var from_head = candidate_origin - head_pos
+		var from_body = candidate_origin - freya.global_position
+		var from_head_flat = Vector2(from_head.x, from_head.z)
+		var from_body_flat = Vector2(from_body.x, from_body.z)
+		if from_head.length() < 0.9 and from_head_flat.length_squared() > 0.0001:
+			var mouth_dir = Vector3(from_head_flat.x, 0.0, from_head_flat.y).normalized()
+			var body_to_mouth_dir = Vector3(from_body_flat.x, 0.0, from_body_flat.y).normalized()
+			# Reject anchors that are side/rear-facing to avoid butt-spawned vomit.
+			if mouth_dir.dot(body_forward) > 0.24 and body_to_mouth_dir.dot(body_forward) > 0.12:
+				origin = candidate_origin
+				if mouth_dir.dot(body_forward) > 0.38:
+					forward = mouth_dir
+
+	origin.y = maxf(origin.y, freya.global_position.y + 0.3)
+	return {"origin": origin, "forward": forward.normalized()}
 
 func _vomit_hits_any_dog(start: Vector2, stop: Vector2) -> bool:
 	var hit_any = false
@@ -5793,7 +5953,7 @@ func _append_size_validation_failures(failures: Array[String]) -> void:
 		npc_min_h = minf(npc_min_h, dims.y)
 		npc_max_h = maxf(npc_max_h, dims.y)
 		var ratio = dims.y / maxf(0.01, freya_dims.y)
-		if ratio < 0.62:
+		if ratio < 0.5:
 			npc_too_small += 1
 		elif ratio > 1.15:
 			npc_too_large += 1
@@ -5829,12 +5989,12 @@ func _append_size_validation_failures(failures: Array[String]) -> void:
 	var uv_scale = float(metrics.get("uv_scale", 0.0))
 	var brick_px_w = float(metrics.get("brick_px_w", 0.0))
 	var brick_px_h = float(metrics.get("brick_px_h", 0.0))
-	if uv_scale < 7.2:
+	if uv_scale < 4.8:
 		failures.append("brick_uv_scale_too_low_%.2f" % uv_scale)
-	if brick_px_w > 30.0 or brick_px_h > 13.0:
+	if brick_px_w > 36.0 or brick_px_h > 14.0:
 		failures.append("brick_pattern_too_large")
 
-func _run_targeted_validation_checks() -> void:
+func _run_targeted_validation_checks() -> bool:
 	var failures: Array[String] = []
 	var saved_pos = freya.global_position
 	var saved_cam_pos = camera_node.global_position
@@ -5932,17 +6092,18 @@ func _run_targeted_validation_checks() -> void:
 		if _freya_occluded_by_buildings(cam_pos, Vector3(cx, 0.0, cz)) and rect.size.x < 4.0:
 			failures.append("target_ghost_false_positive_small_building")
 
+		occlusion_update_timer = 0.0
 		camera_node.global_position = cam_pos
 		freya.global_position = blocked_pos
-		_update_roof_occlusion(0.0)
+		_update_roof_occlusion(0.25)
 		if outlined_freya_meshes.is_empty():
 			failures.append("target_ghost_outline_not_shown")
 		freya.global_position = clear_pos
-		_update_roof_occlusion(0.0)
+		_update_roof_occlusion(0.25)
 		if not outlined_freya_meshes.is_empty():
 			failures.append("target_ghost_outline_not_cleared")
 		freya.global_position = blocked_pos
-		_update_roof_occlusion(0.0)
+		_update_roof_occlusion(0.25)
 		if outlined_freya_meshes.is_empty():
 			failures.append("target_ghost_outline_not_restored")
 
@@ -5954,10 +6115,12 @@ func _run_targeted_validation_checks() -> void:
 
 	if failures.is_empty():
 		print("TARGET_OK: store+ghost validations passed")
+		return true
 	else:
 		push_error("TARGET_FAIL: " + ", ".join(failures))
+		return false
 
-func _run_headless_smoke_checks() -> void:
+func _run_headless_smoke_checks() -> bool:
 	var failures: Array[String] = []
 
 	# Poop-eating check
@@ -5977,6 +6140,27 @@ func _run_headless_smoke_checks() -> void:
 		failures.append("hunger_not_reduced")
 	if freya_vomit < 61.95:
 		failures.append("vomit_meter_not_increased")
+
+	# Strength-level check
+	freya_strength = FREYA_STRENGTH_MIN_LEVEL
+	var test_bone = _create_bone_node()
+	var bone_pos = Vector3(freya.global_position.x + 0.48, 0.03, freya.global_position.z + 0.08)
+	test_bone.position = bone_pos
+	dynamic_root.add_child(test_bone)
+	bones.append({"node": test_bone, "pos": Vector2(bone_pos.x, bone_pos.z)})
+	if not _try_eat_bone(false):
+		failures.append("bone_not_consumed")
+	elif freya_strength != FREYA_STRENGTH_MIN_LEVEL + 1:
+		failures.append("strength_level_not_incremented")
+	freya_strength = FREYA_STRENGTH_MAX_LEVEL
+	var cap_bone = _create_bone_node()
+	var cap_bone_pos = Vector3(freya.global_position.x + 0.56, 0.03, freya.global_position.z - 0.12)
+	cap_bone.position = cap_bone_pos
+	dynamic_root.add_child(cap_bone)
+	bones.append({"node": cap_bone, "pos": Vector2(cap_bone_pos.x, cap_bone_pos.z)})
+	_try_eat_bone(false)
+	if freya_strength != FREYA_STRENGTH_MAX_LEVEL:
+		failures.append("strength_level_exceeds_cap")
 
 	# Vomit check
 	var vomit_before = vomit_puddles.size()
@@ -6072,6 +6256,8 @@ func _run_headless_smoke_checks() -> void:
 	if dogs_without_walk > 0:
 		failures.append("npc_missing_walk_animation_%d" % dogs_without_walk)
 	_append_size_validation_failures(failures)
+	for issue in _breed_definition_issues():
+		failures.append(issue)
 
 	# Street + distribution checks
 	if not _road_sidewalk_coverage_ok():
@@ -6131,8 +6317,10 @@ func _run_headless_smoke_checks() -> void:
 
 	if failures.is_empty():
 		print("SMOKE_OK: gameplay + layout + animation checks passed")
+		return true
 	else:
 		push_error("SMOKE_FAIL: " + ", ".join(failures))
+		return false
 
 func _update_camera(delta: float) -> void:
 	var look_ahead = freya_move_dir * 1.3
@@ -6464,7 +6652,8 @@ func _update_roof_occlusion(delta: float) -> void:
 			(part as Node3D).visible = not hide_roof
 
 	_clear_occlusion_outlines()
-	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos, occlusion_candidates)
+	# Use full building set for ghosting so candidate-pruning cannot suppress valid occlusion.
+	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos)
 	var occluded_props = _nonbuilding_blocks_view(cam_pos, freya_pos)
 	var ghost_freya = occluded_building
 	if ghost_freya:
@@ -6492,7 +6681,7 @@ func _create_ui() -> void:
 	var panel = Panel.new()
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(370, 176)
+	panel.size = Vector2(370, 144)
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.03, 0.08, 0.1, 0.72)
 	panel_style.border_width_left = 2
@@ -6521,9 +6710,6 @@ func _create_ui() -> void:
 
 	social_bar = _make_meter(panel, "Social", Vector2(18, 110), Color(0.36, 0.66, 0.9))
 	social_value_label = _make_value_label(panel, Vector2(316, 110))
-
-	strength_bar = _make_meter(panel, "Strength", Vector2(18, 142), Color(0.92, 0.8, 0.36))
-	strength_value_label = _make_value_label(panel, Vector2(316, 142))
 
 	status_label = Label.new()
 	status_label.position = Vector2(16, 205)
@@ -6673,6 +6859,7 @@ func _create_ui() -> void:
 	minimap.set_zoom(minimap_zoom_slider.value)
 
 	_create_objectives_overlay()
+	_create_stats_overlay()
 	_create_pause_menu()
 
 func _create_objectives_overlay() -> void:
@@ -6738,6 +6925,58 @@ func _objectives_text() -> String:
 		+ "- %s Claim 10 trees (%d/%d)\n" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
 		+ "- %s Claim 8 fire hydrants (%d/%d)" % [hydrants_state, hydrants_claimed, OBJECTIVE_HYDRANT_TARGET]
 	)
+
+func _create_stats_overlay() -> void:
+	stats_panel = Panel.new()
+	stats_panel.anchor_left = 0.5
+	stats_panel.anchor_top = 0.0
+	stats_panel.anchor_right = 0.5
+	stats_panel.anchor_bottom = 0.0
+	stats_panel.offset_left = -230.0
+	stats_panel.offset_top = 178.0
+	stats_panel.offset_right = 230.0
+	stats_panel.offset_bottom = 272.0
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.04, 0.07, 0.1, 0.9)
+	panel_style.border_color = Color(0.74, 0.86, 0.92, 0.75)
+	panel_style.border_width_left = 2
+	panel_style.border_width_top = 2
+	panel_style.border_width_right = 2
+	panel_style.border_width_bottom = 2
+	panel_style.corner_radius_top_left = 8
+	panel_style.corner_radius_top_right = 8
+	panel_style.corner_radius_bottom_left = 8
+	panel_style.corner_radius_bottom_right = 8
+	stats_panel.add_theme_stylebox_override("panel", panel_style)
+	stats_panel.visible = false
+	ui_layer.add_child(stats_panel)
+
+	var title = Label.new()
+	title.text = "Stats"
+	title.position = Vector2(14.0, 8.0)
+	title.add_theme_font_size_override("font_size", 18)
+	stats_panel.add_child(title)
+
+	stats_list_label = Label.new()
+	stats_list_label.text = _stats_text()
+	stats_list_label.position = Vector2(16.0, 34.0)
+	stats_list_label.size = Vector2(426.0, 58.0)
+	stats_list_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	stats_list_label.add_theme_font_size_override("font_size", 15)
+	stats_panel.add_child(stats_list_label)
+
+func _stats_text() -> String:
+	return (
+		"- Strength Level: %d/%d\n" % [freya_strength, FREYA_STRENGTH_MAX_LEVEL]
+		+ "- Bones Needed For Max: %d" % max(0, FREYA_STRENGTH_MAX_LEVEL - freya_strength)
+	)
+
+func _update_stats_overlay() -> void:
+	if stats_panel == null:
+		return
+	if stats_list_label != null:
+		stats_list_label.text = _stats_text()
+	stats_panel.visible = (not pause_menu_open) and Input.is_action_pressed("objectives")
 
 func _claimed_light_pole_count() -> int:
 	var total = 0
@@ -6986,12 +7225,10 @@ func _update_ui() -> void:
 	hunger_bar.value = freya_hunger
 	vomit_bar.value = freya_vomit
 	social_bar.value = freya_social
-	strength_bar.value = freya_strength
 
 	hunger_value_label.text = "%d%%" % int(round(freya_hunger))
 	vomit_value_label.text = "%d%%" % int(round(freya_vomit))
 	social_value_label.text = "%d%%" % int(round(freya_social))
-	strength_value_label.text = "%d%%" % int(round(freya_strength))
 
 	_update_claim_meter_overlay()
 

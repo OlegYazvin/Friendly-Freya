@@ -45,17 +45,17 @@ Derived files:
   were trimmed and processed from the OpenGameArt `dog.7z` archive.
 
 Pee source file:
-- `pee/urinating_bathroom_17120.mp3`
+- `pee/dog_urination_stream_330024.mp3`
 
 Source:
-- Freesound, "urinating bathroom urinal fan.aif", uploaded by user `dcaudio`
-- URL: https://freesound.org/people/dcaudio/sounds/17120/
+- Freesound, "Urination", uploaded by `Mafon2`
+- URL: https://freesound.org/people/Mafon2/sounds/330024/
 - Direct preview URL used in project:
-  `https://cdn.freesound.org/previews/17/17120_137-hq.mp3`
+  `https://cdn.freesound.org/previews/330/330024_1196472-hq.mp3`
 
 License:
-- CC BY 3.0
-- https://creativecommons.org/licenses/by/3.0/
+- CC0 (Public Domain)
+- https://creativecommons.org/publicdomain/zero/1.0/
 
 Eat source files:
 - `eat/dog_eating_dinner_760336.mp3`
@@ -86,13 +86,13 @@ License:
 - https://creativecommons.org/publicdomain/zero/1.0/
 
 Vomit source files:
-- `vomit/dog_gagging_135415.mp3`
+- `vomit/dog_wheezing_coughing_825417.mp3`
 
 Source:
-- Freesound, "Gagging 1.wav", uploaded by `Turroe22`
-- URL: https://freesound.org/people/Turroe22/sounds/135415/
+- Freesound, "Small Dog wheezing & coughing", uploaded by `Filmscore`
+- URL: https://freesound.org/people/Filmscore/sounds/825417/
 - Direct preview URL used in project:
-  `https://cdn.freesound.org/previews/135/135415_698367-hq.mp3`
+  `https://cdn.freesound.org/previews/825/825417_843915-hq.mp3`
 
 License:
 - CC0 (Public Domain)

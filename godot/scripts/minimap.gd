@@ -72,6 +72,21 @@ func _draw_map_rect(rect: Rect2, world_origin: Vector2, scale_vec: Vector2, angl
 	var outline = PackedVector2Array([points[0], points[1], points[2], points[3], points[0]])
 	draw_polyline(outline, color, width, true)
 
+func _compute_world_origin(view_world: Vector2) -> Vector2:
+	var origin = freya_position - view_world * 0.5
+	var max_origin = map_size - view_world
+
+	if max_origin.x <= 0.0:
+		origin.x = (map_size.x - view_world.x) * 0.5
+	else:
+		origin.x = clampf(origin.x, 0.0, max_origin.x)
+
+	if max_origin.y <= 0.0:
+		origin.y = (map_size.y - view_world.y) * 0.5
+	else:
+		origin.y = clampf(origin.y, 0.0, max_origin.y)
+	return origin
+
 func _draw() -> void:
 	if map_size.x <= 0.0 or map_size.y <= 0.0:
 		return
@@ -86,9 +101,7 @@ func _draw() -> void:
 	view_world.x = maxf(8.0, view_world.x)
 	view_world.y = maxf(8.0, view_world.y)
 	var scale_vec = Vector2(size.x / view_world.x, size.y / view_world.y)
-	var world_origin = freya_position - view_world * 0.5
-
-	_draw_map_rect(Rect2(Vector2.ZERO, map_size), world_origin, scale_vec, angle, Color(0.2, 0.52, 0.2, 0.85), true)
+	var world_origin = _compute_world_origin(view_world)
 
 	for s in sidewalks:
 		_draw_map_rect(s, world_origin, scale_vec, angle, Color(0.72, 0.74, 0.76, 0.95), true)

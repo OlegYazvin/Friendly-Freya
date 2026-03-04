@@ -14,6 +14,7 @@ Each breed definition controls:
 - `speed_range` (NPC movement range)
 - `base_scale` + `scale_jitter` (model scale behavior)
 - `target_length_mult` + `target_height_mult` (realistic relative size profile vs Freya baseline)
+- strict schema validation in headless smoke checks (`_breed_definition_issues` in `main.gd`)
 
 ## Current Runtime Model Policy
 
@@ -23,6 +24,10 @@ Each breed definition controls:
 
 ## Current Breed IDs
 
+- `labrador`
+- `pitbull`
+- `boxer`
+- `chihuahua`
 - `retriever`
 - `shepherd`
 - `husky`

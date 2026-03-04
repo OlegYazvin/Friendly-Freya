@@ -29,6 +29,7 @@ var _anim_player: AnimationPlayer
 var _anim_idle = ""
 var _anim_walk = ""
 var _anim_run = ""
+var _anim_eat = ""
 var _has_move_animation = false
 var _model_forward_yaw_offset = PI
 var _mouth_anchor_node: Node3D
@@ -77,6 +78,7 @@ func _try_build_custom_model() -> bool:
 	_anim_idle = ""
 	_anim_walk = ""
 	_anim_run = ""
+	_anim_eat = ""
 	_has_move_animation = false
 	_model_forward_yaw_offset = PI
 	_mouth_anchor_node = null
@@ -103,6 +105,7 @@ func _try_build_custom_model() -> bool:
 	_anim_player = _find_animation_player(model_root)
 	_resolve_animation_names()
 	_infer_model_forward_axis(model_root as Node3D)
+	_apply_external_breed_shape(model_root as Node3D)
 
 	if is_freya:
 		_apply_black_coat(model_root)
@@ -360,6 +363,7 @@ func _resolve_animation_names() -> void:
 	_anim_idle = _pick_animation_name(names, ["idle", "rest", "stand", "breathe"])
 	_anim_walk = _pick_animation_name(names, ["walk", "trot", "move", "run"])
 	_anim_run = _pick_animation_name(names, ["run", "sprint", "gallop"])
+	_anim_eat = _pick_animation_name(names, ["idle_eating", "eat", "chew", "bite"])
 
 	if _anim_idle.is_empty():
 		_anim_idle = names[0]
@@ -367,9 +371,11 @@ func _resolve_animation_names() -> void:
 		_anim_walk = _anim_idle
 	if _anim_run.is_empty():
 		_anim_run = _anim_walk
+	if _anim_eat.is_empty():
+		_anim_eat = _anim_idle
 
 	_has_move_animation = (_anim_walk != _anim_idle) or (_anim_run != _anim_idle)
-	for name in [_anim_idle, _anim_walk, _anim_run]:
+	for name in [_anim_idle, _anim_walk, _anim_run, _anim_eat]:
 		if name.is_empty():
 			continue
 		var anim: Animation = _anim_player.get_animation(name)
@@ -521,6 +527,64 @@ func _resolve_mouth_anchor(model_root: Node3D) -> void:
 				_mouth_anchor_bone = i
 				return
 
+func _set_bone_pose_scale_if_exists(skel: Skeleton3D, bone_name: String, scale_value: Vector3) -> void:
+	if skel == null:
+		return
+	var idx = skel.find_bone(bone_name)
+	if idx < 0:
+		return
+	skel.set_bone_pose_scale(idx, scale_value)
+
+func _apply_external_breed_shape(model_root: Node3D) -> void:
+	if is_freya:
+		return
+	var skel := _find_first_skeleton(model_root)
+	if skel == null:
+		return
+
+	var body_scale = Vector3.ONE
+	var head_scale = Vector3.ONE
+	var muzzle_scale = Vector3.ONE
+	var leg_scale = Vector3.ONE
+	var tail_scale = Vector3.ONE
+	match breed_profile:
+		"chihuahua":
+			body_scale = Vector3(0.9, 0.88, 0.88)
+			head_scale = Vector3(1.22, 1.18, 1.2)
+			muzzle_scale = Vector3(0.82, 0.86, 0.88)
+			leg_scale = Vector3(0.9, 0.84, 0.9)
+			tail_scale = Vector3(0.94, 1.04, 1.24)
+		"labrador", "retriever":
+			body_scale = Vector3(1.08, 1.04, 1.14)
+			head_scale = Vector3(1.04, 1.02, 1.06)
+			muzzle_scale = Vector3(1.08, 0.97, 1.14)
+			leg_scale = Vector3(1.03, 1.04, 1.03)
+			tail_scale = Vector3(1.04, 1.0, 1.12)
+		"pitbull", "bulldog":
+			body_scale = Vector3(1.2, 1.16, 1.02)
+			head_scale = Vector3(1.24, 1.15, 1.06)
+			muzzle_scale = Vector3(0.84, 0.82, 0.84)
+			leg_scale = Vector3(1.0, 0.9, 1.0)
+			tail_scale = Vector3(0.84, 0.9, 0.86)
+		"boxer":
+			body_scale = Vector3(1.08, 1.09, 1.06)
+			head_scale = Vector3(1.16, 1.08, 1.05)
+			muzzle_scale = Vector3(0.82, 0.8, 0.8)
+			leg_scale = Vector3(1.02, 1.06, 1.0)
+			tail_scale = Vector3(0.9, 0.9, 0.88)
+		_:
+			return
+
+	_set_bone_pose_scale_if_exists(skel, "Body", body_scale)
+	_set_bone_pose_scale_if_exists(skel, "Head", head_scale)
+	_set_bone_pose_scale_if_exists(skel, "Head_end", muzzle_scale)
+	_set_bone_pose_scale_if_exists(skel, "FrontLeg.L", leg_scale)
+	_set_bone_pose_scale_if_exists(skel, "FrontLeg.R", leg_scale)
+	_set_bone_pose_scale_if_exists(skel, "BackLeg.L", leg_scale)
+	_set_bone_pose_scale_if_exists(skel, "BackLeg.R", leg_scale)
+	_set_bone_pose_scale_if_exists(skel, "Tail", tail_scale)
+	_set_bone_pose_scale_if_exists(skel, "Tail_end", tail_scale)
+
 func _find_first_skeleton(root: Node) -> Skeleton3D:
 	var stack: Array = [root]
 	while not stack.is_empty():
@@ -544,10 +608,10 @@ func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: 
 	else:
 		desired = _anim_idle
 
-	if is_vomiting and not _anim_walk.is_empty():
-		desired = _anim_walk
+	if is_vomiting:
+		desired = _anim_eat if not _anim_eat.is_empty() else _anim_idle
 	elif is_eating:
-		desired = _anim_walk if (_has_move_animation and not _anim_walk.is_empty()) else _anim_idle
+		desired = _anim_eat if not _anim_eat.is_empty() else _anim_idle
 
 	if desired.is_empty():
 		return
@@ -555,10 +619,16 @@ func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: 
 	if _anim_player.current_animation != desired or not _anim_player.is_playing():
 		_anim_player.play(desired, 0.18)
 
+	var using_idle_for_oral_state = (desired == _anim_idle) and (is_vomiting or is_eating)
+	if using_idle_for_oral_state:
+		# Freeze locomotion pose so eating/vomiting reads as head action, not foot shuffle.
+		_anim_player.speed_scale = 0.0
+		return
+
 	if is_vomiting:
-		_anim_player.speed_scale = 0.8
+		_anim_player.speed_scale = 0.9
 	elif is_eating:
-		_anim_player.speed_scale = 0.68
+		_anim_player.speed_scale = 1.02
 	elif is_moving:
 		_anim_player.speed_scale = 1.38 if is_running else 1.0
 	else:
@@ -578,6 +648,8 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 	_enforce_hidden_leg_pose()
 
 	var stride_amp = 0.8 if is_running else 0.5
+	if is_eating or is_vomiting:
+		stride_amp = 0.0
 	if move_dir.length_squared() < 0.0001:
 		stride_amp *= 0.25
 
@@ -601,10 +673,11 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 
 	if _head_pivot != null:
 		if is_vomiting:
-			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.6, clamp(delta * 9.0, 0.0, 1.0))
+			var retch_phase = 0.56 + 0.15 * sin(_step_time * 10.2)
+			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, retch_phase, clamp(delta * 11.0, 0.0, 1.0))
 		elif is_eating:
-			var chew_phase = 0.13 + 0.11 * sin(_step_time * 11.5)
-			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, chew_phase, clamp(delta * 12.0, 0.0, 1.0))
+			var chew_phase = 0.3 + 0.2 * sin(_step_time * 13.4)
+			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, chew_phase, clamp(delta * 13.0, 0.0, 1.0))
 		else:
 			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.0, clamp(delta * 7.0, 0.0, 1.0))
 
@@ -615,10 +688,10 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		var pitch = 0.042 if is_running else 0.03
 		var fore_aft = 0.05 if is_running else 0.032
 		if is_eating:
-			gait_hz = 3.2
-			bob = 0.018
-			roll = 0.014
-			pitch = 0.04
+			gait_hz = 4.6
+			bob = 0.006
+			roll = 0.008
+			pitch = 0.016
 			fore_aft = 0.0
 		elif not is_moving:
 			gait_hz = 2.4
@@ -690,6 +763,7 @@ func _build_model() -> void:
 	_anim_idle = ""
 	_anim_walk = ""
 	_anim_run = ""
+	_anim_eat = ""
 	_has_move_animation = false
 	_model_forward_yaw_offset = PI
 	_mouth_anchor_node = null
@@ -798,6 +872,52 @@ func _build_model() -> void:
 				paw_scale = Vector3(1.36, 0.83, 1.44)
 				tail_len_scale = 0.68
 				base_body_y = 0.52
+			"pitbull":
+				torso_scale = Vector3(1.36, 0.9, 1.74)
+				chest_scale = Vector3(1.3, 1.16, 1.12)
+				rump_scale = Vector3(1.28, 0.96, 1.06)
+				head_scale = Vector3(1.24, 1.14, 1.04)
+				muzzle_scale = Vector3(1.08, 0.72, 1.0)
+				ear_scale = Vector3(0.92, 0.88, 0.92)
+				leg_upper_h = 0.28
+				leg_lower_h = 0.25
+				paw_scale = Vector3(1.32, 0.82, 1.42)
+				tail_len_scale = 0.72
+				base_body_y = 0.54
+			"boxer":
+				torso_scale = Vector3(1.26, 0.88, 1.9)
+				chest_scale = Vector3(1.22, 1.11, 1.14)
+				rump_scale = Vector3(1.18, 0.93, 1.09)
+				head_scale = Vector3(1.18, 1.06, 1.03)
+				muzzle_scale = Vector3(1.04, 0.75, 0.95)
+				ear_scale = Vector3(0.95, 1.0, 0.92)
+				leg_upper_h = 0.34
+				leg_lower_h = 0.31
+				paw_scale = Vector3(1.16, 0.76, 1.25)
+				tail_len_scale = 0.8
+				base_body_y = 0.58
+			"labrador":
+				torso_scale = Vector3(1.34, 0.86, 2.06)
+				chest_scale = Vector3(1.22, 1.05, 1.25)
+				rump_scale = Vector3(1.18, 0.92, 1.2)
+				head_scale = Vector3(1.12, 1.0, 1.16)
+				muzzle_scale = Vector3(1.34, 0.86, 1.66)
+				ear_scale = Vector3(1.0, 1.06, 0.94)
+				leg_upper_h = 0.36
+				leg_lower_h = 0.34
+				tail_len_scale = 1.14
+			"chihuahua":
+				torso_scale = Vector3(0.88, 0.74, 1.34)
+				chest_scale = Vector3(0.86, 0.94, 0.9)
+				rump_scale = Vector3(0.84, 0.8, 0.86)
+				head_scale = Vector3(1.22, 1.15, 1.14)
+				muzzle_scale = Vector3(1.02, 0.76, 1.08)
+				ear_scale = Vector3(0.95, 1.48, 0.9)
+				leg_upper_h = 0.22
+				leg_lower_h = 0.2
+				paw_scale = Vector3(0.86, 0.62, 0.92)
+				tail_len_scale = 1.08
+				base_body_y = 0.47
 			"poodle":
 				torso_scale = Vector3(1.1, 0.84, 1.86)
 				chest_scale = Vector3(1.08, 1.03, 1.1)

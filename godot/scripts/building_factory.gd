@@ -9,10 +9,10 @@ const EXTERNAL_BUILDING_MODEL_PATHS = [
 	"res://assets/models/buildings/building_roofgarden.glb",
 	"res://assets/models/buildings/building_big.glb"
 ]
-const CHICAGO_BRICK_PATTERN_WIDTH_PX = 24
+const CHICAGO_BRICK_PATTERN_WIDTH_PX = 32
 const CHICAGO_BRICK_PATTERN_HEIGHT_PX = 10
 const CHICAGO_MORTAR_WIDTH_PX = 2
-const CHICAGO_BRICK_UV_SCALE = 9.2
+const CHICAGO_BRICK_UV_SCALE = 5.4
 
 static var _materials_ready = false
 static var _wall_materials: Array[StandardMaterial3D] = []
@@ -290,14 +290,14 @@ static func _snap_building_to_ground(root: Node3D, ground_y: float = 0.018) -> f
 	return bounds.position.y + bounds.size.y + root.position.y
 
 static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, mortar_color: Color) -> Texture2D:
-	var tex_w = 256
-	var tex_h = 256
+	var tex_w = 384
+	var tex_h = 384
 	var mortar_px = CHICAGO_MORTAR_WIDTH_PX
 	var brick_w = CHICAGO_BRICK_PATTERN_WIDTH_PX
 	var brick_h = CHICAGO_BRICK_PATTERN_HEIGHT_PX
 	var row_step = brick_h + mortar_px
 	var col_step = brick_w + mortar_px
-	var img = Image.create(tex_w, tex_h, false, Image.FORMAT_RGBA8)
+	var img = Image.create(tex_w, tex_h, true, Image.FORMAT_RGBA8)
 	img.fill(mortar_color)
 
 	var row_count = int(ceil(float(tex_h + row_step) / float(row_step)))
@@ -318,7 +318,7 @@ static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, 
 				brick_color = brick_color.lerp(Color8(92, 57, 44), 0.36)
 			elif posmod(row * 3 + col, 13) == 0:
 				brick_color = brick_color.lerp(Color8(208, 140, 99), 0.24)
-			var tone_mul = 0.9 + 0.13 * sin(float(row) * 3.4 + float(col) * 5.1)
+			var tone_mul = 0.93 + 0.09 * sin(float(row) * 3.4 + float(col) * 5.1)
 			brick_color = Color(
 				clampf(brick_color.r * tone_mul, 0.0, 1.0),
 				clampf(brick_color.g * tone_mul, 0.0, 1.0),
@@ -334,14 +334,14 @@ static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, 
 				var local_y = py - y0
 				var y_mul = 1.0
 				if local_y <= 1:
-					y_mul = 0.84
+					y_mul = 0.93
 				elif local_y >= brick_h - 2:
-					y_mul = 1.05
+					y_mul = 1.02
 				for px in range(draw_x0, draw_x1):
 					var local_x = px - x0
 					var edge_mul = y_mul
 					if local_x <= 1 or local_x >= brick_w - 2:
-						edge_mul *= 0.88
+						edge_mul *= 0.94
 					var soot_mix = clampf(0.1 + 0.2 * sin(float(px) * 0.13 + float(py) * 0.09), 0.0, 0.24)
 					if posmod(row, 8) == 0:
 						edge_mul *= (1.0 - soot_mix * 0.35)
@@ -356,6 +356,7 @@ static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, 
 						)
 					)
 
+	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
 static func _make_chicago_brick_material(base_color: Color, accent_color: Color, mortar_color: Color) -> StandardMaterial3D:
@@ -365,6 +366,7 @@ static func _make_chicago_brick_material(base_color: Color, accent_color: Color,
 	mat.roughness = 0.92
 	mat.metallic = 0.0
 	mat.ao_enabled = true
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	mat.uv1_scale = Vector3(CHICAGO_BRICK_UV_SCALE, CHICAGO_BRICK_UV_SCALE, 1.0)
 	return mat
 
