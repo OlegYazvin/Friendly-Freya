@@ -66,6 +66,7 @@ const FIRE_HYDRANT_COLLISION_RADIUS = 0.18
 const FIRE_HYDRANT_SPACING = 17.0
 const STREET_POLE_SPACING = 10.8
 const STREET_POLE_END_MARGIN = 2.6
+const MINIMAP_ZOOM_STEP = 0.3
 const BUILDING_SIDEWALK_W = 0.95
 const BUILDING_COLLISION_PAD = 0.02
 const ROW_FRONT_SETBACK = 3.25
@@ -4310,6 +4311,28 @@ func _is_inside_store_interior(store_idx: int, p: Vector2) -> bool:
 		return false
 	return interior_rect.grow(0.08).has_point(p)
 
+func _store_index_for_interior_point(p: Vector2) -> int:
+	if store_building_indices.is_empty():
+		return -1
+	for idx in store_building_indices:
+		if idx < 0 or idx >= buildings.size():
+			continue
+		if _is_inside_store_interior(idx, p):
+			return idx
+	return -1
+
+func _store_index_for_visual_focus(p: Vector2) -> int:
+	var interior_idx = _store_index_for_interior_point(p)
+	if interior_idx >= 0:
+		return interior_idx
+	if active_store_index >= 0 and active_store_index < buildings.size():
+		var active_b: Dictionary = buildings[active_store_index]
+		var fp: Rect2 = active_b.get("footprint", Rect2())
+		if fp.size.x > 0.0 and fp.size.y > 0.0 and fp.grow(0.32).has_point(p):
+			if _is_inside_store_index(active_store_index, p):
+				return active_store_index
+	return _store_index_containing_freya()
+
 func _store_index_containing_freya() -> int:
 	if freya == null or store_building_indices.is_empty():
 		return -1
@@ -4352,7 +4375,7 @@ func _apply_store_focus_visuals() -> void:
 	var active_idx = -1
 	if freya != null and active_store_index >= 0 and active_store_index < buildings.size():
 		var p = Vector2(freya.global_position.x, freya.global_position.z)
-		if _is_inside_store_interior(active_store_index, p):
+		if _is_inside_store_index(active_store_index, p):
 			inside_store = true
 			active_idx = active_store_index
 	if store_focus_overlay != null:
@@ -4374,11 +4397,10 @@ func _apply_store_focus_visuals() -> void:
 			interior_root.visible = is_active
 
 func _update_store_focus(delta: float) -> void:
-	var store_idx = _store_index_containing_freya()
-	if store_idx < 0 and active_store_index >= 0 and active_store_index < buildings.size():
+	var store_idx = -1
+	if freya != null:
 		var p = Vector2(freya.global_position.x, freya.global_position.z)
-		if _is_inside_store_index(active_store_index, p):
-			store_idx = active_store_index
+		store_idx = _store_index_for_visual_focus(p)
 	if store_idx != active_store_index:
 		active_store_index = store_idx
 	_apply_store_focus_visuals()
@@ -5179,13 +5201,15 @@ func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 			clear_count += 1
 	if blocked_count <= 2:
 		return false
-	if clear_count >= 4 and (not torso_blocked or not head_blocked):
+	if clear_count >= 5 and not torso_blocked:
 		return false
 	if torso_blocked and head_blocked and side_blocked >= 1:
 		return true
-	if torso_blocked and blocked_count >= 5:
+	if torso_blocked and blocked_count >= 4:
 		return true
-	if head_blocked and blocked_count >= 6:
+	if head_blocked and side_blocked >= 2 and blocked_count >= 4:
+		return true
+	if blocked_count >= 6:
 		return true
 	return false
 
@@ -5196,11 +5220,11 @@ func _update_roof_occlusion(delta: float) -> void:
 	var cam_pos = camera_node.global_position
 	var freya_pos = freya.global_position
 	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
-	var store_idx_now = _store_index_containing_freya()
+	var store_idx_now = _store_index_for_visual_focus(freya_pos_2d)
 	if store_idx_now != active_store_index:
 		active_store_index = store_idx_now
 	_apply_store_focus_visuals()
-	var inside_active_store = _is_inside_store_interior(active_store_index, freya_pos_2d)
+	var inside_active_store = _is_inside_store_index(active_store_index, freya_pos_2d)
 	last_occlusion_cam_pos = cam_pos
 	last_occlusion_freya_pos = freya_pos
 
@@ -5334,10 +5358,10 @@ func _create_ui() -> void:
 	minimap_panel.anchor_top = 0.0
 	minimap_panel.anchor_right = 1.0
 	minimap_panel.anchor_bottom = 0.0
-	minimap_panel.offset_left = -360.0
+	minimap_panel.offset_left = -350.0
 	minimap_panel.offset_top = 8.0
 	minimap_panel.offset_right = -10.0
-	minimap_panel.offset_bottom = 274.0
+	minimap_panel.offset_bottom = 258.0
 	minimap_panel.clip_contents = true
 	var mm_style = StyleBoxFlat.new()
 	mm_style.bg_color = Color(0.05, 0.08, 0.11, 0.86)
@@ -5356,25 +5380,56 @@ func _create_ui() -> void:
 	var mini_title = Label.new()
 	mini_title.text = "Minimap"
 	mini_title.position = Vector2(12, 8)
+	mini_title.size = Vector2(92, 20)
 	mini_title.add_theme_font_size_override("font_size", 16)
+	mini_title.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 0.98))
 	minimap_panel.add_child(mini_title)
 
 	var zoom_label = Label.new()
 	zoom_label.text = "Zoom"
-	zoom_label.position = Vector2(96, 10)
+	zoom_label.position = Vector2(98, 10)
+	zoom_label.size = Vector2(38, 18)
 	zoom_label.add_theme_font_size_override("font_size", 13)
-	zoom_label.add_theme_color_override("font_color", Color(0.92, 0.94, 0.9, 0.92))
+	zoom_label.add_theme_color_override("font_color", Color(0.9, 0.94, 0.97, 0.95))
 	minimap_panel.add_child(zoom_label)
+
+	var zoom_out_button = Button.new()
+	zoom_out_button.text = "-"
+	zoom_out_button.anchor_left = 0.0
+	zoom_out_button.anchor_top = 0.0
+	zoom_out_button.anchor_right = 0.0
+	zoom_out_button.anchor_bottom = 0.0
+	zoom_out_button.offset_left = 132.0
+	zoom_out_button.offset_top = 7.0
+	zoom_out_button.offset_right = 156.0
+	zoom_out_button.offset_bottom = 31.0
+	zoom_out_button.add_theme_font_size_override("font_size", 18)
+	zoom_out_button.pressed.connect(_on_minimap_zoom_step.bind(-MINIMAP_ZOOM_STEP))
+	minimap_panel.add_child(zoom_out_button)
+
+	var zoom_in_button = Button.new()
+	zoom_in_button.text = "+"
+	zoom_in_button.anchor_left = 1.0
+	zoom_in_button.anchor_top = 0.0
+	zoom_in_button.anchor_right = 1.0
+	zoom_in_button.anchor_bottom = 0.0
+	zoom_in_button.offset_left = -30.0
+	zoom_in_button.offset_top = 7.0
+	zoom_in_button.offset_right = -6.0
+	zoom_in_button.offset_bottom = 31.0
+	zoom_in_button.add_theme_font_size_override("font_size", 18)
+	zoom_in_button.pressed.connect(_on_minimap_zoom_step.bind(MINIMAP_ZOOM_STEP))
+	minimap_panel.add_child(zoom_in_button)
 
 	minimap_zoom_slider = HSlider.new()
 	minimap_zoom_slider.anchor_left = 0.0
 	minimap_zoom_slider.anchor_top = 0.0
 	minimap_zoom_slider.anchor_right = 1.0
 	minimap_zoom_slider.anchor_bottom = 0.0
-	minimap_zoom_slider.offset_left = 148.0
-	minimap_zoom_slider.offset_top = 11.0
-	minimap_zoom_slider.offset_right = -12.0
-	minimap_zoom_slider.offset_bottom = 29.0
+	minimap_zoom_slider.offset_left = 162.0
+	minimap_zoom_slider.offset_top = 10.0
+	minimap_zoom_slider.offset_right = -36.0
+	minimap_zoom_slider.offset_bottom = 28.0
 	minimap_zoom_slider.min_value = 1.0
 	minimap_zoom_slider.max_value = 4.5
 	minimap_zoom_slider.step = 0.05
@@ -5787,3 +5842,12 @@ func _update_minimap_dynamic(delta: float) -> void:
 func _on_minimap_zoom_changed(value: float) -> void:
 	if minimap != null and minimap.has_method("set_zoom"):
 		minimap.set_zoom(value)
+
+func _on_minimap_zoom_step(delta_zoom: float) -> void:
+	if minimap_zoom_slider == null:
+		return
+	minimap_zoom_slider.value = clampf(
+		minimap_zoom_slider.value + delta_zoom,
+		minimap_zoom_slider.min_value,
+		minimap_zoom_slider.max_value
+	)
