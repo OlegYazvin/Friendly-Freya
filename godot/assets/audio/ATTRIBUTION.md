@@ -56,3 +56,44 @@ Source:
 License:
 - CC BY 3.0
 - https://creativecommons.org/licenses/by/3.0/
+
+Eat source files:
+- `eat/dog_eating_dinner_760336.mp3`
+- `eat/wet_sloppy_eating_382671.mp3`
+- `eat/wet_sloppy_eating_alt_382673.mp3`
+- `eat/dog_chewing_crunchy_456376.mp3`
+
+Source:
+- Freesound, "Hungry Dog Eating Dinner 1", uploaded by `Geoff-Bremner-Audio`
+- URL: https://freesound.org/people/Geoff-Bremner-Audio/sounds/760336/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/760/760336_10643461-hq.mp3`
+- Freesound, "Wet Sloppy Eating 2.wav", uploaded by `bbrocer`
+- URL: https://freesound.org/people/bbrocer/sounds/382671/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/382/382671_4297074-hq.mp3`
+- Freesound, "Wet Sloppy Eating.wav", uploaded by `bbrocer`
+- URL: https://freesound.org/people/bbrocer/sounds/382673/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/382/382673_4297074-hq.mp3`
+- Freesound, "Chewing Dog Eats Crunchy Crackers", uploaded by `Bon_Vivant_Pictures`
+- URL: https://freesound.org/people/Bon_Vivant_Pictures/sounds/456376/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/456/456376_8812224-hq.mp3`
+
+License:
+- CC0 (Public Domain)
+- https://creativecommons.org/publicdomain/zero/1.0/
+
+Vomit source files:
+- `vomit/dog_gagging_135415.mp3`
+
+Source:
+- Freesound, "Gagging 1.wav", uploaded by `Turroe22`
+- URL: https://freesound.org/people/Turroe22/sounds/135415/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/135/135415_698367-hq.mp3`
+
+License:
+- CC0 (Public Domain)
+- https://creativecommons.org/publicdomain/zero/1.0/

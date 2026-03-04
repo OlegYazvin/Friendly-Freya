@@ -529,7 +529,7 @@ func _find_first_skeleton(root: Node) -> Skeleton3D:
 			stack.append(c)
 	return null
 
-func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool) -> void:
+func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool, is_eating: bool = false) -> void:
 	if _anim_player == null:
 		return
 
@@ -544,6 +544,8 @@ func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: 
 
 	if is_vomiting and not _anim_walk.is_empty():
 		desired = _anim_walk
+	elif is_eating:
+		desired = _anim_walk if (_has_move_animation and not _anim_walk.is_empty()) else _anim_idle
 
 	if desired.is_empty():
 		return
@@ -551,12 +553,16 @@ func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: 
 	if _anim_player.current_animation != desired or not _anim_player.is_playing():
 		_anim_player.play(desired, 0.18)
 
-	if is_moving:
+	if is_vomiting:
+		_anim_player.speed_scale = 0.8
+	elif is_eating:
+		_anim_player.speed_scale = 0.68
+	elif is_moving:
 		_anim_player.speed_scale = 1.38 if is_running else 1.0
 	else:
 		_anim_player.speed_scale = 0.85
 
-func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomiting: bool) -> void:
+func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomiting: bool, is_eating: bool = false) -> void:
 	var is_moving := move_dir.length_squared() > 0.0001
 	if move_dir.length_squared() > 0.0001:
 		_face_direction(move_dir.normalized(), delta)
@@ -566,7 +572,7 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		rotation.x = 0.0
 		rotation.z = 0.0
 
-	_update_external_animation(is_moving, is_running, is_vomiting)
+	_update_external_animation(is_moving, is_running, is_vomiting, is_eating)
 	_enforce_hidden_leg_pose()
 
 	var stride_amp = 0.8 if is_running else 0.5
@@ -584,6 +590,8 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		ear.rotation.x = 0.22 + flap
 
 	var wag_amp = 0.5 if is_freya else 0.35
+	if is_eating:
+		wag_amp *= 0.5
 	if _tail_pivot != null:
 		_tail_pivot.rotation.y = sin(_step_time * 3.8) * wag_amp
 	if _tail_tip_pivot != null:
@@ -592,6 +600,9 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 	if _head_pivot != null:
 		if is_vomiting:
 			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.6, clamp(delta * 9.0, 0.0, 1.0))
+		elif is_eating:
+			var chew_phase = 0.13 + 0.11 * sin(_step_time * 11.5)
+			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, chew_phase, clamp(delta * 12.0, 0.0, 1.0))
 		else:
 			_head_pivot.rotation.x = lerp(_head_pivot.rotation.x, 0.0, clamp(delta * 7.0, 0.0, 1.0))
 
@@ -601,7 +612,13 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		var roll = 0.05 if is_running else 0.034
 		var pitch = 0.042 if is_running else 0.03
 		var fore_aft = 0.05 if is_running else 0.032
-		if not is_moving:
+		if is_eating:
+			gait_hz = 3.2
+			bob = 0.018
+			roll = 0.014
+			pitch = 0.04
+			fore_aft = 0.0
+		elif not is_moving:
 			gait_hz = 2.4
 			bob = 0.012
 			roll = 0.01

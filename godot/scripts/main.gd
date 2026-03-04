@@ -42,6 +42,19 @@ const BARK_AGGRESSIVE_SAMPLE_CANDIDATES = [
 const PEE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/pee/urinating_bathroom_17120.mp3"
 ]
+const EAT_FOOD_SAMPLE_CANDIDATES = [
+	"res://assets/audio/eat/dog_eating_dinner_760336.mp3"
+]
+const EAT_POOP_SAMPLE_CANDIDATES = [
+	"res://assets/audio/eat/wet_sloppy_eating_382671.mp3",
+	"res://assets/audio/eat/wet_sloppy_eating_alt_382673.mp3"
+]
+const EAT_BONE_SAMPLE_CANDIDATES = [
+	"res://assets/audio/eat/dog_chewing_crunchy_456376.mp3"
+]
+const VOMIT_SAMPLE_CANDIDATES = [
+	"res://assets/audio/vomit/dog_gagging_135415.mp3"
+]
 const OBJECTIVE_CLAIM_TARGET = 10
 const OBJECTIVE_HYDRANT_TARGET = 8
 const CLAIM_TARGET_NONE = 0
@@ -50,7 +63,7 @@ const CLAIM_TARGET_TREE = 2
 const CLAIM_TARGET_FIRE_HYDRANT = 3
 const CLAIM_RANGE = 1.8
 const CLAIM_FILL_TIME = 2.75
-const CLAIM_RING_PULSE_SPEED = 4.1
+const CLAIM_RING_PULSE_SPEED = 2.25
 const CLAIM_PEE_SOURCE_BACK_OFFSET = 0.34
 const CLAIM_PEE_SOURCE_UP_OFFSET = 0.34
 const CLAIM_PEE_SOURCE_RIGHT_OFFSET = 0.0
@@ -304,6 +317,7 @@ var freya_vomit = 0.0
 var freya_social = 24.0
 var freya_strength = 0.0
 var freya_vomit_timer = 0.0
+var freya_eat_timer = 0.0
 var freya_move_dir = Vector3.ZERO
 var freya_social_dance_phase = 0.0
 var camera_focus = Vector3.ZERO
@@ -395,6 +409,12 @@ var bark_sfx_streams_aggressive: Array[AudioStream] = []
 var bark_sfx_cursor = 0
 var bark_last_clip_idx = -1
 var bark_sequences: Array = []
+var eat_sfx_player: AudioStreamPlayer
+var eat_sfx_streams_food: Array[AudioStream] = []
+var eat_sfx_streams_poop: Array[AudioStream] = []
+var eat_sfx_streams_bone: Array[AudioStream] = []
+var vomit_sfx_player: AudioStreamPlayer
+var vomit_sfx_streams: Array[AudioStream] = []
 var aggressive_bark_pressure = 0.0
 var aggressive_bark_nearby_count = 0
 var pause_controls_button: Button
@@ -610,6 +630,44 @@ func _create_audio_setup() -> void:
 	add_child(claim_pee_audio_player)
 	claim_pee_audio_timer = 0.0
 
+	eat_sfx_streams_food.clear()
+	for stream in _load_bark_streams_from_files(EAT_FOOD_SAMPLE_CANDIDATES):
+		eat_sfx_streams_food.append(stream)
+	if eat_sfx_streams_food.is_empty():
+		push_warning("Dog eat(food) clips missing; eat-food playback disabled.")
+
+	eat_sfx_streams_poop.clear()
+	for stream in _load_bark_streams_from_files(EAT_POOP_SAMPLE_CANDIDATES):
+		eat_sfx_streams_poop.append(stream)
+	if eat_sfx_streams_poop.is_empty():
+		push_warning("Dog eat(poop) clips missing; eat-poop playback disabled.")
+
+	eat_sfx_streams_bone.clear()
+	for stream in _load_bark_streams_from_files(EAT_BONE_SAMPLE_CANDIDATES):
+		eat_sfx_streams_bone.append(stream)
+	if eat_sfx_streams_bone.is_empty():
+		push_warning("Dog eat(bone) clips missing; bone-eat playback disabled.")
+
+	if eat_sfx_player != null and is_instance_valid(eat_sfx_player):
+		eat_sfx_player.queue_free()
+	eat_sfx_player = AudioStreamPlayer.new()
+	eat_sfx_player.bus = "Master"
+	eat_sfx_player.volume_db = -10.4
+	add_child(eat_sfx_player)
+
+	vomit_sfx_streams.clear()
+	for stream in _load_bark_streams_from_files(VOMIT_SAMPLE_CANDIDATES):
+		vomit_sfx_streams.append(stream)
+	if vomit_sfx_streams.is_empty():
+		push_warning("Dog vomit clips missing; vomit playback disabled.")
+
+	if vomit_sfx_player != null and is_instance_valid(vomit_sfx_player):
+		vomit_sfx_player.queue_free()
+	vomit_sfx_player = AudioStreamPlayer.new()
+	vomit_sfx_player.bus = "Master"
+	vomit_sfx_player.volume_db = -9.6
+	add_child(vomit_sfx_player)
+
 func _load_audio_stream_from_file(path: String) -> AudioStream:
 	if path.is_empty():
 		return null
@@ -687,6 +745,31 @@ func _play_claim_pee_sound() -> void:
 	claim_pee_audio_player.pitch_scale = rng.randf_range(0.97, 1.02)
 	claim_pee_audio_player.volume_db = -10.9 + rng.randf_range(-0.55, 0.55)
 	claim_pee_audio_player.play()
+
+func _play_random_clip(player: AudioStreamPlayer, pool: Array[AudioStream], pitch_min: float, pitch_max: float, base_volume_db: float, volume_jitter_db: float) -> void:
+	if player == null or not is_instance_valid(player) or pool.is_empty():
+		return
+	var clip_idx = rng.randi_range(0, pool.size() - 1)
+	var clip: AudioStream = pool[clip_idx]
+	player.stop()
+	player.stream = clip
+	player.pitch_scale = rng.randf_range(pitch_min, pitch_max)
+	player.volume_db = base_volume_db + rng.randf_range(-absf(volume_jitter_db), absf(volume_jitter_db))
+	player.play()
+
+func _play_eat_sound(kind: String) -> void:
+	var pool: Array[AudioStream] = eat_sfx_streams_food
+	match kind:
+		"poop":
+			pool = eat_sfx_streams_poop
+		"bone":
+			pool = eat_sfx_streams_bone
+		_:
+			pool = eat_sfx_streams_food
+	_play_random_clip(eat_sfx_player, pool, 0.96, 1.04, -10.4, 0.6)
+
+func _play_vomit_sound() -> void:
+	_play_random_clip(vomit_sfx_player, vomit_sfx_streams, 0.97, 1.03, -9.6, 0.5)
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
 	if barks <= 0:
@@ -771,15 +854,15 @@ func _create_prop_materials() -> void:
 	fire_hydrant_cap_material.metallic = 0.16
 
 	claim_ring_material = StandardMaterial3D.new()
-	claim_ring_material.albedo_color = Color(0.93, 0.18, 0.96, 0.76)
-	claim_ring_material.roughness = 0.14
-	claim_ring_material.metallic = 0.0
+	claim_ring_material.albedo_color = Color(1.0, 0.86, 0.42, 0.74)
+	claim_ring_material.roughness = 0.24
+	claim_ring_material.metallic = 0.03
 	claim_ring_material.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
-	claim_ring_material.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+	claim_ring_material.shading_mode = StandardMaterial3D.SHADING_MODE_PER_PIXEL
 	claim_ring_material.cull_mode = StandardMaterial3D.CULL_DISABLED
 	claim_ring_material.emission_enabled = true
-	claim_ring_material.emission = Color(0.64, 0.08, 0.68)
-	claim_ring_material.emission_energy_multiplier = 1.8
+	claim_ring_material.emission = Color(0.98, 0.8, 0.26)
+	claim_ring_material.emission_energy_multiplier = 0.9
 
 	claim_pee_stream_material = StandardMaterial3D.new()
 	claim_pee_stream_material.albedo_color = Color(1.0, 0.95, 0.24, 0.82)
@@ -1501,19 +1584,66 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 	var storefront_h = clampf(minf(3.35, float(building.get("height", 9.6)) - 1.8), 2.65, 3.35)
 	var upper_h = maxf(1.5, float(building.get("height", 9.6)) - storefront_h)
 	var upper_rect = fp.grow(-0.1)
+	var palette_seed = abs(int(round(fp.position.x * 17.0 + fp.position.y * 23.0 + fp.size.x * 11.0 + fp.size.y * 5.0)))
+	var facade_palettes: Array = [
+		{
+			"shell": Color8(228, 214, 187),
+			"upper": Color8(174, 158, 138),
+			"trim": Color8(247, 239, 223),
+			"sign": Color8(56, 138, 92),
+			"sign_emission": Color(0.18, 0.48, 0.3),
+			"canopy": Color8(66, 142, 101),
+			"stripe": Color8(248, 239, 210)
+		},
+		{
+			"shell": Color8(223, 204, 191),
+			"upper": Color8(166, 150, 143),
+			"trim": Color8(245, 229, 220),
+			"sign": Color8(183, 74, 56),
+			"sign_emission": Color(0.54, 0.2, 0.14),
+			"canopy": Color8(168, 62, 49),
+			"stripe": Color8(252, 228, 212)
+		},
+		{
+			"shell": Color8(220, 219, 198),
+			"upper": Color8(154, 157, 145),
+			"trim": Color8(240, 239, 225),
+			"sign": Color8(53, 98, 161),
+			"sign_emission": Color(0.17, 0.3, 0.54),
+			"canopy": Color8(51, 90, 148),
+			"stripe": Color8(219, 234, 247)
+		},
+		{
+			"shell": Color8(231, 206, 170),
+			"upper": Color8(181, 145, 108),
+			"trim": Color8(249, 234, 205),
+			"sign": Color8(199, 103, 40),
+			"sign_emission": Color(0.58, 0.28, 0.09),
+			"canopy": Color8(186, 90, 31),
+			"stripe": Color8(250, 225, 169)
+		}
+	]
+	var palette: Dictionary = facade_palettes[posmod(palette_seed, facade_palettes.size())]
+	var shell_color: Color = palette.get("shell", Color8(181, 169, 152))
+	var upper_color: Color = palette.get("upper", Color8(152, 142, 132))
+	var trim_color: Color = palette.get("trim", Color8(226, 216, 198))
+	var sign_color: Color = palette.get("sign", Color8(243, 212, 112))
+	var sign_emission_color: Color = palette.get("sign_emission", Color(0.58, 0.47, 0.17))
+	var canopy_color: Color = palette.get("canopy", Color8(134, 72, 58))
+	var stripe_color: Color = palette.get("stripe", Color8(246, 230, 204))
 
 	var shell_mat = StandardMaterial3D.new()
-	shell_mat.albedo_color = Color8(181, 169, 152)
+	shell_mat.albedo_color = shell_color
 	shell_mat.roughness = 0.84
 	shell_mat.metallic = 0.04
 
 	var upper_mat = StandardMaterial3D.new()
-	upper_mat.albedo_color = Color8(152, 142, 132)
+	upper_mat.albedo_color = upper_color
 	upper_mat.roughness = 0.89
 	upper_mat.metallic = 0.03
 
 	var trim_mat = StandardMaterial3D.new()
-	trim_mat.albedo_color = Color8(226, 216, 198)
+	trim_mat.albedo_color = trim_color
 	trim_mat.roughness = 0.46
 	trim_mat.metallic = 0.06
 
@@ -1527,17 +1657,79 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 	glass_mat.emission_energy_multiplier = 0.24
 
 	var sign_mat = StandardMaterial3D.new()
-	sign_mat.albedo_color = Color8(243, 212, 112)
-	sign_mat.roughness = 0.3
-	sign_mat.metallic = 0.08
+	sign_mat.albedo_color = sign_color
+	sign_mat.roughness = 0.32
+	sign_mat.metallic = 0.06
 	sign_mat.emission_enabled = true
-	sign_mat.emission = Color(0.58, 0.47, 0.17)
-	sign_mat.emission_energy_multiplier = 0.85
+	sign_mat.emission = sign_emission_color
+	sign_mat.emission_energy_multiplier = 0.66
 
 	var canopy_mat = StandardMaterial3D.new()
-	canopy_mat.albedo_color = Color8(134, 72, 58)
-	canopy_mat.roughness = 0.54
+	canopy_mat.albedo_color = canopy_color
+	canopy_mat.roughness = 0.5
 	canopy_mat.metallic = 0.03
+
+	var canopy_stripe_mat = StandardMaterial3D.new()
+	canopy_stripe_mat.albedo_color = stripe_color
+	canopy_stripe_mat.roughness = 0.47
+	canopy_stripe_mat.metallic = 0.02
+
+	var sign_letter_mat = StandardMaterial3D.new()
+	sign_letter_mat.albedo_color = Color8(252, 246, 224)
+	sign_letter_mat.roughness = 0.18
+	sign_letter_mat.metallic = 0.0
+	sign_letter_mat.emission_enabled = true
+	sign_letter_mat.emission = Color(0.98, 0.88, 0.58)
+	sign_letter_mat.emission_energy_multiplier = 0.58
+
+	var produce_top_mat = StandardMaterial3D.new()
+	produce_top_mat.albedo_color = Color8(142, 92, 56)
+	produce_top_mat.roughness = 0.82
+	produce_top_mat.metallic = 0.0
+
+	var produce_frame_mat = StandardMaterial3D.new()
+	produce_frame_mat.albedo_color = Color8(98, 67, 43)
+	produce_frame_mat.roughness = 0.88
+	produce_frame_mat.metallic = 0.0
+
+	var produce_mats: Array = []
+	for c in [Color8(198, 45, 40), Color8(226, 138, 38), Color8(205, 186, 59), Color8(116, 164, 56), Color8(172, 88, 62)]:
+		var pm = StandardMaterial3D.new()
+		pm.albedo_color = c
+		pm.roughness = 0.78
+		pm.metallic = 0.0
+		produce_mats.append(pm)
+
+	var accent_strip_mat = StandardMaterial3D.new()
+	accent_strip_mat.albedo_color = sign_color.darkened(0.1)
+	accent_strip_mat.roughness = 0.36
+	accent_strip_mat.metallic = 0.04
+
+	var logo_badge_mat = StandardMaterial3D.new()
+	logo_badge_mat.albedo_color = Color8(250, 241, 217)
+	logo_badge_mat.roughness = 0.22
+	logo_badge_mat.metallic = 0.0
+	logo_badge_mat.emission_enabled = true
+	logo_badge_mat.emission = Color(0.97, 0.88, 0.64)
+	logo_badge_mat.emission_energy_multiplier = 0.34
+
+	var pendant_mat = StandardMaterial3D.new()
+	pendant_mat.albedo_color = Color8(246, 234, 188)
+	pendant_mat.roughness = 0.21
+	pendant_mat.metallic = 0.0
+	pendant_mat.emission_enabled = true
+	pendant_mat.emission = Color(1.0, 0.92, 0.68)
+	pendant_mat.emission_energy_multiplier = 0.68
+
+	var chalkboard_mat = StandardMaterial3D.new()
+	chalkboard_mat.albedo_color = Color8(42, 54, 44)
+	chalkboard_mat.roughness = 0.9
+	chalkboard_mat.metallic = 0.0
+
+	var chalk_frame_mat = StandardMaterial3D.new()
+	chalk_frame_mat.albedo_color = Color8(125, 91, 56)
+	chalk_frame_mat.roughness = 0.84
+	chalk_frame_mat.metallic = 0.0
 
 	if upper_rect.size.x > 0.2 and upper_rect.size.y > 0.2:
 		_add_store_wall_box(shell_root, upper_rect, upper_mat, upper_h, storefront_h)
@@ -1548,6 +1740,8 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 			_add_store_wall_box(shell_root, wall_shape, shell_mat, storefront_h, 0.0)
 			var shell_band_rect = _inset_store_visual_rect(wall_shape, 0.018)
 			_add_store_wall_band(shell_root, shell_band_rect, trim_mat, storefront_h - 0.08, 0.1)
+			var curb_band_rect = _inset_store_visual_rect(wall_shape, 0.01)
+			_add_store_wall_band(shell_root, curb_band_rect, trim_mat, 0.2, 0.12)
 
 	var front_sign = float(layout.get("front_sign", 1.0))
 	var front_door_z = float(layout.get("front_door_z", fp.position.y + (fp.size.y if front_is_south else 0.0)))
@@ -1601,11 +1795,76 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 
 	var sign = MeshInstance3D.new()
 	var sign_mesh = BoxMesh.new()
-	sign_mesh.size = Vector3(clampf(fp.size.x * 0.62, 2.4, 5.4), 0.4, 0.16)
+	sign_mesh.size = Vector3(clampf(fp.size.x * 0.62, 2.7, 5.9), 0.44, 0.2)
 	sign.mesh = sign_mesh
 	sign.position = Vector3(center_x, storefront_h - 0.36, front_door_z + front_sign * 0.08)
 	sign.material_override = sign_mat
 	shell_root.add_child(sign)
+
+	var fascia = MeshInstance3D.new()
+	var fascia_mesh = BoxMesh.new()
+	fascia_mesh.size = Vector3(clampf(fp.size.x * 0.76, 3.0, 6.9), 0.12, 0.16)
+	fascia.mesh = fascia_mesh
+	fascia.position = Vector3(center_x, storefront_h - 0.67, front_door_z + front_sign * 0.08)
+	fascia.material_override = accent_strip_mat
+	shell_root.add_child(fascia)
+
+	var logo_badge = MeshInstance3D.new()
+	var logo_mesh = BoxMesh.new()
+	logo_mesh.size = Vector3(0.42, 0.42, 0.05)
+	logo_badge.mesh = logo_mesh
+	logo_badge.position = Vector3(center_x, storefront_h - 0.34, front_door_z + front_sign * 0.22)
+	logo_badge.material_override = logo_badge_mat
+	shell_root.add_child(logo_badge)
+
+	var logo_leaf = MeshInstance3D.new()
+	var logo_leaf_mesh = BoxMesh.new()
+	logo_leaf_mesh.size = Vector3(0.1, 0.2, 0.04)
+	logo_leaf.mesh = logo_leaf_mesh
+	logo_leaf.position = logo_badge.position + Vector3(0.13, 0.17, front_sign * 0.01)
+	logo_leaf.rotation_degrees = Vector3(0.0, 0.0, -28.0)
+	logo_leaf.material_override = canopy_mat
+	shell_root.add_child(logo_leaf)
+
+	var blade_side = -1.0 if front_sign > 0.0 else 1.0
+	var blade_sign = MeshInstance3D.new()
+	var blade_mesh = BoxMesh.new()
+	blade_mesh.size = Vector3(0.18, 0.64, 0.54)
+	blade_sign.mesh = blade_mesh
+	blade_sign.position = Vector3(
+		center_x + blade_side * (door_half + 0.42),
+		storefront_h * 0.64,
+		front_door_z + front_sign * 0.24
+	)
+	blade_sign.material_override = sign_mat
+	shell_root.add_child(blade_sign)
+
+	var blade_bracket = MeshInstance3D.new()
+	var blade_bracket_mesh = BoxMesh.new()
+	blade_bracket_mesh.size = Vector3(0.12, 0.08, 0.3)
+	blade_bracket.mesh = blade_bracket_mesh
+	blade_bracket.position = Vector3(
+		center_x + blade_side * (door_half + 0.29),
+		storefront_h * 0.64,
+		front_door_z + front_sign * 0.15
+	)
+	blade_bracket.material_override = trim_mat
+	shell_root.add_child(blade_bracket)
+
+	var sign_letter_count = clampi(int(round(sign_mesh.size.x / 0.5)), 5, 10)
+	for li in range(sign_letter_count):
+		var t = (float(li) + 0.5) / float(sign_letter_count)
+		var letter = MeshInstance3D.new()
+		var letter_mesh = BoxMesh.new()
+		letter_mesh.size = Vector3(maxf(0.12, sign_mesh.size.x / float(sign_letter_count) * 0.46), 0.14, 0.04)
+		letter.mesh = letter_mesh
+		letter.position = Vector3(
+			lerpf(center_x - sign_mesh.size.x * 0.41, center_x + sign_mesh.size.x * 0.41, t),
+			storefront_h - 0.35 + sin(float(li) * 1.8) * 0.018,
+			front_door_z + front_sign * 0.2
+		)
+		letter.material_override = sign_letter_mat
+		shell_root.add_child(letter)
 
 	var awning = MeshInstance3D.new()
 	var awning_mesh = BoxMesh.new()
@@ -1614,6 +1873,48 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 	awning.position = Vector3(center_x, storefront_h * 0.62, front_door_z + front_sign * 0.38)
 	awning.material_override = canopy_mat
 	shell_root.add_child(awning)
+
+	var stripe_count = clampi(int(round(awning_mesh.size.x / 0.48)), 5, 13)
+	for si in range(stripe_count):
+		var stripe_t = (float(si) + 0.5) / float(stripe_count)
+		var stripe = MeshInstance3D.new()
+		var stripe_mesh = BoxMesh.new()
+		stripe_mesh.size = Vector3(maxf(0.1, awning_mesh.size.x / float(stripe_count) * 0.46), awning_mesh.size.y + 0.01, 0.07)
+		stripe.mesh = stripe_mesh
+		stripe.position = Vector3(
+			lerpf(center_x - awning_mesh.size.x * 0.45, center_x + awning_mesh.size.x * 0.45, stripe_t),
+			awning.position.y,
+			awning.position.z + front_sign * (awning_mesh.size.z * 0.36)
+		)
+		if si % 2 == 0:
+			stripe.material_override = canopy_stripe_mat
+		else:
+			stripe.material_override = canopy_mat
+		shell_root.add_child(stripe)
+
+	var pendant_count = clampi(int(round(awning_mesh.size.x / 1.35)), 2, 4)
+	for pi in range(pendant_count):
+		var t = (float(pi) + 0.5) / float(pendant_count)
+		var cord = MeshInstance3D.new()
+		var cord_mesh = BoxMesh.new()
+		cord_mesh.size = Vector3(0.01, 0.12, 0.01)
+		cord.mesh = cord_mesh
+		cord.position = Vector3(
+			lerpf(center_x - awning_mesh.size.x * 0.4, center_x + awning_mesh.size.x * 0.4, t),
+			awning.position.y - 0.09,
+			awning.position.z - front_sign * 0.16
+		)
+		cord.material_override = trim_mat
+		shell_root.add_child(cord)
+
+		var pendant = MeshInstance3D.new()
+		var pendant_mesh = SphereMesh.new()
+		pendant_mesh.radius = 0.05
+		pendant_mesh.height = 0.1
+		pendant.mesh = pendant_mesh
+		pendant.position = cord.position + Vector3(0.0, -0.075, 0.0)
+		pendant.material_override = pendant_mat
+		shell_root.add_child(pendant)
 
 	var threshold = MeshInstance3D.new()
 	var threshold_mesh = BoxMesh.new()
@@ -1627,6 +1928,48 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 	)
 	threshold.material_override = trim_mat
 	shell_root.add_child(threshold)
+
+	for side in [-1.0, 1.0]:
+		var board = MeshInstance3D.new()
+		var board_mesh = BoxMesh.new()
+		board_mesh.size = Vector3(0.22, 0.64, 0.06)
+		board.mesh = board_mesh
+		board.position = Vector3(
+			center_x + side * maxf(0.54, door_half + 0.18),
+			0.33,
+			front_door_z + front_sign * 0.63
+		)
+		board.rotation_degrees = Vector3(-10.0, side * 8.0, 0.0)
+		board.material_override = chalkboard_mat
+		shell_root.add_child(board)
+
+		var board_frame = MeshInstance3D.new()
+		var board_frame_mesh = BoxMesh.new()
+		board_frame_mesh.size = Vector3(0.26, 0.68, 0.05)
+		board_frame.mesh = board_frame_mesh
+		board_frame.position = board.position + Vector3(0.0, 0.0, -front_sign * 0.01)
+		board_frame.rotation_degrees = board.rotation_degrees
+		board_frame.material_override = chalk_frame_mat
+		shell_root.add_child(board_frame)
+
+	for front_rect in [layout.get("front_left_wall", Rect2()), layout.get("front_right_wall", Rect2())]:
+		if not (front_rect is Rect2):
+			continue
+		var seg: Rect2 = front_rect as Rect2
+		if seg.size.x < 0.86:
+			continue
+		var stand_w = clampf(seg.size.x - 0.2, 0.74, 1.28)
+		var stand_d = 0.42
+		var stand_center_x = seg.position.x + seg.size.x * 0.5
+		var stand_center_z = front_door_z + front_sign * 0.72
+		var produce_stand_rect = Rect2(
+			stand_center_x - stand_w * 0.5,
+			stand_center_z - stand_d * 0.5,
+			stand_w,
+			stand_d
+		)
+		_add_store_stand(shell_root, produce_stand_rect, produce_frame_mat, produce_top_mat, 0.66)
+		_add_bodega_stock_to_fixture(shell_root, produce_stand_rect.grow(-0.03), 0.71, produce_mats, false)
 
 	return building
 
@@ -3564,7 +3907,16 @@ func _update_freya(delta: float) -> void:
 
 	if freya_vomit_timer > 0.0:
 		freya_vomit_timer = max(0.0, freya_vomit_timer - delta)
+		if freya_vomit_timer <= 0.0 and vomit_sfx_player != null and is_instance_valid(vomit_sfx_player):
+			vomit_sfx_player.stop()
 		freya.update_motion(delta, Vector3.ZERO, false, true)
+		return
+
+	if freya_eat_timer > 0.0:
+		freya_eat_timer = max(0.0, freya_eat_timer - delta)
+		if freya_eat_timer <= 0.0 and eat_sfx_player != null and is_instance_valid(eat_sfx_player):
+			eat_sfx_player.stop()
+		freya.update_motion(delta, Vector3.ZERO, false, false, true)
 		return
 
 	var input_x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
@@ -3719,6 +4071,8 @@ func _freya_is_idle_for_social_dance() -> bool:
 	if freya == null:
 		return false
 	if freya_vomit_timer > 0.0:
+		return false
+	if freya_eat_timer > 0.0:
 		return false
 	if Input.is_action_pressed("claim"):
 		return false
@@ -4466,7 +4820,7 @@ func _update_claiming(delta: float) -> void:
 			_show_status("Fire hydrant claimed!", 0.95)
 
 func _update_claim_rings() -> void:
-	var pulse_base = 0.98 + 0.2 * (0.5 + 0.5 * sin(world_time * CLAIM_RING_PULSE_SPEED))
+	var pulse_base = 0.99 + 0.06 * (0.5 + 0.5 * sin(world_time * CLAIM_RING_PULSE_SPEED))
 
 	for i in range(street_poles.size()):
 		var pole: Dictionary = street_poles[i]
@@ -4478,7 +4832,7 @@ func _update_claim_rings() -> void:
 		ring_node.visible = claimed
 		if not claimed:
 			continue
-		var pulse = pulse_base + 0.09 * sin(world_time * 2.2 + float(i) * 0.41)
+		var pulse = pulse_base + 0.018 * sin(world_time * 1.45 + float(i) * 0.41)
 		ring_node.scale = Vector3(pulse, 1.0, pulse)
 
 	for i in range(trees.size()):
@@ -4491,7 +4845,7 @@ func _update_claim_rings() -> void:
 		ring_node.visible = claimed
 		if not claimed:
 			continue
-		var pulse = pulse_base + 0.09 * sin(world_time * 2.0 + float(i) * 0.37)
+		var pulse = pulse_base + 0.018 * sin(world_time * 1.38 + float(i) * 0.37)
 		ring_node.scale = Vector3(pulse, 1.0, pulse)
 
 	for i in range(fire_hydrants.size()):
@@ -4504,7 +4858,7 @@ func _update_claim_rings() -> void:
 		ring_node.visible = claimed
 		if not claimed:
 			continue
-		var pulse = pulse_base + 0.1 * sin(world_time * 2.4 + float(i) * 0.35)
+		var pulse = pulse_base + 0.02 * sin(world_time * 1.52 + float(i) * 0.35)
 		ring_node.scale = Vector3(pulse, 1.0, pulse)
 
 func _hide_claim_meter() -> void:
@@ -4688,6 +5042,11 @@ func _drop_carried_stick() -> bool:
 	_show_status("Dropped stick", 0.65)
 	return true
 
+func _trigger_freya_eat_feedback(kind: String) -> void:
+	var eat_duration = 0.72 if kind == "poop" else 0.58
+	freya_eat_timer = maxf(freya_eat_timer, eat_duration)
+	_play_eat_sound(kind)
+
 func _try_eat_bone(show_fail_status: bool = false) -> bool:
 	var best_idx = -1
 	var best_d = 9999.0
@@ -4711,6 +5070,7 @@ func _try_eat_bone(show_fail_status: bool = false) -> bool:
 
 	freya_strength = clamp(freya_strength + 18.0, 0.0, 100.0)
 	freya_hunger = clamp(freya_hunger - 3.0, 0.0, 100.0)
+	_trigger_freya_eat_feedback("bone")
 	_show_status("Crunch! Strength increased", 0.95)
 	return true
 
@@ -4737,6 +5097,7 @@ func _try_eat_store_food(show_fail_status: bool = false) -> bool:
 
 	freya_hunger = clamp(freya_hunger - rng.randf_range(9.0, 14.0), 0.0, 100.0)
 	freya_vomit = clamp(freya_vomit + rng.randf_range(16.0, 30.0), 0.0, 100.0)
+	_trigger_freya_eat_feedback("food")
 	_show_status("Ate random store food", 0.9)
 	return true
 
@@ -4764,6 +5125,7 @@ func _try_eat_poop(show_fail_status: bool = true) -> bool:
 
 	freya_hunger = clamp(freya_hunger - 5.0, 0.0, 100.0)
 	freya_vomit = clamp(freya_vomit + 22.0, 0.0, 100.0)
+	_trigger_freya_eat_feedback("poop")
 	_show_status("Yum...", 0.7)
 	return true
 
@@ -4793,6 +5155,7 @@ func _try_vomit() -> void:
 		vomit_sprays.append({"node": spray, "ttl": 0.7})
 
 	freya_vomit_timer = 1.05
+	_play_vomit_sound()
 	if hit_dog and not objective_puke_on_dog_complete:
 		objective_puke_on_dog_complete = true
 		_show_status("Objective complete: Puke on another dog", 1.4)
@@ -6050,8 +6413,8 @@ func _create_ui() -> void:
 	claim_meter_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	claim_meter_panel.size = Vector2(182.0, 54.0)
 	var claim_style = StyleBoxFlat.new()
-	claim_style.bg_color = Color(0.09, 0.03, 0.1, 0.92)
-	claim_style.border_color = Color(0.98, 0.3, 0.98, 0.95)
+	claim_style.bg_color = Color(0.11, 0.09, 0.06, 0.92)
+	claim_style.border_color = Color(0.98, 0.79, 0.31, 0.95)
 	claim_style.border_width_left = 2
 	claim_style.border_width_top = 2
 	claim_style.border_width_right = 2
@@ -6078,14 +6441,14 @@ func _create_ui() -> void:
 	claim_meter_bar.step = 0.1
 	claim_meter_bar.show_percentage = false
 	var claim_bg = StyleBoxFlat.new()
-	claim_bg.bg_color = Color(0.12, 0.07, 0.14, 0.9)
+	claim_bg.bg_color = Color(0.18, 0.14, 0.08, 0.9)
 	claim_bg.corner_radius_top_left = 4
 	claim_bg.corner_radius_top_right = 4
 	claim_bg.corner_radius_bottom_left = 4
 	claim_bg.corner_radius_bottom_right = 4
 	claim_meter_bar.add_theme_stylebox_override("background", claim_bg)
 	var claim_fill = StyleBoxFlat.new()
-	claim_fill.bg_color = Color(1.0, 0.34, 0.96, 0.98)
+	claim_fill.bg_color = Color(0.99, 0.78, 0.28, 0.98)
 	claim_fill.corner_radius_top_left = 4
 	claim_fill.corner_radius_top_right = 4
 	claim_fill.corner_radius_bottom_left = 4
@@ -6117,65 +6480,63 @@ func _create_ui() -> void:
 	minimap_panel.add_theme_stylebox_override("panel", mm_style)
 	ui_layer.add_child(minimap_panel)
 
+	var minimap_header = VBoxContainer.new()
+	minimap_header.anchor_left = 0.0
+	minimap_header.anchor_top = 0.0
+	minimap_header.anchor_right = 1.0
+	minimap_header.anchor_bottom = 0.0
+	minimap_header.offset_left = 10.0
+	minimap_header.offset_top = 8.0
+	minimap_header.offset_right = -10.0
+	minimap_header.offset_bottom = 56.0
+	minimap_header.add_theme_constant_override("separation", 4)
+	minimap_header.z_index = 2
+	minimap_panel.add_child(minimap_header)
+
+	var top_row = HBoxContainer.new()
+	top_row.custom_minimum_size = Vector2(0.0, 22.0)
+	top_row.add_theme_constant_override("separation", 6)
+	minimap_header.add_child(top_row)
+
 	var mini_title = Label.new()
 	mini_title.text = "Minimap"
-	mini_title.position = Vector2(12, 8)
-	mini_title.size = Vector2(92, 20)
 	mini_title.add_theme_font_size_override("font_size", 16)
 	mini_title.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 0.98))
-	minimap_panel.add_child(mini_title)
+	top_row.add_child(mini_title)
+
+	var header_spacer = Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(header_spacer)
 
 	var zoom_label = Label.new()
 	zoom_label.text = "Zoom"
-	zoom_label.position = Vector2(98, 10)
-	zoom_label.size = Vector2(38, 18)
 	zoom_label.add_theme_font_size_override("font_size", 13)
 	zoom_label.add_theme_color_override("font_color", Color(0.9, 0.94, 0.97, 0.95))
-	minimap_panel.add_child(zoom_label)
+	top_row.add_child(zoom_label)
 
 	var zoom_out_button = Button.new()
 	zoom_out_button.text = "-"
-	zoom_out_button.anchor_left = 0.0
-	zoom_out_button.anchor_top = 0.0
-	zoom_out_button.anchor_right = 0.0
-	zoom_out_button.anchor_bottom = 0.0
-	zoom_out_button.offset_left = 132.0
-	zoom_out_button.offset_top = 7.0
-	zoom_out_button.offset_right = 156.0
-	zoom_out_button.offset_bottom = 31.0
+	zoom_out_button.custom_minimum_size = Vector2(24.0, 22.0)
 	zoom_out_button.add_theme_font_size_override("font_size", 18)
 	zoom_out_button.pressed.connect(_on_minimap_zoom_step.bind(-MINIMAP_ZOOM_STEP))
-	minimap_panel.add_child(zoom_out_button)
+	top_row.add_child(zoom_out_button)
 
 	var zoom_in_button = Button.new()
 	zoom_in_button.text = "+"
-	zoom_in_button.anchor_left = 1.0
-	zoom_in_button.anchor_top = 0.0
-	zoom_in_button.anchor_right = 1.0
-	zoom_in_button.anchor_bottom = 0.0
-	zoom_in_button.offset_left = -30.0
-	zoom_in_button.offset_top = 7.0
-	zoom_in_button.offset_right = -6.0
-	zoom_in_button.offset_bottom = 31.0
+	zoom_in_button.custom_minimum_size = Vector2(24.0, 22.0)
 	zoom_in_button.add_theme_font_size_override("font_size", 18)
 	zoom_in_button.pressed.connect(_on_minimap_zoom_step.bind(MINIMAP_ZOOM_STEP))
-	minimap_panel.add_child(zoom_in_button)
+	top_row.add_child(zoom_in_button)
 
 	minimap_zoom_slider = HSlider.new()
-	minimap_zoom_slider.anchor_left = 0.0
-	minimap_zoom_slider.anchor_top = 0.0
-	minimap_zoom_slider.anchor_right = 1.0
-	minimap_zoom_slider.anchor_bottom = 0.0
-	minimap_zoom_slider.offset_left = 162.0
-	minimap_zoom_slider.offset_top = 10.0
-	minimap_zoom_slider.offset_right = -36.0
-	minimap_zoom_slider.offset_bottom = 28.0
+	minimap_zoom_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	minimap_zoom_slider.custom_minimum_size = Vector2(0.0, 16.0)
 	minimap_zoom_slider.min_value = 1.0
 	minimap_zoom_slider.max_value = 4.5
 	minimap_zoom_slider.step = 0.05
 	minimap_zoom_slider.value = 2.6
 	minimap_zoom_slider.value_changed.connect(_on_minimap_zoom_changed)
-	minimap_panel.add_child(minimap_zoom_slider)
+	minimap_header.add_child(minimap_zoom_slider)
 
 	minimap = MiniMapScript.new()
 	minimap.anchor_left = 0.0
@@ -6183,7 +6544,7 @@ func _create_ui() -> void:
 	minimap.anchor_right = 1.0
 	minimap.anchor_bottom = 1.0
 	minimap.offset_left = 10.0
-	minimap.offset_top = 38.0
+	minimap.offset_top = 64.0
 	minimap.offset_right = -10.0
 	minimap.offset_bottom = -10.0
 	minimap_panel.add_child(minimap)
