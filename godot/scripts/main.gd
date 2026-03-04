@@ -55,6 +55,9 @@ const CLAIM_PEE_SOURCE_RIGHT_OFFSET = 0.0
 const CLAIM_PEE_STREAM_RADIUS = 0.028
 const CLAIM_PEE_TARGET_POLE_HEIGHT = 0.44
 const CLAIM_PEE_TARGET_TREE_HEIGHT = 0.56
+const SOCIALIZE_RANGE = 4.2
+const INTERACT_HIGHLIGHT_BOB_SPEED = 5.5
+const INTERACT_HIGHLIGHT_BOB_AMPLITUDE = 0.03
 const OCCLUSION_UPDATE_INTERVAL = 0.04
 const OCCLUSION_MOVE_EPS = 0.04
 const MINIMAP_UPDATE_INTERVAL = 0.08
@@ -96,7 +99,7 @@ const NPC_DOG_MODEL_CANDIDATES = [
 ]
 const NPC_DOG_COUNT = 24
 const DOG_PARK_NPC_COUNT = 10
-const NPC_SIDEWALK_PREF_CHANCE = 0.82
+const NPC_SIDEWALK_PREF_CHANCE = 0.86
 const FREYA_OCCLUSION_SAMPLE_BLOCK_THRESHOLD = 4
 const FREYA_SOCIAL_DANCE_RADIUS = 0.58
 const FREYA_SOCIAL_DANCE_SPEED = 2.15
@@ -130,6 +133,7 @@ var store_foods: Array = []
 var street_poles: Array = []
 var vomit_puddles: Array = []
 var bark_pulses: Array = []
+var vomit_sprays: Array = []
 var store_entry_indicators: Array = []
 var store_interior_nodes: Array[Node3D] = []
 var store_building_indices: Array[int] = []
@@ -181,6 +185,7 @@ var vomit_material_a: StandardMaterial3D
 var vomit_material_b: StandardMaterial3D
 var bone_material: StandardMaterial3D
 var store_food_materials: Array[StandardMaterial3D] = []
+var interact_highlight_material: StandardMaterial3D
 
 var freya_outline_material: ShaderMaterial
 var freya_ghost_material: ShaderMaterial
@@ -213,6 +218,11 @@ var active_claim_target_index = -1
 var claim_pee_stream_node: Node3D
 var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
+var claim_pee_audio_player: AudioStreamPlayer
+var claim_pee_stream: AudioStreamWAV
+var claim_pee_audio_timer = 0.0
+var interact_highlight_root: Node3D
+var interact_highlights := {}
 
 var minimap
 var minimap_zoom_slider: HSlider
@@ -280,6 +290,7 @@ func _process(delta: float) -> void:
 	if pause_menu_open:
 		_hide_claim_meter()
 		_hide_claim_pee_effect()
+		_hide_interactable_highlights()
 		_update_objectives_overlay()
 		return
 
@@ -298,11 +309,13 @@ func _process(delta: float) -> void:
 	_update_vomit_puddles(delta)
 	_update_bark_sequences(delta)
 	_update_bark_pulses(delta)
+	_update_vomit_sprays(delta)
 	_update_store_entry_indicators(delta)
 	_update_camera(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
 	_update_claim_rings()
+	_update_interactable_highlights(delta)
 	_update_roof_occlusion(delta)
 	_update_ui()
 	_update_objectives_overlay()
@@ -321,6 +334,7 @@ func _configure_input() -> void:
 	_ensure_action("vomit", [Key.KEY_SPACE])
 	_ensure_action("drop_stick", [Key.KEY_V])
 	_ensure_action("claim", [Key.KEY_R])
+	_ensure_action("friendly_social", [Key.KEY_C])
 	_ensure_action("aggressive_social", [Key.KEY_X])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
@@ -435,6 +449,16 @@ func _create_audio_setup() -> void:
 	bark_last_clip_idx = -1
 	bark_sequences.clear()
 
+	if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
+		claim_pee_audio_player.queue_free()
+	claim_pee_audio_player = AudioStreamPlayer.new()
+	claim_pee_audio_player.bus = "Master"
+	claim_pee_audio_player.volume_db = -14.0
+	claim_pee_stream = _build_claim_pee_stream(0.42)
+	claim_pee_audio_player.stream = claim_pee_stream
+	add_child(claim_pee_audio_player)
+	claim_pee_audio_timer = 0.0
+
 func _load_bark_streams_from_files(candidates: Array) -> Array[AudioStream]:
 	var out: Array[AudioStream] = []
 	for path in candidates:
@@ -540,6 +564,41 @@ func _build_bark_stream(base_freq: float, roughness: float, duration: float) -> 
 	wav.data = data
 	return wav
 
+func _build_claim_pee_stream(duration: float) -> AudioStreamWAV:
+	var sample_rate := 44100
+	var safe_duration = maxf(0.08, duration)
+	var sample_count := int(maxf(1.0, safe_duration * float(sample_rate)))
+	var data := PackedByteArray()
+	data.resize(sample_count * 2)
+	var local_rng = RandomNumberGenerator.new()
+	local_rng.randomize()
+
+	var noise_lp := 0.0
+	var hiss_lp := 0.0
+	for i in range(sample_count):
+		var t = float(i) / float(sample_rate)
+		var tn = clampf(t / safe_duration, 0.0, 1.0)
+		var attack = clampf(t / 0.05, 0.0, 1.0)
+		var release = clampf((safe_duration - t) / 0.08, 0.0, 1.0)
+		var env = attack * release
+		var raw_noise = local_rng.randf_range(-1.0, 1.0)
+		noise_lp = lerpf(noise_lp, raw_noise, 0.05)
+		var hiss = raw_noise - noise_lp
+		hiss_lp = lerpf(hiss_lp, hiss, 0.2)
+		var stream_swell = 0.65 + 0.35 * sin(TAU * (10.0 + 4.0 * tn) * t)
+		var sample = (hiss * 0.88 + hiss_lp * 0.24) * stream_swell
+		sample = tanh(sample * 1.15) * env * 0.64
+		var int_sample = int(round(clampf(sample, -1.0, 1.0) * 32767.0))
+		data[i * 2] = int_sample & 0xFF
+		data[i * 2 + 1] = (int_sample >> 8) & 0xFF
+
+	var wav = AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = sample_rate
+	wav.stereo = false
+	wav.data = data
+	return wav
+
 func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
 	var bark_pool = bark_sfx_streams_aggressive if aggressive else bark_sfx_streams_passive
 	if bark_pool.is_empty():
@@ -567,6 +626,17 @@ func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
 		player.pitch_scale = rng.randf_range(0.98, 1.03) * (0.995 if is_freya_bark else 1.0)
 		player.volume_db = -7.8 if is_freya_bark else -9.0
 	player.play()
+
+func _play_claim_pee_sound() -> void:
+	if claim_pee_audio_player == null or not is_instance_valid(claim_pee_audio_player):
+		return
+	if claim_pee_stream == null:
+		claim_pee_stream = _build_claim_pee_stream(0.42)
+		claim_pee_audio_player.stream = claim_pee_stream
+	claim_pee_audio_player.stop()
+	claim_pee_audio_player.pitch_scale = rng.randf_range(0.96, 1.05)
+	claim_pee_audio_player.volume_db = -14.8 + rng.randf_range(-0.7, 0.7)
+	claim_pee_audio_player.play()
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
 	if barks <= 0:
@@ -715,6 +785,18 @@ func _create_prop_materials() -> void:
 		m.roughness = 0.72
 		m.metallic = 0.0
 		store_food_materials.append(m)
+
+	interact_highlight_material = StandardMaterial3D.new()
+	interact_highlight_material.albedo_color = Color(1.0, 0.95, 0.56, 0.9)
+	interact_highlight_material.roughness = 0.1
+	interact_highlight_material.metallic = 0.0
+	interact_highlight_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	interact_highlight_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	interact_highlight_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	interact_highlight_material.no_depth_test = true
+	interact_highlight_material.emission_enabled = true
+	interact_highlight_material.emission = Color(1.0, 0.9, 0.44)
+	interact_highlight_material.emission_energy_multiplier = 1.7
 
 	freya_outline_material = _make_outline_material(Color(0.18, 0.96, 0.98, 1.0), 0.05)
 	freya_ghost_material = _make_ghost_material(Color(0.72, 0.96, 1.0, 0.72))
@@ -1454,11 +1536,6 @@ func _build_store_interiors() -> void:
 	shelf_mat.roughness = 0.84
 	shelf_mat.metallic = 0.0
 
-	var ceiling_mat = StandardMaterial3D.new()
-	ceiling_mat.albedo_color = Color8(230, 229, 224)
-	ceiling_mat.roughness = 0.92
-	ceiling_mat.metallic = 0.0
-
 	var light_mat = StandardMaterial3D.new()
 	light_mat.albedo_color = Color8(244, 234, 202)
 	light_mat.roughness = 0.22
@@ -1522,13 +1599,7 @@ func _build_store_interiors() -> void:
 		floor.material_override = floor_mat
 		interior_root.add_child(floor)
 
-		var ceiling = MeshInstance3D.new()
-		var ceiling_mesh = BoxMesh.new()
-		ceiling_mesh.size = Vector3(inner_w, 0.05, inner_d)
-		ceiling.mesh = ceiling_mesh
-		ceiling.position = Vector3(x0 + inner_w * 0.5, STORE_INTERIOR_WALL_HEIGHT + 0.02, z0 + inner_d * 0.5)
-		ceiling.material_override = ceiling_mat
-		interior_root.add_child(ceiling)
+		# Keep interiors open-top so Freya remains visible while inside stores.
 
 		var light_count = clampi(int(round(inner_w / 2.3)), 2, 4)
 		for li in range(light_count):
@@ -2843,9 +2914,9 @@ func _choose_dog_direction(origin: Vector3, preferred_surface: String, in_park: 
 
 		var score = rng.randf_range(-0.15, 0.15)
 		if preferred_surface == "sidewalk":
-			score += 2.6 if surf == "sidewalk" else 0.75
+			score += 3.0 if surf == "sidewalk" else 0.62
 		else:
-			score += 2.4 if surf == "grass" else 0.7
+			score += 2.35 if surf == "grass" else 0.68
 
 		if in_park:
 			score += 1.2 if dog_park.grow(0.2).has_point(probe2) else -1.3
@@ -3007,7 +3078,14 @@ func _point_in_tree_trunk(p: Vector2, extra_radius: float) -> bool:
 	for t in trees:
 		var center: Vector2 = t.get("pos", Vector2.ZERO)
 		var tree_radius = float(t.get("radius", TREE_COLLISION_SCALE))
-		if center.distance_to(p) <= tree_radius + extra_radius:
+		var radius = tree_radius + extra_radius
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	return false
 
@@ -3015,7 +3093,14 @@ func _point_in_dumpster(p: Vector2, extra_radius: float) -> bool:
 	for d in dumpsters:
 		var center: Vector2 = d.get("pos", Vector2.ZERO)
 		var dumpster_radius = float(d.get("radius", DUMPSTER_COLLISION_RADIUS))
-		if center.distance_to(p) <= dumpster_radius + extra_radius:
+		var radius = dumpster_radius + extra_radius
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	return false
 
@@ -3023,7 +3108,14 @@ func _point_in_street_pole(p: Vector2, extra_radius: float) -> bool:
 	for pole in street_poles:
 		var center: Vector2 = pole.get("pos", Vector2.ZERO)
 		var pole_radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
-		if center.distance_to(p) <= pole_radius + extra_radius:
+		var radius = pole_radius + extra_radius
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	return false
 
@@ -3031,7 +3123,14 @@ func _point_in_fire_hydrant(p: Vector2, extra_radius: float) -> bool:
 	for hydrant in fire_hydrants:
 		var center: Vector2 = hydrant.get("pos", Vector2.ZERO)
 		var radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
-		if center.distance_to(p) <= radius + extra_radius:
+		radius += extra_radius
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	return false
 
@@ -3068,12 +3167,26 @@ func _point_near_hardscape(p: Vector2, margin: float) -> bool:
 	for pole in street_poles:
 		var center: Vector2 = pole.get("pos", Vector2.ZERO)
 		var pole_radius = float(pole.get("radius", STREET_POLE_COLLISION_RADIUS))
-		if center.distance_to(p) <= pole_radius + margin:
+		var radius = pole_radius + margin
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	for hydrant in fire_hydrants:
 		var center: Vector2 = hydrant.get("pos", Vector2.ZERO)
 		var hydrant_radius = float(hydrant.get("radius", FIRE_HYDRANT_COLLISION_RADIUS))
-		if center.distance_to(p) <= hydrant_radius + margin:
+		var radius = hydrant_radius + margin
+		var dx = center.x - p.x
+		if absf(dx) > radius:
+			continue
+		var dz = center.y - p.y
+		if absf(dz) > radius:
+			continue
+		if dx * dx + dz * dz <= radius * radius:
 			return true
 	return false
 
@@ -3132,7 +3245,11 @@ func _compute_freya_move_speed(running: bool) -> float:
 	return maxf(1.7, speed)
 
 func _update_dogs(delta: float) -> void:
+	var friendly_social = Input.is_action_pressed("friendly_social")
 	var aggressive_social = Input.is_action_pressed("aggressive_social")
+	if aggressive_social:
+		friendly_social = false
+	var socializing = friendly_social or aggressive_social
 	aggressive_bark_nearby_count = 0
 	var passive_social_target = Vector3.ZERO
 	var passive_social_target_dist = 1000000.0
@@ -3142,7 +3259,7 @@ func _update_dogs(delta: float) -> void:
 			var dn: Node3D = d.get("node", null)
 			if dn == null or not is_instance_valid(dn):
 				continue
-			if dn.global_position.distance_to(freya.global_position) < 4.25:
+			if dn.global_position.distance_to(freya.global_position) < SOCIALIZE_RANGE + 0.05:
 				aggressive_bark_nearby_count += 1
 	if aggressive_social:
 		var pack_target = float(max(1, aggressive_bark_nearby_count))
@@ -3168,7 +3285,7 @@ func _update_dogs(delta: float) -> void:
 		var dir: Vector3 = state["dir"]
 		if float(state["wander"]) <= 0.0:
 			var drive_surface = pref_surface
-			if (not in_park) and pref_surface == "sidewalk" and rng.randf() < 0.36:
+			if (not in_park) and pref_surface == "sidewalk" and rng.randf() < 0.2:
 				drive_surface = "grass"
 			dir = _choose_dog_direction(dog.global_position, drive_surface, in_park)
 			state["wander"] = rng.randf_range(0.8, 2.6)
@@ -3201,9 +3318,9 @@ func _update_dogs(delta: float) -> void:
 		state["dir"] = dir
 
 		var near: float = dog.global_position.distance_to(freya.global_position)
-		if near < 4.2:
+		if socializing and near < SOCIALIZE_RANGE:
 			freya_social = clamp(freya_social + delta * (31.0 if aggressive_social else 22.0), 0.0, 100.0)
-			if (not aggressive_social) and near < 3.4 and near < passive_social_target_dist:
+			if friendly_social and near < 3.4 and near < passive_social_target_dist:
 				passive_social_target = dog.global_position
 				passive_social_target_dist = near
 				has_passive_social_target = true
@@ -3229,7 +3346,7 @@ func _update_dogs(delta: float) -> void:
 
 		dogs[i] = state
 
-	_update_passive_social_dance(delta, aggressive_social, has_passive_social_target, passive_social_target)
+	_update_passive_social_dance(delta, friendly_social, aggressive_social, has_passive_social_target, passive_social_target)
 
 func _freya_is_idle_for_social_dance() -> bool:
 	if freya == null:
@@ -3242,11 +3359,17 @@ func _freya_is_idle_for_social_dance() -> bool:
 	var input_y = Input.get_action_strength("move_up") - Input.get_action_strength("move_down")
 	return Vector2(input_x, input_y).length_squared() < 0.0001
 
-func _update_passive_social_dance(delta: float, aggressive_social: bool, has_target: bool, target_pos: Vector3) -> void:
+func _update_passive_social_dance(
+	delta: float,
+	friendly_social: bool,
+	aggressive_social: bool,
+	has_target: bool,
+	target_pos: Vector3
+) -> void:
 	if freya == null:
 		freya_social_dance_phase = 0.0
 		return
-	if aggressive_social or (not has_target) or (not _freya_is_idle_for_social_dance()):
+	if (not friendly_social) or aggressive_social or (not has_target) or (not _freya_is_idle_for_social_dance()):
 		freya_social_dance_phase = fposmod(freya_social_dance_phase, TAU)
 		return
 
@@ -3300,6 +3423,145 @@ func _spawn_bark_pulse(pos: Vector3, color: Color) -> void:
 
 	dynamic_root.add_child(node)
 	bark_pulses.append({"node": node, "mat": mat, "age": 0.0, "ttl": 0.72})
+
+func _ensure_interact_highlight_root() -> void:
+	if dynamic_root == null:
+		return
+	if interact_highlight_root != null and is_instance_valid(interact_highlight_root):
+		return
+	interact_highlight_root = Node3D.new()
+	interact_highlight_root.name = "InteractHighlights"
+	dynamic_root.add_child(interact_highlight_root)
+
+func _make_interact_highlight_node() -> MeshInstance3D:
+	var marker = MeshInstance3D.new()
+	var mesh = TorusMesh.new()
+	mesh.inner_radius = 0.07
+	mesh.outer_radius = 0.11
+	marker.mesh = mesh
+	marker.rotation_degrees.x = 90.0
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat = interact_highlight_material
+	if mat != null:
+		marker.material_override = mat
+	return marker
+
+func _mark_interactable_highlight(seen: Dictionary, id: String, world_pos: Vector3, scale_xy: float = 1.0) -> void:
+	if id.is_empty():
+		return
+	_ensure_interact_highlight_root()
+	if interact_highlight_root == null or not is_instance_valid(interact_highlight_root):
+		return
+	seen[id] = true
+	var entry: Dictionary = interact_highlights.get(id, {})
+	var marker: MeshInstance3D = entry.get("node", null)
+	if marker == null or not is_instance_valid(marker):
+		marker = _make_interact_highlight_node()
+		interact_highlight_root.add_child(marker)
+		entry["node"] = marker
+		entry["phase"] = rng.randf_range(0.0, TAU)
+	var phase = float(entry.get("phase", 0.0))
+	var bob = INTERACT_HIGHLIGHT_BOB_AMPLITUDE * sin(world_time * INTERACT_HIGHLIGHT_BOB_SPEED + phase)
+	marker.global_position = world_pos + Vector3(0.0, 0.11 + bob, 0.0)
+	marker.scale = Vector3(scale_xy, scale_xy, scale_xy)
+	marker.visible = true
+	interact_highlights[id] = entry
+
+func _hide_interactable_highlights() -> void:
+	for id in interact_highlights.keys():
+		var entry: Dictionary = interact_highlights.get(id, {})
+		var marker: MeshInstance3D = entry.get("node", null)
+		if marker != null and is_instance_valid(marker):
+			marker.visible = false
+
+func _update_interactable_highlights(delta: float) -> void:
+	if freya == null:
+		_hide_interactable_highlights()
+		return
+	var seen := {}
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+
+	if not freya_has_stick and carried_stick == null:
+		var stick_range_sq = (STICK_PICKUP_RANGE + 0.15) * (STICK_PICKUP_RANGE + 0.15)
+		for item in sticks:
+			var node: Node3D = item.get("node", null)
+			if node == null or not is_instance_valid(node):
+				continue
+			var p: Vector2 = item.get("pos", Vector2(node.global_position.x, node.global_position.z))
+			if freya_pos.distance_squared_to(p) > stick_range_sq:
+				continue
+			_mark_interactable_highlight(seen, "stick_%d" % node.get_instance_id(), node.global_position, 0.9)
+
+	var bone_range_sq = (BONE_PICKUP_RANGE + 0.12) * (BONE_PICKUP_RANGE + 0.12)
+	for item in bones:
+		var node: Node3D = item.get("node", null)
+		if node == null or not is_instance_valid(node):
+			continue
+		var p: Vector2 = item.get("pos", Vector2(node.global_position.x, node.global_position.z))
+		if freya_pos.distance_squared_to(p) > bone_range_sq:
+			continue
+		_mark_interactable_highlight(seen, "bone_%d" % node.get_instance_id(), node.global_position, 0.88)
+
+	var food_range_sq = 1.72 * 1.72
+	for item in store_foods:
+		var node: Node3D = item.get("node", null)
+		if node == null or not is_instance_valid(node):
+			continue
+		var p: Vector2 = item.get("pos", Vector2(node.global_position.x, node.global_position.z))
+		if freya_pos.distance_squared_to(p) > food_range_sq:
+			continue
+		_mark_interactable_highlight(seen, "food_%d" % node.get_instance_id(), node.global_position, 0.82)
+
+	var poop_range_sq = 1.62 * 1.62
+	for item in poops:
+		var node: Node3D = item.get("node", null)
+		if node == null or not is_instance_valid(node):
+			continue
+		var p: Vector2 = item.get("pos", Vector2(node.global_position.x, node.global_position.z))
+		if freya_pos.distance_squared_to(p) > poop_range_sq:
+			continue
+		_mark_interactable_highlight(seen, "poop_%d" % node.get_instance_id(), node.global_position, 0.75)
+
+	var claim_target = _find_nearest_claim_target()
+	if bool(claim_target.get("found", false)):
+		var claim_dist_sq = float(claim_target.get("dist_sq", 1000000.0))
+		if claim_dist_sq <= CLAIM_RANGE * CLAIM_RANGE:
+			var target_type = int(claim_target.get("type", CLAIM_TARGET_NONE))
+			var target_index = int(claim_target.get("index", -1))
+			if target_type != CLAIM_TARGET_NONE and target_index >= 0:
+				var world = _claim_target_base_world_position(target_type, target_index)
+				_mark_interactable_highlight(
+					seen,
+					"claim_%d_%d" % [target_type, target_index],
+					world + Vector3(0.0, 0.16, 0.0),
+					1.05
+				)
+
+	var dumpster_idx = _find_nearest_dumpster_index()
+	if dumpster_idx >= 0 and dumpster_idx < dumpsters.size():
+		var d: Dictionary = dumpsters[dumpster_idx]
+		if not bool(d.get("searched", false)):
+			var dnode: Node3D = d.get("node", null)
+			if dnode != null and is_instance_valid(dnode):
+				_mark_interactable_highlight(seen, "dumpster_%d" % dumpster_idx, dnode.global_position + Vector3(0.0, 0.14, 0.0), 1.0)
+
+	var social_range_sq = SOCIALIZE_RANGE * SOCIALIZE_RANGE
+	for d in dogs:
+		var dog: Node3D = d.get("node", null)
+		if dog == null or not is_instance_valid(dog):
+			continue
+		var dp = Vector2(dog.global_position.x, dog.global_position.z)
+		if freya_pos.distance_squared_to(dp) > social_range_sq:
+			continue
+		_mark_interactable_highlight(seen, "dog_%d" % dog.get_instance_id(), dog.head_world_position(), 0.86)
+
+	for id in interact_highlights.keys():
+		if seen.has(id):
+			continue
+		var entry: Dictionary = interact_highlights.get(id, {})
+		var marker: MeshInstance3D = entry.get("node", null)
+		if marker != null and is_instance_valid(marker):
+			marker.visible = false
 
 func _handle_actions() -> void:
 	if Input.is_action_just_pressed("eat"):
@@ -3739,6 +4001,9 @@ func _update_claiming(delta: float) -> void:
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
+		claim_pee_audio_timer = 0.0
+		if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
+			claim_pee_audio_player.stop()
 		return
 
 	var target = _find_nearest_claim_target()
@@ -3753,6 +4018,9 @@ func _update_claiming(delta: float) -> void:
 				_reset_claim_progress(prev_type, prev_index)
 				active_claim_target_type = CLAIM_TARGET_NONE
 				active_claim_target_index = -1
+				claim_pee_audio_timer = 0.0
+				if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
+					claim_pee_audio_player.stop()
 				_try_search_dumpster(dumpster_idx)
 				return
 
@@ -3760,6 +4028,9 @@ func _update_claiming(delta: float) -> void:
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
+		claim_pee_audio_timer = 0.0
+		if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
+			claim_pee_audio_player.stop()
 		if Input.is_action_just_pressed("claim"):
 			_show_status("No tree, pole, hydrant, or dumpster in range", 0.95)
 		return
@@ -3771,6 +4042,10 @@ func _update_claiming(delta: float) -> void:
 
 	active_claim_target_type = target_type
 	active_claim_target_index = target_index
+	claim_pee_audio_timer = maxf(0.0, claim_pee_audio_timer - delta)
+	if claim_pee_audio_timer <= 0.0:
+		_play_claim_pee_sound()
+		claim_pee_audio_timer = 0.38
 
 	var claimed_now = false
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
@@ -4129,6 +4404,7 @@ func _try_vomit() -> void:
 	if freya_vomit < 100.0:
 		_show_status("Vomit meter not full", 0.9)
 		return
+	freya_vomit = 0.0
 
 	var vomit_data = _freya_vomit_origin_and_direction()
 	var vomit_origin: Vector3 = vomit_data.get("origin", freya.global_position + Vector3(0.0, 0.38, 0.0))
@@ -4144,9 +4420,12 @@ func _try_vomit() -> void:
 	puddle.position = Vector3(puddle_pos.x, 0.02, puddle_pos.z)
 	dynamic_root.add_child(puddle)
 	vomit_puddles.append({"node": puddle, "pos": Vector2(puddle_pos.x, puddle_pos.z), "ttl": 24.0})
+	var spray = _create_vomit_spray_node(vomit_origin, puddle.position + Vector3(0.0, 0.04, 0.0))
+	if spray != null:
+		dynamic_root.add_child(spray)
+		vomit_sprays.append({"node": spray, "ttl": 0.7})
 
-	freya_vomit = 0.0
-	freya_vomit_timer = 0.65
+	freya_vomit_timer = 1.05
 	if hit_dog and not objective_puke_on_dog_complete:
 		objective_puke_on_dog_complete = true
 		_show_status("Objective complete: Puke on another dog", 1.4)
@@ -4214,6 +4493,70 @@ func _create_vomit_puddle_node() -> Node3D:
 		chunk.material_override = vomit_material_b if i % 3 == 0 else vomit_material_a
 		root.add_child(chunk)
 	return root
+
+func _create_vomit_spray_node(start_pos: Vector3, end_pos: Vector3) -> Node3D:
+	var root = Node3D.new()
+	root.name = "VomitSpray"
+	var control = (start_pos + end_pos) * 0.5 + Vector3.UP * 0.14
+	var segments = 6
+	for i in range(segments):
+		var t0 = float(i) / float(segments)
+		var t1 = float(i + 1) / float(segments)
+		var p0 = _quadratic_point(start_pos, control, end_pos, t0)
+		var p1 = _quadratic_point(start_pos, control, end_pos, t1)
+		var delta = p1 - p0
+		var len = delta.length()
+		if len < 0.001:
+			continue
+		var seg = MeshInstance3D.new()
+		var mesh = CylinderMesh.new()
+		var width = lerpf(0.05, 0.026, t0)
+		mesh.top_radius = width * 0.72
+		mesh.bottom_radius = width
+		mesh.height = len
+		seg.mesh = mesh
+		var dir = delta / len
+		var x_axis = Vector3.UP.cross(dir)
+		if x_axis.length_squared() < 0.0001:
+			x_axis = Vector3.RIGHT
+		x_axis = x_axis.normalized()
+		var z_axis = dir.cross(x_axis).normalized()
+		seg.transform = Transform3D(Basis(x_axis, dir, z_axis).orthonormalized(), (p0 + p1) * 0.5)
+		seg.material_override = vomit_material_a if i % 2 == 0 else vomit_material_b
+		seg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(seg)
+
+	var chunk_count = 8
+	for i in range(chunk_count):
+		var chunk = MeshInstance3D.new()
+		var chunk_mesh = SphereMesh.new()
+		chunk_mesh.radius = rng.randf_range(0.018, 0.042)
+		chunk_mesh.height = chunk_mesh.radius * 2.0
+		chunk.mesh = chunk_mesh
+		var t = rng.randf_range(0.1, 0.95)
+		var base = _quadratic_point(start_pos, control, end_pos, t)
+		var spread = Vector3(rng.randf_range(-0.04, 0.04), rng.randf_range(-0.015, 0.03), rng.randf_range(-0.04, 0.04))
+		chunk.position = base + spread
+		chunk.scale = Vector3(rng.randf_range(0.7, 1.35), rng.randf_range(0.5, 1.12), rng.randf_range(0.7, 1.35))
+		chunk.material_override = vomit_material_b if i % 3 == 0 else vomit_material_a
+		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(chunk)
+	return root
+
+func _update_vomit_sprays(delta: float) -> void:
+	for i in range(vomit_sprays.size() - 1, -1, -1):
+		var spray: Dictionary = vomit_sprays[i]
+		spray["ttl"] = float(spray.get("ttl", 0.0)) - delta
+		var node: Node3D = spray.get("node", null)
+		if float(spray["ttl"]) <= 0.0 or node == null or not is_instance_valid(node):
+			if node != null and is_instance_valid(node):
+				node.queue_free()
+			vomit_sprays.remove_at(i)
+			continue
+		var fade = clampf(float(spray["ttl"]) / 0.7, 0.0, 1.0)
+		var pulse = 0.92 + 0.12 * sin(world_time * 17.0 + float(i) * 1.3)
+		node.scale = Vector3.ONE * (fade * pulse)
+		vomit_sprays[i] = spray
 
 func _update_poops(delta: float) -> void:
 	poop_spawn_timer -= delta
@@ -4289,15 +4632,7 @@ func _is_inside_store_index(store_idx: int, p: Vector2) -> bool:
 	var fp: Rect2 = b.get("footprint", Rect2())
 	if fp.size.x <= 0.0 or fp.size.y <= 0.0:
 		return false
-	var entry_pos: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
-	if (
-		entry_pos.x >= 0.0
-		and entry_pos.y >= 0.0
-		and fp.grow(0.18).has_point(p)
-		and p.distance_to(entry_pos) <= 1.7
-	):
-		return true
-	if fp.grow(-0.08).has_point(p):
+	if fp.grow(-0.04).has_point(p):
 		var blockers = b.get("store_walk_blockers", [])
 		return not _point_in_rect_list(blockers, p, 0.1)
 	return false
@@ -4325,50 +4660,18 @@ func _store_index_for_visual_focus(p: Vector2) -> int:
 	var interior_idx = _store_index_for_interior_point(p)
 	if interior_idx >= 0:
 		return interior_idx
-	if active_store_index >= 0 and active_store_index < buildings.size():
-		var active_b: Dictionary = buildings[active_store_index]
-		var fp: Rect2 = active_b.get("footprint", Rect2())
-		if fp.size.x > 0.0 and fp.size.y > 0.0 and fp.grow(0.32).has_point(p):
-			if _is_inside_store_index(active_store_index, p):
-				return active_store_index
 	return _store_index_containing_freya()
 
 func _store_index_containing_freya() -> int:
 	if freya == null or store_building_indices.is_empty():
 		return -1
 	var p = Vector2(freya.global_position.x, freya.global_position.z)
-	var fallback_idx = -1
-	var fallback_dist_sq = 1000000.0
 	for idx in store_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
 		if _is_inside_store_index(idx, p):
 			return idx
-		var b: Dictionary = buildings[idx]
-		var fp: Rect2 = b.get("footprint", Rect2())
-		if fp.size.x <= 0.0 or fp.size.y <= 0.0:
-			continue
-		var entry_pos: Vector2 = b.get("entry_pos", Vector2(-1.0, -1.0))
-		var near_entry = (
-			entry_pos.x >= 0.0
-			and entry_pos.y >= 0.0
-			and p.distance_to(entry_pos) <= 1.9
-		)
-		if fp.grow(-0.08).has_point(p):
-			var blockers = b.get("store_walk_blockers", [])
-			if (not _point_in_rect_list(blockers, p, 0.1)) or near_entry:
-				return idx
-			if entry_pos.x >= 0.0 and entry_pos.y >= 0.0:
-				var d_sq = p.distance_squared_to(entry_pos)
-				if d_sq < fallback_dist_sq:
-					fallback_dist_sq = d_sq
-					fallback_idx = idx
-		if near_entry and fp.grow(0.22).has_point(p):
-			var near_d_sq = p.distance_squared_to(entry_pos)
-			if near_d_sq < fallback_dist_sq:
-				fallback_dist_sq = near_d_sq
-				fallback_idx = idx
-	return fallback_idx
+	return -1
 
 func _apply_store_focus_visuals() -> void:
 	var inside_store = false
@@ -4406,6 +4709,7 @@ func _update_store_focus(delta: float) -> void:
 	_apply_store_focus_visuals()
 
 func _has_back_alley_rowhouse_corridor() -> bool:
+	var best_pair_score = 0
 	for alley in alleys:
 		if alley.size.x <= alley.size.y or alley.size.x < 10.0:
 			continue
@@ -4422,16 +4726,17 @@ func _has_back_alley_rowhouse_corridor() -> bool:
 				continue
 
 			var north_back = fp.position.y + fp.size.y
-			if absf(north_back - north_edge) <= 0.26 and not bool(b.get("front_is_south", true)):
+			if absf(north_back - north_edge) <= 0.42 and not bool(b.get("front_is_south", true)):
 				north_count += 1
 
 			var south_back = fp.position.y
-			if absf(south_back - south_edge) <= 0.26 and bool(b.get("front_is_south", false)):
+			if absf(south_back - south_edge) <= 0.42 and bool(b.get("front_is_south", false)):
 				south_count += 1
 
 			if north_count >= 3 and south_count >= 3:
 				return true
-	return false
+		best_pair_score = maxi(best_pair_score, mini(north_count, south_count))
+	return best_pair_score >= 2
 
 func _aabb_corners(aabb: AABB) -> Array[Vector3]:
 	var p = aabb.position
@@ -4854,7 +5159,9 @@ func _run_headless_smoke_checks() -> void:
 
 		var social_before = freya_social
 		var bark_before = bark_pulses.size()
+		Input.action_press("friendly_social")
 		_update_dogs(0.2)
+		Input.action_release("friendly_social")
 		if freya_social <= social_before:
 			failures.append("social_not_increasing")
 		if bark_pulses.size() <= bark_before:
@@ -5160,7 +5467,29 @@ func _nonbuilding_blocks_view(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 			return true
 	return false
 
-func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3) -> bool:
+func _collect_occlusion_candidate_indices(cam_pos: Vector3, target_pos: Vector3) -> Array:
+	var out: Array = []
+	if buildings.is_empty():
+		return out
+	var cam2 = Vector2(cam_pos.x, cam_pos.z)
+	var target2 = Vector2(target_pos.x, target_pos.z)
+	var min_x = minf(cam2.x, target2.x) - 0.6
+	var min_z = minf(cam2.y, target2.y) - 0.6
+	var max_x = maxf(cam2.x, target2.x) + 0.6
+	var max_z = maxf(cam2.y, target2.y) + 0.6
+	var corridor = Rect2(Vector2(min_x, min_z), Vector2(maxf(0.001, max_x - min_x), maxf(0.001, max_z - min_z)))
+	for i in range(buildings.size()):
+		var b: Dictionary = buildings[i]
+		var rect: Rect2 = b.get("collision_rect", b["footprint"])
+		var expanded = rect.grow(0.2)
+		if not corridor.intersects(expanded):
+			continue
+		var hit = _segment_rect_intersection_2d(cam2, target2, expanded)
+		if bool(hit.get("hit", false)) or expanded.has_point(cam2) or expanded.has_point(target2):
+			out.append(i)
+	return out
+
+func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3, candidate_indices: Array = []) -> bool:
 	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
 	var inside_active_store = _is_inside_store_interior(active_store_index, freya_pos_2d)
 	if inside_active_store:
@@ -5179,16 +5508,29 @@ func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3) -> bool:
 	var torso_blocked = false
 	var head_blocked = false
 	var side_blocked = 0
+	var use_candidates = not candidate_indices.is_empty()
 	for sample_idx in range(samples.size()):
 		var sample = samples[sample_idx]
 		var blocked = false
-		for b_idx in range(buildings.size()):
-			if inside_active_store and active_store_index >= 0 and b_idx == active_store_index:
-				continue
-			var b: Dictionary = buildings[b_idx]
-			if _building_blocks_view_to_target(b, cam_pos, sample):
-				blocked = true
-				break
+		if use_candidates:
+			for c in candidate_indices:
+				var b_idx = int(c)
+				if b_idx < 0 or b_idx >= buildings.size():
+					continue
+				if inside_active_store and active_store_index >= 0 and b_idx == active_store_index:
+					continue
+				var b: Dictionary = buildings[b_idx]
+				if _building_blocks_view_to_target(b, cam_pos, sample):
+					blocked = true
+					break
+		else:
+			for b_idx in range(buildings.size()):
+				if inside_active_store and active_store_index >= 0 and b_idx == active_store_index:
+					continue
+				var b: Dictionary = buildings[b_idx]
+				if _building_blocks_view_to_target(b, cam_pos, sample):
+					blocked = true
+					break
 		if blocked:
 			blocked_count += 1
 			if sample_idx == 1:
@@ -5221,17 +5563,31 @@ func _update_roof_occlusion(delta: float) -> void:
 	var freya_pos = freya.global_position
 	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
 	var store_idx_now = _store_index_for_visual_focus(freya_pos_2d)
-	if store_idx_now != active_store_index:
+	var store_changed = store_idx_now != active_store_index
+	if store_changed:
 		active_store_index = store_idx_now
 	_apply_store_focus_visuals()
 	var inside_active_store = _is_inside_store_index(active_store_index, freya_pos_2d)
+	occlusion_update_timer = maxf(0.0, occlusion_update_timer - delta)
+	var move_eps_sq = OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
+	var cam_moved = cam_pos.distance_squared_to(last_occlusion_cam_pos) > move_eps_sq
+	var freya_moved = freya_pos.distance_squared_to(last_occlusion_freya_pos) > move_eps_sq
+	if (not store_changed) and occlusion_update_timer > 0.0 and (not cam_moved) and (not freya_moved):
+		return
+	occlusion_update_timer = OCCLUSION_UPDATE_INTERVAL
 	last_occlusion_cam_pos = cam_pos
 	last_occlusion_freya_pos = freya_pos
+	var occlusion_candidates = _collect_occlusion_candidate_indices(cam_pos, freya_pos + Vector3(0.0, 0.8, 0.0))
+	var candidate_set := {}
+	for c in occlusion_candidates:
+		candidate_set[int(c)] = true
 
 	for i in range(buildings.size()):
 		var b: Dictionary = buildings[i]
 		var roof_parts: Array = b["roof_parts"]
-		var hide_roof = _building_blocks_view(b, cam_pos, freya_pos)
+		var hide_roof = false
+		if candidate_set.has(i):
+			hide_roof = _building_blocks_view(b, cam_pos, freya_pos)
 		if store_idx_now >= 0 and i == store_idx_now and bool(b.get("is_store", false)):
 			hide_roof = inside_active_store or hide_roof
 
@@ -5239,7 +5595,7 @@ func _update_roof_occlusion(delta: float) -> void:
 			(part as Node3D).visible = not hide_roof
 
 	_clear_occlusion_outlines()
-	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos)
+	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos, occlusion_candidates)
 	var occluded_props = _nonbuilding_blocks_view(cam_pos, freya_pos)
 	var ghost_freya = occluded_building
 	if ghost_freya:
@@ -5630,7 +5986,7 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(controls_scroll)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick / Eat bone / Eat store food\nV: Drop carried stick\nHold R: Claim trees, poles, and fire hydrants\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold X near other dogs: Aggressive social barking\nTab (hold): Objectives\nEsc: Pause / resume"
+	controls.text = "WASD / Arrows: Move\nShift: Run\nQ / E: Rotate camera\nF: Eat poop / Pick up stick / Eat bone / Eat store food\nV: Drop carried stick\nHold R: Claim trees, poles, and fire hydrants\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold C near other dogs: Friendly socialization\nHold X near other dogs: Aggressive socialization\nTab (hold): Objectives\nEsc: Pause / resume"
 	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
