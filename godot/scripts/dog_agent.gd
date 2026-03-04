@@ -11,6 +11,8 @@ var wander_timer = 0.0
 var scene_path = ""
 var model_scale = 1.0
 var breed_profile = "mixed"
+var breed_id = "mixed"
+var breed_mix: Dictionary = {}
 var variant_seed = 0
 
 var _step_time = 0.0
@@ -39,6 +41,9 @@ func configure(config: Dictionary) -> void:
 	scene_path = str(config.get("scene_path", ""))
 	model_scale = float(config.get("model_scale", 1.0))
 	breed_profile = str(config.get("breed_profile", "mixed")).to_lower()
+	breed_id = str(config.get("breed_id", breed_profile)).to_lower()
+	var mix_cfg = config.get("breed_mix", {})
+	breed_mix = mix_cfg if mix_cfg is Dictionary else {}
 	variant_seed = int(config.get("variant_seed", 0))
 	_build_visual()
 

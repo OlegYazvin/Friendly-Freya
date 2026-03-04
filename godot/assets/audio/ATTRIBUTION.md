@@ -43,3 +43,16 @@ Derived files:
 - `barks/bark_real_01.wav` ... `barks/bark_real_08.wav` and
   `barks/aggressive_bark_01.wav` ... `barks/aggressive_bark_06.wav`
   were trimmed and processed from the OpenGameArt `dog.7z` archive.
+
+Pee source file:
+- `pee/urinating_bathroom_17120.mp3`
+
+Source:
+- Freesound, "urinating bathroom urinal fan.aif", uploaded by user `dcaudio`
+- URL: https://freesound.org/people/dcaudio/sounds/17120/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/17/17120_137-hq.mp3`
+
+License:
+- CC BY 3.0
+- https://creativecommons.org/licenses/by/3.0/

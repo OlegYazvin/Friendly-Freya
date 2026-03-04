@@ -21,7 +21,6 @@ const STICK_MOUTH_FORWARD_OFFSET = -0.08
 const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
 const STICK_MOUTH_PITCH_DEG = -2.0
-const BARK_PRIMARY_SOURCE = "res://assets/audio/dog_barking.wav"
 const BARK_PASSIVE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/barks/bark_real_01.wav",
 	"res://assets/audio/barks/bark_real_02.wav",
@@ -39,6 +38,9 @@ const BARK_AGGRESSIVE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/barks/aggressive_bark_04.wav",
 	"res://assets/audio/barks/aggressive_bark_05.wav",
 	"res://assets/audio/barks/aggressive_bark_06.wav"
+]
+const PEE_SAMPLE_CANDIDATES = [
+	"res://assets/audio/pee/urinating_bathroom_17120.mp3"
 ]
 const OBJECTIVE_CLAIM_TARGET = 10
 const OBJECTIVE_HYDRANT_TARGET = 8
@@ -97,6 +99,160 @@ const NPC_DOG_MODEL_CANDIDATES = [
 	"res://assets/models/dog_neighbor_01.glb",
 	"res://assets/models/dog_neighbor_02.glb"
 ]
+const NPC_BREED_SEQUENCE = [
+	"retriever",
+	"shepherd",
+	"husky",
+	"terrier",
+	"hound",
+	"bulldog",
+	"poodle",
+	"mixed"
+]
+const DOG_BREED_DEFINITIONS = {
+	"retriever": {
+		"display_name": "Retriever",
+		"breed_profile": "retriever",
+		"model_candidates": [
+			"res://assets/models/dog_golden.glb",
+			"res://assets/models/dog_labrador.glb"
+		],
+		"coat_palette": [
+			Color8(195, 158, 120),
+			Color8(166, 128, 94),
+			Color8(225, 203, 170)
+		],
+		"speed_range": Vector2(1.9, 2.55),
+		"base_scale": 1.02,
+		"scale_jitter": 0.1,
+		"mixable": true
+	},
+	"shepherd": {
+		"display_name": "Shepherd",
+		"breed_profile": "shepherd",
+		"model_candidates": [
+			"res://assets/models/dog_neighbor_01.glb",
+			"res://assets/models/dog_labrador.glb"
+		],
+		"coat_palette": [
+			Color8(132, 101, 78),
+			Color8(78, 70, 62),
+			Color8(177, 142, 106)
+		],
+		"speed_range": Vector2(2.0, 2.7),
+		"base_scale": 1.03,
+		"scale_jitter": 0.11,
+		"mixable": true
+	},
+	"husky": {
+		"display_name": "Husky",
+		"breed_profile": "husky",
+		"model_candidates": [
+			"res://assets/models/dog_husky.glb"
+		],
+		"coat_palette": [
+			Color8(98, 101, 112),
+			Color8(138, 142, 149),
+			Color8(211, 214, 218)
+		],
+		"speed_range": Vector2(2.05, 2.78),
+		"base_scale": 0.93,
+		"scale_jitter": 0.09,
+		"mixable": true
+	},
+	"terrier": {
+		"display_name": "Terrier",
+		"breed_profile": "terrier",
+		"model_candidates": [
+			"res://assets/models/dog_neighbor_02.glb",
+			"res://assets/models/dog_labrador.glb"
+		],
+		"coat_palette": [
+			Color8(116, 94, 76),
+			Color8(208, 188, 168),
+			Color8(68, 63, 58)
+		],
+		"speed_range": Vector2(1.85, 2.62),
+		"base_scale": 0.9,
+		"scale_jitter": 0.12,
+		"mixable": true
+	},
+	"hound": {
+		"display_name": "Hound",
+		"breed_profile": "hound",
+		"model_candidates": [
+			"res://assets/models/dog_labrador.glb",
+			"res://assets/models/dog_neighbor_01.glb"
+		],
+		"coat_palette": [
+			Color8(151, 111, 86),
+			Color8(108, 86, 67),
+			Color8(214, 197, 182)
+		],
+		"speed_range": Vector2(1.88, 2.52),
+		"base_scale": 0.98,
+		"scale_jitter": 0.1,
+		"mixable": true
+	},
+	"bulldog": {
+		"display_name": "Bulldog",
+		"breed_profile": "bulldog",
+		"model_candidates": [
+			"res://assets/models/dog_neighbor_02.glb",
+			"res://assets/models/dog_labrador.glb"
+		],
+		"coat_palette": [
+			Color8(172, 140, 116),
+			Color8(196, 176, 153),
+			Color8(122, 101, 84)
+		],
+		"speed_range": Vector2(1.65, 2.28),
+		"base_scale": 0.9,
+		"scale_jitter": 0.09,
+		"mixable": true
+	},
+	"poodle": {
+		"display_name": "Poodle",
+		"breed_profile": "poodle",
+		"model_candidates": [
+			"res://assets/models/dog_golden.glb",
+			"res://assets/models/dog_labrador.glb"
+		],
+		"coat_palette": [
+			Color8(38, 36, 35),
+			Color8(226, 217, 206),
+			Color8(167, 146, 123)
+		],
+		"speed_range": Vector2(1.92, 2.6),
+		"base_scale": 0.92,
+		"scale_jitter": 0.11,
+		"mixable": true
+	},
+	"mixed": {
+		"display_name": "Mixed Breed",
+		"breed_profile": "mixed",
+		"model_candidates": NPC_DOG_MODEL_CANDIDATES,
+		"mix_components": [
+			"retriever",
+			"shepherd",
+			"husky",
+			"terrier",
+			"hound",
+			"bulldog",
+			"poodle"
+		],
+		"coat_palette": [
+			Color8(84, 74, 66),
+			Color8(132, 108, 86),
+			Color8(189, 164, 141),
+			Color8(214, 203, 190)
+		],
+		"speed_range": Vector2(1.8, 2.58),
+		"base_scale": 0.97,
+		"scale_jitter": 0.13,
+		"mixable": false
+	}
+}
 const NPC_DOG_COUNT = 24
 const DOG_PARK_NPC_COUNT = 10
 const NPC_SIDEWALK_PREF_CHANCE = 0.86
@@ -136,6 +292,7 @@ var bark_pulses: Array = []
 var vomit_sprays: Array = []
 var store_entry_indicators: Array = []
 var store_interior_nodes: Array[Node3D] = []
+var store_shell_nodes: Array[Node3D] = []
 var store_building_indices: Array[int] = []
 var blocking_building_rects: Array[Rect2] = []
 var store_walk_blockers: Array[Rect2] = []
@@ -219,7 +376,8 @@ var claim_pee_stream_node: Node3D
 var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
 var claim_pee_audio_player: AudioStreamPlayer
-var claim_pee_stream: AudioStreamWAV
+var claim_pee_stream: AudioStream
+var claim_pee_uses_real_sample = false
 var claim_pee_audio_timer = 0.0
 var interact_highlight_root: Node3D
 var interact_highlights := {}
@@ -418,21 +576,13 @@ func _create_audio_setup() -> void:
 	for stream in _load_bark_streams_from_files(BARK_PASSIVE_SAMPLE_CANDIDATES):
 		bark_sfx_streams_passive.append(stream)
 	if bark_sfx_streams_passive.is_empty():
-		push_warning("Passive bark clips missing; using base dog bark source.")
-		if FileAccess.file_exists(BARK_PRIMARY_SOURCE):
-			var primary_stream = AudioStreamWAV.load_from_file(BARK_PRIMARY_SOURCE)
-			if primary_stream != null:
-				bark_sfx_streams_passive.append(primary_stream)
+		push_warning("Passive bark clips missing; bark playback disabled.")
 
 	bark_sfx_streams_aggressive.clear()
 	for stream in _load_bark_streams_from_files(BARK_AGGRESSIVE_SAMPLE_CANDIDATES):
 		bark_sfx_streams_aggressive.append(stream)
 	if bark_sfx_streams_aggressive.is_empty():
-		for stream in bark_sfx_streams_passive:
-			bark_sfx_streams_aggressive.append(stream)
-	if bark_sfx_streams_aggressive.is_empty():
-		bark_sfx_streams_aggressive.append(_build_bark_stream(112.0, 0.43, 0.24))
-		bark_sfx_streams_aggressive.append(_build_bark_stream(121.0, 0.46, 0.23))
+		push_warning("Aggressive bark clips missing; aggressive bark playback disabled.")
 
 	for p in bark_sfx_players:
 		if p != null:
@@ -453,156 +603,53 @@ func _create_audio_setup() -> void:
 		claim_pee_audio_player.queue_free()
 	claim_pee_audio_player = AudioStreamPlayer.new()
 	claim_pee_audio_player.bus = "Master"
-	claim_pee_audio_player.volume_db = -14.0
-	claim_pee_stream = _build_claim_pee_stream(0.42)
+	claim_pee_stream = _load_first_stream_from_candidates(PEE_SAMPLE_CANDIDATES)
+	claim_pee_uses_real_sample = claim_pee_stream != null
+	claim_pee_audio_player.volume_db = -10.6
 	claim_pee_audio_player.stream = claim_pee_stream
 	add_child(claim_pee_audio_player)
 	claim_pee_audio_timer = 0.0
 
+func _load_audio_stream_from_file(path: String) -> AudioStream:
+	if path.is_empty():
+		return null
+	var lower = path.to_lower()
+	if FileAccess.file_exists(path):
+		if lower.ends_with(".wav"):
+			var wav = AudioStreamWAV.load_from_file(path)
+			if wav != null:
+				return wav
+		elif lower.ends_with(".ogg") or lower.ends_with(".oga"):
+			var ogg = AudioStreamOggVorbis.load_from_file(path)
+			if ogg != null:
+				return ogg
+		elif lower.ends_with(".mp3"):
+			var mp3 = AudioStreamMP3.load_from_file(path)
+			if mp3 != null:
+				return mp3
+	if ResourceLoader.exists(path):
+		var res = load(path)
+		if res is AudioStream:
+			return res as AudioStream
+	return null
+
+func _load_first_stream_from_candidates(candidates: Array) -> AudioStream:
+	for path in candidates:
+		var stream = _load_audio_stream_from_file(str(path))
+		if stream != null:
+			return stream
+	return null
+
 func _load_bark_streams_from_files(candidates: Array) -> Array[AudioStream]:
 	var out: Array[AudioStream] = []
 	for path in candidates:
-		if not FileAccess.file_exists(path):
-			continue
-		var lower = path.to_lower()
-		var stream: AudioStream = null
-		if lower.ends_with(".wav"):
-			stream = AudioStreamWAV.load_from_file(path)
-		elif lower.ends_with(".ogg"):
-			stream = AudioStreamOggVorbis.load_from_file(path)
+		var stream: AudioStream = _load_audio_stream_from_file(str(path))
 		if stream != null:
 			out.append(stream)
-	if out.is_empty() and FileAccess.file_exists(BARK_PRIMARY_SOURCE):
-		var primary = AudioStreamWAV.load_from_file(BARK_PRIMARY_SOURCE)
-		if primary != null:
-			out.append(primary)
 	return out
-
-func _bark_pulse_envelope(t: float, start_t: float, attack_t: float, hold_t: float, release_t: float) -> float:
-	var rel = t - start_t
-	if rel < 0.0:
-		return 0.0
-	var attack = maxf(0.001, attack_t)
-	var hold = maxf(0.0, hold_t)
-	var release = maxf(0.001, release_t)
-	if rel < attack:
-		return rel / attack
-	if rel < attack + hold:
-		return 1.0
-	var out = 1.0 - ((rel - attack - hold) / release)
-	return clampf(out, 0.0, 1.0)
-
-func _build_bark_stream(base_freq: float, roughness: float, duration: float) -> AudioStreamWAV:
-	var sample_rate := 44100
-	var sample_count := int(maxf(1.0, duration * float(sample_rate)))
-	var data := PackedByteArray()
-	data.resize(sample_count * 2)
-
-	var local_rng = RandomNumberGenerator.new()
-	local_rng.seed = int(base_freq * 1000.0 + roughness * 10000.0)
-
-	var phase_root := 0.0
-	var phase_harm := 0.0
-	var phase_air := 0.0
-	var noise_lp := 0.0
-	var noise_body := 0.0
-	var second_start = duration * local_rng.randf_range(0.31, 0.44)
-	var second_hold = duration * local_rng.randf_range(0.05, 0.09)
-	var second_release = duration * local_rng.randf_range(0.17, 0.27)
-
-	for i in range(sample_count):
-		var t := float(i) / float(sample_rate)
-		var tn := clampf(t / maxf(duration, 0.001), 0.0, 1.0)
-
-		var env_main = _bark_pulse_envelope(
-			t,
-			0.0,
-			duration * 0.038,
-			duration * 0.09,
-			duration * 0.42
-		)
-		var env_second = _bark_pulse_envelope(
-			t,
-			second_start,
-			duration * 0.03,
-			second_hold,
-			second_release
-		)
-		var envelope = maxf(env_main, env_second * 0.68)
-		envelope *= 1.0 - clampf((t - duration * 0.9) / maxf(0.01, duration * 0.12), 0.0, 1.0)
-
-		var pitch_fall = lerpf(1.08, 0.72, pow(tn, 0.86))
-		var vibrato = sin(TAU * (4.7 + roughness * 1.8) * t) * 0.012
-		var f0 := maxf(72.0, base_freq * (pitch_fall + vibrato))
-		phase_root += TAU * f0 / float(sample_rate)
-		phase_harm += TAU * (f0 * 2.46) / float(sample_rate)
-		phase_air += TAU * (f0 * 4.32) / float(sample_rate)
-
-		var root = sin(phase_root)
-		var chest = sin(phase_root * 0.5 + sin(phase_root * 0.19) * 0.62)
-		var formant = sin(phase_harm + sin(phase_root) * 0.16) * 0.64 + sin(phase_air) * 0.24
-		var raw_noise = local_rng.randf_range(-1.0, 1.0)
-		noise_lp = lerpf(noise_lp, raw_noise, 0.08 + roughness * 0.08)
-		noise_body = lerpf(noise_body, raw_noise, 0.02)
-		var hiss = raw_noise - noise_lp
-		var transient = hiss * _bark_pulse_envelope(t, 0.0, duration * 0.015, duration * 0.01, duration * 0.05)
-		var breath = hiss * (0.2 + roughness * 0.44) + noise_body * 0.12
-
-		var throat = root * 0.76 + chest * 0.31 + formant * 0.33
-		var sample: float = throat + breath * 0.24 + transient * (0.22 + roughness * 0.18)
-		sample = tanh(sample * (1.18 + roughness * 0.46))
-		sample *= envelope * 0.92
-		sample = clampf(sample, -1.0, 1.0)
-		var int_sample := int(round(sample * 32767.0))
-		data[i * 2] = int_sample & 0xFF
-		data[i * 2 + 1] = (int_sample >> 8) & 0xFF
-
-	var wav = AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = sample_rate
-	wav.stereo = false
-	wav.data = data
-	return wav
-
-func _build_claim_pee_stream(duration: float) -> AudioStreamWAV:
-	var sample_rate := 44100
-	var safe_duration = maxf(0.08, duration)
-	var sample_count := int(maxf(1.0, safe_duration * float(sample_rate)))
-	var data := PackedByteArray()
-	data.resize(sample_count * 2)
-	var local_rng = RandomNumberGenerator.new()
-	local_rng.randomize()
-
-	var noise_lp := 0.0
-	var hiss_lp := 0.0
-	for i in range(sample_count):
-		var t = float(i) / float(sample_rate)
-		var tn = clampf(t / safe_duration, 0.0, 1.0)
-		var attack = clampf(t / 0.05, 0.0, 1.0)
-		var release = clampf((safe_duration - t) / 0.08, 0.0, 1.0)
-		var env = attack * release
-		var raw_noise = local_rng.randf_range(-1.0, 1.0)
-		noise_lp = lerpf(noise_lp, raw_noise, 0.05)
-		var hiss = raw_noise - noise_lp
-		hiss_lp = lerpf(hiss_lp, hiss, 0.2)
-		var stream_swell = 0.65 + 0.35 * sin(TAU * (10.0 + 4.0 * tn) * t)
-		var sample = (hiss * 0.88 + hiss_lp * 0.24) * stream_swell
-		sample = tanh(sample * 1.15) * env * 0.64
-		var int_sample = int(round(clampf(sample, -1.0, 1.0) * 32767.0))
-		data[i * 2] = int_sample & 0xFF
-		data[i * 2 + 1] = (int_sample >> 8) & 0xFF
-
-	var wav = AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = sample_rate
-	wav.stereo = false
-	wav.data = data
-	return wav
 
 func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
 	var bark_pool = bark_sfx_streams_aggressive if aggressive else bark_sfx_streams_passive
-	if bark_pool.is_empty():
-		bark_pool = bark_sfx_streams_passive
 	if bark_sfx_players.is_empty() or bark_pool.is_empty():
 		return
 	var idx: int = bark_sfx_cursor % bark_sfx_players.size()
@@ -631,11 +678,14 @@ func _play_claim_pee_sound() -> void:
 	if claim_pee_audio_player == null or not is_instance_valid(claim_pee_audio_player):
 		return
 	if claim_pee_stream == null:
-		claim_pee_stream = _build_claim_pee_stream(0.42)
+		claim_pee_stream = _load_first_stream_from_candidates(PEE_SAMPLE_CANDIDATES)
+		claim_pee_uses_real_sample = claim_pee_stream != null
 		claim_pee_audio_player.stream = claim_pee_stream
+	if claim_pee_stream == null:
+		return
 	claim_pee_audio_player.stop()
-	claim_pee_audio_player.pitch_scale = rng.randf_range(0.96, 1.05)
-	claim_pee_audio_player.volume_db = -14.8 + rng.randf_range(-0.7, 0.7)
+	claim_pee_audio_player.pitch_scale = rng.randf_range(0.97, 1.02)
+	claim_pee_audio_player.volume_db = -10.9 + rng.randf_range(-0.55, 0.55)
 	claim_pee_audio_player.play()
 
 func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
@@ -1256,6 +1306,7 @@ func _build_city_buildings() -> void:
 
 func _mark_store_buildings() -> void:
 	_clear_store_entry_indicators()
+	_clear_store_shells()
 	_clear_store_interiors()
 	store_building_indices.clear()
 	active_store_index = -1
@@ -1272,6 +1323,8 @@ func _mark_store_buildings() -> void:
 		b["store_walk_blockers"] = []
 		b["store_interior_rect"] = Rect2()
 		b["store_interior_root"] = null
+		b["store_shell_root"] = null
+		b["store_layout"] = {}
 		buildings[i] = b
 
 		var fp: Rect2 = b["footprint"]
@@ -1314,48 +1367,268 @@ func _mark_store_buildings() -> void:
 		store["enterable"] = true
 		var fp_store: Rect2 = store.get("footprint", Rect2())
 		store["store_food_slots"] = clampi(int(round(fp_store.size.x * fp_store.size.y * 0.32)), 10, 26)
-		_decorate_storefront(store)
-		_create_store_entry_indicator(store)
+		store = _decorate_storefront(store)
+		store = _create_store_entry_indicator(store)
 		buildings[idx] = store
 		store_building_indices.append(idx)
 	_build_store_interiors()
 	_rebuild_walkability_cache()
 	_apply_store_focus_visuals()
 
-func _decorate_storefront(building: Dictionary) -> void:
-	var node: Node3D = building.get("node", null)
-	if node == null or not is_instance_valid(node):
-		return
-	var fp: Rect2 = building.get("footprint", Rect2())
-	var half_w = fp.size.x * 0.5
-	var half_d = fp.size.y * 0.5
-	var front_is_south = bool(building.get("front_is_south", true))
+func _compute_store_layout(fp: Rect2, front_is_south: bool) -> Dictionary:
+	var x0 = fp.position.x + STORE_INTERIOR_MARGIN
+	var x1 = fp.position.x + fp.size.x - STORE_INTERIOR_MARGIN
+	var z0 = fp.position.y + STORE_INTERIOR_MARGIN
+	var z1 = fp.position.y + fp.size.y - STORE_INTERIOR_MARGIN
+	var inner_w = x1 - x0
+	var inner_d = z1 - z0
+	if inner_w < 2.2 or inner_d < 2.2:
+		return {"valid": false}
+
+	var wall_t = STORE_WALL_THICKNESS
+	var door_half = minf(STORE_DOOR_HALF_WIDTH, inner_w * 0.24)
+	var center_x = x0 + inner_w * 0.5
 	var front_sign = 1.0 if front_is_south else -1.0
-	var front_local_z = half_d if front_is_south else -half_d
+	var wall_blockers: Array[Rect2] = []
+	var wall_visuals: Array[Rect2] = []
+	var front_left_wall = Rect2()
+	var front_right_wall = Rect2()
+	var back_wall = Rect2()
+	var door_opening = Rect2()
+	var front_door_z = z1 - wall_t * 0.5 if front_is_south else z0 + wall_t * 0.5
+
+	var left_wall = Rect2(x0, z0, wall_t, inner_d)
+	var right_wall = Rect2(x1 - wall_t, z0, wall_t, inner_d)
+	wall_blockers.append(left_wall)
+	wall_blockers.append(right_wall)
+	wall_visuals.append(left_wall)
+	wall_visuals.append(right_wall)
+
+	if front_is_south:
+		back_wall = Rect2(x0, z0, inner_w, wall_t)
+		wall_blockers.append(back_wall)
+		wall_visuals.append(back_wall)
+		var front_left_w = maxf(0.0, center_x - door_half - x0)
+		var front_right_x = center_x + door_half
+		var front_right_w = maxf(0.0, x1 - front_right_x)
+		if front_left_w > 0.05:
+			front_left_wall = Rect2(x0, z1 - wall_t, front_left_w, wall_t)
+			wall_blockers.append(front_left_wall)
+			wall_visuals.append(front_left_wall)
+		if front_right_w > 0.05:
+			front_right_wall = Rect2(front_right_x, z1 - wall_t, front_right_w, wall_t)
+			wall_blockers.append(front_right_wall)
+			wall_visuals.append(front_right_wall)
+		var jamb_d = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
+		var jamb_l = Rect2(center_x - door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
+		var jamb_r = Rect2(center_x + door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
+		wall_visuals.append(jamb_l)
+		wall_visuals.append(jamb_r)
+		door_opening = Rect2(center_x - door_half, z1 - STORE_DOOR_DEPTH, door_half * 2.0, STORE_DOOR_DEPTH + 0.05)
+	else:
+		back_wall = Rect2(x0, z1 - wall_t, inner_w, wall_t)
+		wall_blockers.append(back_wall)
+		wall_visuals.append(back_wall)
+		var front_left_w_n = maxf(0.0, center_x - door_half - x0)
+		var front_right_x_n = center_x + door_half
+		var front_right_w_n = maxf(0.0, x1 - front_right_x_n)
+		if front_left_w_n > 0.05:
+			front_left_wall = Rect2(x0, z0, front_left_w_n, wall_t)
+			wall_blockers.append(front_left_wall)
+			wall_visuals.append(front_left_wall)
+		if front_right_w_n > 0.05:
+			front_right_wall = Rect2(front_right_x_n, z0, front_right_w_n, wall_t)
+			wall_blockers.append(front_right_wall)
+			wall_visuals.append(front_right_wall)
+		var jamb_d_n = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
+		var jamb_n_l = Rect2(center_x - door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
+		var jamb_n_r = Rect2(center_x + door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
+		wall_visuals.append(jamb_n_l)
+		wall_visuals.append(jamb_n_r)
+		door_opening = Rect2(center_x - door_half, z0 - 0.05, door_half * 2.0, STORE_DOOR_DEPTH + 0.05)
+
+	var interior_rect = Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
+	var entry_center = Vector2(fp.position.x + fp.size.x * 0.5, fp.position.y + (fp.size.y if front_is_south else 0.0))
+	var entry_inside = entry_center + Vector2(0.0, -front_sign) * 0.45
+	var entry_outside = Vector2(center_x, front_door_z) + Vector2(0.0, front_sign) * 0.74
+
+	return {
+		"valid": true,
+		"x0": x0,
+		"x1": x1,
+		"z0": z0,
+		"z1": z1,
+		"inner_w": inner_w,
+		"inner_d": inner_d,
+		"wall_t": wall_t,
+		"door_half": door_half,
+		"center_x": center_x,
+		"front_sign": front_sign,
+		"front_is_south": front_is_south,
+		"front_door_z": front_door_z,
+		"wall_blockers": wall_blockers,
+		"wall_visuals": wall_visuals,
+		"front_left_wall": front_left_wall,
+		"front_right_wall": front_right_wall,
+		"back_wall": back_wall,
+		"door_opening_rect": door_opening,
+		"interior_rect": interior_rect,
+		"entry_inside_pos": entry_inside,
+		"entry_outside_pos": entry_outside
+	}
+
+func _decorate_storefront(building: Dictionary) -> Dictionary:
+	var fp: Rect2 = building.get("footprint", Rect2())
+	if fp.size.x <= 0.0 or fp.size.y <= 0.0:
+		return building
+	var front_is_south = bool(building.get("front_is_south", true))
+	var layout: Dictionary = _compute_store_layout(fp, front_is_south)
+	if not bool(layout.get("valid", false)):
+		return building
+
+	var existing_shell: Node3D = building.get("store_shell_root", null)
+	if existing_shell != null and is_instance_valid(existing_shell):
+		existing_shell.queue_free()
+
+	var shell_root = Node3D.new()
+	shell_root.name = "StorefrontShell"
+	static_root.add_child(shell_root)
+	store_shell_nodes.append(shell_root)
+	building["store_shell_root"] = shell_root
+	building["store_layout"] = layout
+	building["entry_pos"] = layout.get("entry_inside_pos", Vector2(-1.0, -1.0))
+
+	var storefront_h = clampf(minf(3.35, float(building.get("height", 9.6)) - 1.8), 2.65, 3.35)
+	var upper_h = maxf(1.5, float(building.get("height", 9.6)) - storefront_h)
+	var upper_rect = fp.grow(-0.1)
+
+	var shell_mat = StandardMaterial3D.new()
+	shell_mat.albedo_color = Color8(181, 169, 152)
+	shell_mat.roughness = 0.84
+	shell_mat.metallic = 0.04
+
+	var upper_mat = StandardMaterial3D.new()
+	upper_mat.albedo_color = Color8(152, 142, 132)
+	upper_mat.roughness = 0.89
+	upper_mat.metallic = 0.03
+
+	var trim_mat = StandardMaterial3D.new()
+	trim_mat.albedo_color = Color8(226, 216, 198)
+	trim_mat.roughness = 0.46
+	trim_mat.metallic = 0.06
+
+	var glass_mat = StandardMaterial3D.new()
+	glass_mat.albedo_color = Color(0.66, 0.83, 0.88, 0.4)
+	glass_mat.roughness = 0.1
+	glass_mat.metallic = 0.18
+	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass_mat.emission_enabled = true
+	glass_mat.emission = Color(0.34, 0.5, 0.58)
+	glass_mat.emission_energy_multiplier = 0.24
 
 	var sign_mat = StandardMaterial3D.new()
-	sign_mat.albedo_color = Color8(238, 213, 109)
-	sign_mat.roughness = 0.28
+	sign_mat.albedo_color = Color8(243, 212, 112)
+	sign_mat.roughness = 0.3
 	sign_mat.metallic = 0.08
 	sign_mat.emission_enabled = true
-	sign_mat.emission = Color(0.5, 0.44, 0.18)
-	sign_mat.emission_energy_multiplier = 0.62
+	sign_mat.emission = Color(0.58, 0.47, 0.17)
+	sign_mat.emission_energy_multiplier = 0.85
+
+	var canopy_mat = StandardMaterial3D.new()
+	canopy_mat.albedo_color = Color8(134, 72, 58)
+	canopy_mat.roughness = 0.54
+	canopy_mat.metallic = 0.03
+
+	if upper_rect.size.x > 0.2 and upper_rect.size.y > 0.2:
+		_add_store_wall_box(shell_root, upper_rect, upper_mat, upper_h, storefront_h)
+
+	for wall_rect in layout.get("wall_visuals", []):
+		if wall_rect is Rect2:
+			var wall_shape = wall_rect as Rect2
+			_add_store_wall_box(shell_root, wall_shape, shell_mat, storefront_h, 0.0)
+			var shell_band_rect = _inset_store_visual_rect(wall_shape, 0.018)
+			_add_store_wall_band(shell_root, shell_band_rect, trim_mat, storefront_h - 0.08, 0.1)
+
+	var front_sign = float(layout.get("front_sign", 1.0))
+	var front_door_z = float(layout.get("front_door_z", fp.position.y + (fp.size.y if front_is_south else 0.0)))
+	var center_x = float(layout.get("center_x", fp.position.x + fp.size.x * 0.5))
+	var door_half = float(layout.get("door_half", STORE_DOOR_HALF_WIDTH))
+	var door_width = door_half * 2.0
+
+	for front_rect in [layout.get("front_left_wall", Rect2()), layout.get("front_right_wall", Rect2())]:
+		if not (front_rect is Rect2):
+			continue
+		var seg: Rect2 = front_rect as Rect2
+		if seg.size.x <= 0.3:
+			continue
+		var window = MeshInstance3D.new()
+		var window_mesh = BoxMesh.new()
+		window_mesh.size = Vector3(maxf(0.24, seg.size.x - 0.14), storefront_h * 0.56, 0.06)
+		window.mesh = window_mesh
+		window.position = Vector3(
+			seg.position.x + seg.size.x * 0.5,
+			storefront_h * 0.44,
+			seg.position.y + seg.size.y * 0.5 + front_sign * 0.03
+		)
+		window.material_override = glass_mat
+		shell_root.add_child(window)
+
+		var mullion = MeshInstance3D.new()
+		var mullion_mesh = BoxMesh.new()
+		mullion_mesh.size = Vector3(0.06, storefront_h * 0.58, 0.07)
+		mullion.mesh = mullion_mesh
+		mullion.position = window.position
+		mullion.material_override = trim_mat
+		shell_root.add_child(mullion)
+
+	var door_jamb_h = storefront_h * 0.72
+	for side in [-1.0, 1.0]:
+		var jamb = MeshInstance3D.new()
+		var jamb_mesh = BoxMesh.new()
+		jamb_mesh.size = Vector3(0.13, door_jamb_h, 0.17)
+		jamb.mesh = jamb_mesh
+		jamb.position = Vector3(center_x + side * (door_half + 0.065), door_jamb_h * 0.5, front_door_z + front_sign * 0.03)
+		jamb.material_override = trim_mat
+		shell_root.add_child(jamb)
+
+	var lintel = MeshInstance3D.new()
+	var lintel_mesh = BoxMesh.new()
+	lintel_mesh.size = Vector3(door_width + 0.26, 0.2, 0.18)
+	lintel.mesh = lintel_mesh
+	lintel.position = Vector3(center_x, door_jamb_h + 0.1, front_door_z + front_sign * 0.03)
+	lintel.material_override = trim_mat
+	shell_root.add_child(lintel)
 
 	var sign = MeshInstance3D.new()
 	var sign_mesh = BoxMesh.new()
-	sign_mesh.size = Vector3(clampf(fp.size.x * 0.5, 2.0, 3.8), 0.42, 0.08)
+	sign_mesh.size = Vector3(clampf(fp.size.x * 0.62, 2.4, 5.4), 0.4, 0.16)
 	sign.mesh = sign_mesh
-	sign.position = Vector3(0.0, 2.2, front_local_z + front_sign * 0.07)
+	sign.position = Vector3(center_x, storefront_h - 0.36, front_door_z + front_sign * 0.08)
 	sign.material_override = sign_mat
-	node.add_child(sign)
+	shell_root.add_child(sign)
 
 	var awning = MeshInstance3D.new()
 	var awning_mesh = BoxMesh.new()
-	awning_mesh.size = Vector3(clampf(fp.size.x * 0.56, 2.2, 4.2), 0.07, 0.58)
+	awning_mesh.size = Vector3(clampf(fp.size.x * 0.66, 2.6, 6.0), 0.08, 0.84)
 	awning.mesh = awning_mesh
-	awning.position = Vector3(0.0, 1.62, front_local_z + front_sign * 0.31)
-	awning.material_override = pole_base_material
-	node.add_child(awning)
+	awning.position = Vector3(center_x, storefront_h * 0.62, front_door_z + front_sign * 0.38)
+	awning.material_override = canopy_mat
+	shell_root.add_child(awning)
+
+	var threshold = MeshInstance3D.new()
+	var threshold_mesh = BoxMesh.new()
+	var threshold_depth = STORE_DOOR_DEPTH + 0.54
+	threshold_mesh.size = Vector3(maxf(0.9, door_width * 0.94), 0.05, threshold_depth)
+	threshold.mesh = threshold_mesh
+	threshold.position = Vector3(
+		center_x,
+		0.026,
+		front_door_z - front_sign * (threshold_depth * 0.5 - STORE_WALL_THICKNESS * 0.3)
+	)
+	threshold.material_override = trim_mat
+	shell_root.add_child(threshold)
+
+	return building
 
 func _clear_store_entry_indicators() -> void:
 	for item in store_entry_indicators:
@@ -1363,6 +1636,12 @@ func _clear_store_entry_indicators() -> void:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 	store_entry_indicators.clear()
+
+func _clear_store_shells() -> void:
+	for n in store_shell_nodes:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	store_shell_nodes.clear()
 
 func _clear_store_interiors() -> void:
 	for n in store_interior_nodes:
@@ -1377,7 +1656,13 @@ func _clear_store_interiors() -> void:
 		b["store_interior_root"] = null
 		buildings[i] = b
 
-func _add_store_wall_box(parent: Node3D, wall_rect: Rect2, material: Material, height: float = STORE_INTERIOR_WALL_HEIGHT) -> void:
+func _add_store_wall_box(
+	parent: Node3D,
+	wall_rect: Rect2,
+	material: Material,
+	height: float = STORE_INTERIOR_WALL_HEIGHT,
+	base_y: float = 0.0
+) -> void:
 	if wall_rect.size.x <= 0.03 or wall_rect.size.y <= 0.03:
 		return
 	var wall = MeshInstance3D.new()
@@ -1386,11 +1671,23 @@ func _add_store_wall_box(parent: Node3D, wall_rect: Rect2, material: Material, h
 	wall.mesh = mesh
 	wall.position = Vector3(
 		wall_rect.position.x + wall_rect.size.x * 0.5,
-		height * 0.5,
+		base_y + height * 0.5,
 		wall_rect.position.y + wall_rect.size.y * 0.5
 	)
 	wall.material_override = material
 	parent.add_child(wall)
+
+func _inset_store_visual_rect(rect: Rect2, inset: float) -> Rect2:
+	if inset <= 0.0:
+		return rect
+	var max_inset = minf(rect.size.x, rect.size.y) * 0.45
+	var amount = minf(inset, max_inset)
+	if amount <= 0.0:
+		return rect
+	var shrunk = rect.grow(-amount)
+	if shrunk.size.x <= 0.03 or shrunk.size.y <= 0.03:
+		return rect
+	return shrunk
 
 func _add_store_stand(
 	parent: Node3D,
@@ -1576,18 +1873,25 @@ func _build_store_interiors() -> void:
 			continue
 		var b: Dictionary = buildings[idx]
 		var fp: Rect2 = b.get("footprint", Rect2())
-		var x0 = fp.position.x + STORE_INTERIOR_MARGIN
-		var x1 = fp.position.x + fp.size.x - STORE_INTERIOR_MARGIN
-		var z0 = fp.position.y + STORE_INTERIOR_MARGIN
-		var z1 = fp.position.y + fp.size.y - STORE_INTERIOR_MARGIN
-		var inner_w = x1 - x0
-		var inner_d = z1 - z0
-		if inner_w < 2.2 or inner_d < 2.2:
+		var shell_override: Node3D = b.get("store_shell_root", null)
+		var has_override_shell = shell_override != null and is_instance_valid(shell_override)
+		var front_is_south = bool(b.get("front_is_south", true))
+		var layout: Dictionary = b.get("store_layout", {})
+		if not bool(layout.get("valid", false)):
+			layout = _compute_store_layout(fp, front_is_south)
+		if not bool(layout.get("valid", false)):
 			continue
+		b["store_layout"] = layout
+		var x0 = float(layout.get("x0", fp.position.x + STORE_INTERIOR_MARGIN))
+		var x1 = float(layout.get("x1", fp.position.x + fp.size.x - STORE_INTERIOR_MARGIN))
+		var z0 = float(layout.get("z0", fp.position.y + STORE_INTERIOR_MARGIN))
+		var z1 = float(layout.get("z1", fp.position.y + fp.size.y - STORE_INTERIOR_MARGIN))
+		var inner_w = float(layout.get("inner_w", x1 - x0))
+		var inner_d = float(layout.get("inner_d", z1 - z0))
 
 		var interior_root = Node3D.new()
 		interior_root.name = "StoreInterior"
-		interior_root.visible = false
+		interior_root.visible = true
 		static_root.add_child(interior_root)
 		store_interior_nodes.append(interior_root)
 
@@ -1613,62 +1917,17 @@ func _build_store_interiors() -> void:
 			bulb.material_override = light_mat
 			interior_root.add_child(bulb)
 
-		var wall_t = STORE_WALL_THICKNESS
-		var door_half = minf(STORE_DOOR_HALF_WIDTH, inner_w * 0.24)
-		var center_x = x0 + inner_w * 0.5
-		var front_is_south = bool(b.get("front_is_south", true))
+		var wall_t = float(layout.get("wall_t", STORE_WALL_THICKNESS))
 		var blockers: Array[Rect2] = []
 		var wall_visuals: Array[Rect2] = []
 		var produce_fixtures: Array[Rect2] = []
 		var meat_fixtures: Array[Rect2] = []
-
-		var left_wall = Rect2(x0, z0, wall_t, inner_d)
-		var right_wall = Rect2(x1 - wall_t, z0, wall_t, inner_d)
-		blockers.append(left_wall)
-		blockers.append(right_wall)
-		wall_visuals.append(left_wall)
-		wall_visuals.append(right_wall)
-
-		if front_is_south:
-			var back_wall = Rect2(x0, z0, inner_w, wall_t)
-			blockers.append(back_wall)
-			wall_visuals.append(back_wall)
-			var front_left_w = maxf(0.0, center_x - door_half - x0)
-			var front_right_x = center_x + door_half
-			var front_right_w = maxf(0.0, x1 - front_right_x)
-			if front_left_w > 0.05:
-				var front_left_wall = Rect2(x0, z1 - wall_t, front_left_w, wall_t)
-				blockers.append(front_left_wall)
-				wall_visuals.append(front_left_wall)
-			if front_right_w > 0.05:
-				var front_right_wall = Rect2(front_right_x, z1 - wall_t, front_right_w, wall_t)
-				blockers.append(front_right_wall)
-				wall_visuals.append(front_right_wall)
-			var jamb_d = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
-			var jamb_l = Rect2(center_x - door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
-			var jamb_r = Rect2(center_x + door_half - wall_t * 0.5, z1 - STORE_DOOR_DEPTH, wall_t, jamb_d)
-			wall_visuals.append(jamb_l)
-			wall_visuals.append(jamb_r)
-		else:
-			var back_wall_north = Rect2(x0, z1 - wall_t, inner_w, wall_t)
-			blockers.append(back_wall_north)
-			wall_visuals.append(back_wall_north)
-			var front_left_w_n = maxf(0.0, center_x - door_half - x0)
-			var front_right_x_n = center_x + door_half
-			var front_right_w_n = maxf(0.0, x1 - front_right_x_n)
-			if front_left_w_n > 0.05:
-				var front_left_wall_n = Rect2(x0, z0, front_left_w_n, wall_t)
-				blockers.append(front_left_wall_n)
-				wall_visuals.append(front_left_wall_n)
-			if front_right_w_n > 0.05:
-				var front_right_wall_n = Rect2(front_right_x_n, z0, front_right_w_n, wall_t)
-				blockers.append(front_right_wall_n)
-				wall_visuals.append(front_right_wall_n)
-			var jamb_d_n = maxf(0.14, STORE_DOOR_DEPTH - wall_t)
-			var jamb_n_l = Rect2(center_x - door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
-			var jamb_n_r = Rect2(center_x + door_half - wall_t * 0.5, z0 + wall_t, wall_t, jamb_d_n)
-			wall_visuals.append(jamb_n_l)
-			wall_visuals.append(jamb_n_r)
+		for wall_rect in layout.get("wall_blockers", []):
+			if wall_rect is Rect2:
+				blockers.append(wall_rect as Rect2)
+		for wall_rect in layout.get("wall_visuals", []):
+			if wall_rect is Rect2:
+				wall_visuals.append(wall_rect as Rect2)
 
 		if inner_d > 3.2:
 			var side_depth = inner_d - 1.9
@@ -1727,12 +1986,18 @@ func _build_store_interiors() -> void:
 			produce_fixtures.append(island2)
 
 		for wall_rect in wall_visuals:
-			_add_store_wall_box(interior_root, wall_rect, wall_mat, STORE_INTERIOR_WALL_HEIGHT)
-			var trim_rect = wall_rect.grow(-0.02)
+			var interior_wall_rect = wall_rect
+			if has_override_shell:
+				# Keep interior and exterior wall visuals aligned but non-coplanar to avoid shimmer.
+				interior_wall_rect = _inset_store_visual_rect(interior_wall_rect, 0.03)
+			_add_store_wall_box(interior_root, interior_wall_rect, wall_mat, STORE_INTERIOR_WALL_HEIGHT)
+			var trim_rect = _inset_store_visual_rect(interior_wall_rect, 0.02)
 			if trim_rect.size.x > 0.03 and trim_rect.size.y > 0.03:
 				_add_store_wall_box(interior_root, trim_rect, wall_trim_mat, 0.11)
-			_add_store_wall_band(interior_root, wall_rect, wall_band_mat, 0.58, 0.08)
-			_add_store_wall_band(interior_root, wall_rect, wall_trim_mat, 1.74, 0.06)
+			var lower_band_rect = _inset_store_visual_rect(interior_wall_rect, 0.01)
+			var upper_band_rect = _inset_store_visual_rect(interior_wall_rect, 0.014)
+			_add_store_wall_band(interior_root, lower_band_rect, wall_band_mat, 0.58, 0.08)
+			_add_store_wall_band(interior_root, upper_band_rect, wall_trim_mat, 1.74, 0.06)
 
 		var poster_count = clampi(int(round(inner_w / 2.8)), 1, 3)
 		for pi in range(poster_count):
@@ -1767,7 +2032,11 @@ func _build_store_interiors() -> void:
 			interior_root.add_child(fridge)
 
 		b["store_walk_blockers"] = blockers
-		b["store_interior_rect"] = Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
+		b["store_interior_rect"] = layout.get(
+			"interior_rect",
+			Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
+		)
+		b["entry_pos"] = layout.get("entry_inside_pos", b.get("entry_pos", Vector2(-1.0, -1.0)))
 		b["store_interior_root"] = interior_root
 		buildings[idx] = b
 
@@ -1784,24 +2053,34 @@ func _rebuild_walkability_cache() -> void:
 				if wall is Rect2:
 					store_walk_blockers.append(wall)
 
-func _create_store_entry_indicator(building: Dictionary) -> void:
-	var node: Node3D = building.get("node", null)
-	if node == null or not is_instance_valid(node):
-		return
+func _create_store_entry_indicator(building: Dictionary) -> Dictionary:
 	var fp: Rect2 = building.get("footprint", Rect2())
 	if fp.size.x <= 0.0 or fp.size.y <= 0.0:
-		return
+		return building
 
 	var front_is_south = bool(building.get("front_is_south", true))
-	var front_sign = 1.0 if front_is_south else -1.0
-	var half_d = fp.size.y * 0.5
-	var front_local_z = half_d if front_is_south else -half_d
+	var layout: Dictionary = building.get("store_layout", {})
+	if not bool(layout.get("valid", false)):
+		layout = _compute_store_layout(fp, front_is_south)
+	if not bool(layout.get("valid", false)):
+		return building
+	building["store_layout"] = layout
+	var front_sign = float(layout.get("front_sign", 1.0 if front_is_south else -1.0))
+	var entry_outside: Vector2 = layout.get(
+		"entry_outside_pos",
+		Vector2(fp.position.x + fp.size.x * 0.5, fp.position.y + (fp.size.y if front_is_south else 0.0))
+	)
 
 	var marker = Node3D.new()
 	marker.name = "StoreEntryArrow"
-	var base_local = Vector3(0.0, 0.26, front_local_z + front_sign * 0.66)
-	marker.position = base_local
-	node.add_child(marker)
+	var base_world = Vector3(entry_outside.x, 0.26, entry_outside.y)
+	marker.position = base_world
+	if static_root != null:
+		static_root.add_child(marker)
+	elif world_root != null:
+		world_root.add_child(marker)
+	else:
+		add_child(marker)
 
 	var border_mat = StandardMaterial3D.new()
 	border_mat.albedo_color = Color(0.01, 0.01, 0.01, 0.97)
@@ -1897,15 +2176,14 @@ func _create_store_entry_indicator(building: Dictionary) -> void:
 	core.material_override = core_mat
 	marker.add_child(core)
 
-	var entry_center = Vector2(fp.position.x + fp.size.x * 0.5, fp.position.y + (fp.size.y if front_is_south else 0.0))
-	var entry_dir = Vector2(0.0, -front_sign)
-	building["entry_pos"] = entry_center + entry_dir * 0.45
+	building["entry_pos"] = layout.get("entry_inside_pos", building.get("entry_pos", Vector2(-1.0, -1.0)))
 	store_entry_indicators.append({
 		"node": marker,
-		"base": base_local,
+		"base": base_world,
 		"front_sign": front_sign,
 		"phase": rng.randf_range(0.0, TAU)
 	})
+	return building
 
 func _populate_store_foods() -> void:
 	for item in store_foods:
@@ -2705,6 +2983,9 @@ func _spawn_freya_and_dogs() -> void:
 		npc_model_paths = [freya_model]
 	if npc_model_paths.is_empty():
 		npc_model_paths = _existing_model_paths(NPC_DOG_MODEL_CANDIDATES)
+	var breed_model_cache := {}
+	for breed_id in NPC_BREED_SEQUENCE:
+		breed_model_cache[breed_id] = _resolve_breed_model_path(breed_id, npc_model_paths)
 
 	freya = DogAgentScript.new()
 	freya.configure({
@@ -2723,30 +3004,6 @@ func _spawn_freya_and_dogs() -> void:
 	var city_dogs = max(0, total_dogs - park_dogs)
 	var city_points = _spawn_points_even(city_dogs, "sidewalk")
 	var park_points = _spawn_points_in_rect(dog_park.grow(-0.45), park_dogs, "grass")
-	var coat_options = [
-		Color8(58, 48, 42),
-		Color8(92, 80, 70),
-		Color8(120, 93, 70),
-		Color8(164, 126, 93),
-		Color8(188, 159, 118),
-		Color8(205, 192, 171),
-		Color8(216, 206, 187),
-		Color8(178, 140, 102),
-		Color8(76, 78, 84),
-		Color8(132, 127, 120),
-		Color8(37, 34, 33),
-		Color8(228, 220, 206)
-	]
-	var breed_profiles = [
-		"retriever",
-		"shepherd",
-		"husky",
-		"terrier",
-		"hound",
-		"bulldog",
-		"poodle",
-		"mixed"
-	]
 
 	for i in range(total_dogs):
 		var dog = DogAgentScript.new()
@@ -2766,25 +3023,66 @@ func _spawn_freya_and_dogs() -> void:
 		var zone_x = clampi(int(floor(spawn_pos.x / maxf(0.001, MAP_W / 4.0))), 0, 3)
 		var zone_z = clampi(int(floor(spawn_pos.z / maxf(0.001, MAP_H / 4.0))), 0, 3)
 		var zone_idx = zone_z * 4 + zone_x
-		var breed = breed_profiles[posmod(i + zone_idx * 3 + (2 if in_park else 0), breed_profiles.size())]
-		var coat = coat_options[posmod(i * 2 + zone_idx + (3 if in_park else 0), coat_options.size())]
-		var dog_model = ""
-		if npc_model_paths.size() > 0:
-			dog_model = npc_model_paths[posmod(i + zone_idx + (1 if in_park else 0), npc_model_paths.size())]
-			rng.randi_range(0, npc_model_paths.size() - 1)
-		var dog_speed = rng.randf_range(1.7, 2.6)
-		var model_scale = _npc_model_scale_for_path(dog_model) * cosmetic_rng.randf_range(0.84, 1.2)
-		rng.randi_range(0, coat_options.size() - 1)
-		rng.randf_range(0.84, 1.2)
-		rng.randi_range(0, breed_profiles.size() - 1)
-		rng.randi()
+		var identity = _resolve_breed_identity(i, zone_idx, in_park)
+		var primary_breed = str(identity.get("primary", "mixed"))
+		var secondary_breed = str(identity.get("secondary", ""))
+		var is_mix = bool(identity.get("is_mixed", false))
+		var primary_ratio = clampf(float(identity.get("primary_ratio", 1.0)), 0.0, 1.0)
+		var primary_def = _breed_definition(primary_breed)
+		var secondary_def = _breed_definition(secondary_breed if is_mix else primary_breed)
+
+		var dog_model = str(breed_model_cache.get(primary_breed, ""))
+		var secondary_model = str(breed_model_cache.get(secondary_breed, ""))
+		if is_mix and not secondary_model.is_empty() and cosmetic_rng.randf() > primary_ratio:
+			dog_model = secondary_model
+		if dog_model.is_empty() and npc_model_paths.size() > 0:
+			dog_model = str(npc_model_paths[posmod(i + zone_idx + (1 if in_park else 0), npc_model_paths.size())])
+
+		var coat_palette: Array = []
+		for c in primary_def.get("coat_palette", []):
+			coat_palette.append(c)
+		if is_mix:
+			for c in secondary_def.get("coat_palette", []):
+				coat_palette.append(c)
+		var coat = _color_from_palette(
+			coat_palette,
+			i * 5 + zone_idx * 2 + (3 if in_park else 0),
+			Color8(126, 108, 92)
+		)
+
+		var speed_primary: Vector2 = primary_def.get("speed_range", Vector2(1.7, 2.6))
+		var speed_secondary: Vector2 = secondary_def.get("speed_range", speed_primary)
+		var speed_min = lerpf(speed_secondary.x, speed_primary.x, primary_ratio)
+		var speed_max = lerpf(speed_secondary.y, speed_primary.y, primary_ratio)
+		if speed_max < speed_min + 0.05:
+			speed_max = speed_min + 0.05
+		var dog_speed = cosmetic_rng.randf_range(speed_min, speed_max)
+
+		var scale_primary = float(primary_def.get("base_scale", 1.0))
+		var scale_secondary = float(secondary_def.get("base_scale", scale_primary))
+		var jitter_primary = float(primary_def.get("scale_jitter", 0.1))
+		var jitter_secondary = float(secondary_def.get("scale_jitter", jitter_primary))
+		var base_scale = lerpf(scale_secondary, scale_primary, primary_ratio)
+		var scale_jitter = lerpf(jitter_secondary, jitter_primary, primary_ratio)
+		var model_scale = _npc_model_scale_for_path(dog_model)
+		model_scale *= base_scale * cosmetic_rng.randf_range(maxf(0.75, 1.0 - scale_jitter), 1.0 + scale_jitter)
+
+		var breed_profile = str(primary_def.get("breed_profile", "mixed"))
+		if is_mix and cosmetic_rng.randf() > primary_ratio:
+			breed_profile = str(secondary_def.get("breed_profile", breed_profile))
 		dog.configure({
 			"is_freya": false,
 			"coat_color": coat,
 			"speed": dog_speed,
 			"scene_path": dog_model,
 			"model_scale": model_scale,
-			"breed_profile": breed,
+			"breed_profile": breed_profile,
+			"breed_id": primary_breed,
+			"breed_mix": {
+				"primary": primary_breed,
+				"secondary": secondary_breed,
+				"primary_ratio": primary_ratio
+			},
 			"variant_seed": int(cosmetic_rng.randi())
 		})
 		dog.scale = Vector3.ONE
@@ -2793,13 +3091,83 @@ func _spawn_freya_and_dogs() -> void:
 		dogs.append({
 			"node": dog,
 			"dir": _random_dir(),
-			"speed": rng.randf_range(1.7, 2.6),
+			"speed": dog_speed,
 			"wander": rng.randf_range(0.6, 2.0),
 			"bark": rng.randf_range(0.4, 1.2),
 			"park": in_park,
 			"pref_surface": pref_surface,
 			"pref_timer": rng.randf_range(1.2, 3.6)
 		})
+
+func _breed_definition(breed_id: String) -> Dictionary:
+	var key = breed_id.to_lower()
+	if DOG_BREED_DEFINITIONS.has(key):
+		return DOG_BREED_DEFINITIONS[key]
+	return DOG_BREED_DEFINITIONS["mixed"]
+
+func _non_mixed_breed_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for id in NPC_BREED_SEQUENCE:
+		if id == "mixed":
+			continue
+		if DOG_BREED_DEFINITIONS.has(id):
+			ids.append(id)
+	return ids
+
+func _resolve_breed_identity(index: int, zone_idx: int, in_park: bool) -> Dictionary:
+	var base_breed = NPC_BREED_SEQUENCE[posmod(index + zone_idx * 3 + (2 if in_park else 0), NPC_BREED_SEQUENCE.size())]
+	if base_breed != "mixed":
+		return {
+			"primary": base_breed,
+			"secondary": "",
+			"primary_ratio": 1.0,
+			"is_mixed": false
+		}
+
+	var mix_pool: Array[String] = _non_mixed_breed_ids()
+	if mix_pool.is_empty():
+		return {
+			"primary": "mixed",
+			"secondary": "",
+			"primary_ratio": 1.0,
+			"is_mixed": false
+		}
+
+	var primary_idx = posmod(index * 2 + zone_idx + (5 if in_park else 0), mix_pool.size())
+	var secondary_idx = posmod(index * 3 + zone_idx * 2 + (3 if in_park else 1), mix_pool.size())
+	if secondary_idx == primary_idx and mix_pool.size() > 1:
+		secondary_idx = (secondary_idx + 1) % mix_pool.size()
+	var blend_phase = float(posmod(index * 37 + zone_idx * 11 + (9 if in_park else 0), 100)) / 99.0
+	var primary_ratio = lerpf(0.4, 0.65, blend_phase)
+	return {
+		"primary": mix_pool[primary_idx],
+		"secondary": mix_pool[secondary_idx] if mix_pool.size() > 1 else "",
+		"primary_ratio": primary_ratio,
+		"is_mixed": mix_pool.size() > 1
+	}
+
+func _resolve_breed_model_path(breed_id: String, fallback_models: Array) -> String:
+	var definition = _breed_definition(breed_id)
+	var candidates: Array = definition.get("model_candidates", [])
+	var animated_candidates = _animated_model_paths(candidates)
+	if not animated_candidates.is_empty():
+		return str(animated_candidates[0])
+	var existing_candidates = _existing_model_paths(candidates)
+	if not existing_candidates.is_empty():
+		return str(existing_candidates[0])
+	if fallback_models.is_empty():
+		return ""
+	var idx = posmod(abs(int(hash(breed_id))), fallback_models.size())
+	return str(fallback_models[idx])
+
+func _color_from_palette(palette: Array, seed_idx: int, fallback: Color) -> Color:
+	if palette.is_empty():
+		return fallback
+	var idx = posmod(seed_idx, palette.size())
+	var c = palette[idx]
+	if c is Color:
+		return c
+	return fallback
 
 func _existing_model_paths(candidates: Array) -> Array:
 	var out: Array = []
@@ -3193,7 +3561,6 @@ func _point_near_hardscape(p: Vector2, margin: float) -> bool:
 func _update_freya(delta: float) -> void:
 	freya_hunger = clamp(freya_hunger + delta * 1.25, 0.0, 100.0)
 	freya_social = clamp(freya_social - delta * 1.0, 0.0, 100.0)
-	freya_vomit = clamp(freya_vomit - delta * 1.15, 0.0, 100.0)
 
 	if freya_vomit_timer > 0.0:
 		freya_vomit_timer = max(0.0, freya_vomit_timer - delta)
@@ -4045,7 +4412,7 @@ func _update_claiming(delta: float) -> void:
 	claim_pee_audio_timer = maxf(0.0, claim_pee_audio_timer - delta)
 	if claim_pee_audio_timer <= 0.0:
 		_play_claim_pee_sound()
-		claim_pee_audio_timer = 0.38
+		claim_pee_audio_timer = 0.72 if claim_pee_uses_real_sample else 0.38
 
 	var claimed_now = false
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
@@ -4688,16 +5055,20 @@ func _apply_store_focus_visuals() -> void:
 			continue
 		var b: Dictionary = buildings[idx]
 		var shell: Node3D = b.get("node", null)
+		var shell_override: Node3D = b.get("store_shell_root", null)
 		var interior_root: Node3D = b.get("store_interior_root", null)
 		var is_active = inside_store and idx == active_idx
+		var has_override_shell = shell_override != null and is_instance_valid(shell_override)
 		if shell != null and is_instance_valid(shell):
-			shell.visible = not is_active
+			shell.visible = (not has_override_shell) and (not is_active)
+		if has_override_shell:
+			shell_override.visible = not is_active
 		var roof_parts: Array = b.get("roof_parts", [])
 		for part in roof_parts:
 			if part is Node3D and is_instance_valid(part as Node3D):
-				(part as Node3D).visible = not is_active
+				(part as Node3D).visible = (not is_active) and (not has_override_shell)
 		if interior_root != null and is_instance_valid(interior_root):
-			interior_root.visible = is_active
+			interior_root.visible = true if has_override_shell else is_active
 
 func _update_store_focus(delta: float) -> void:
 	var store_idx = -1
@@ -5003,12 +5374,19 @@ func _run_targeted_validation_checks() -> void:
 			if active_store_index != idx:
 				failures.append("target_store_focus_not_entering")
 			var shell: Node3D = b.get("node", null)
+			var shell_override: Node3D = b.get("store_shell_root", null)
 			var interior_root: Node3D = b.get("store_interior_root", null)
 			if interior_root == null or not is_instance_valid(interior_root) or not interior_root.visible:
 				failures.append("target_store_interior_not_visible")
-			if shell == null or not is_instance_valid(shell):
+			var has_override_shell = shell_override != null and is_instance_valid(shell_override)
+			if (shell == null or not is_instance_valid(shell)) and (not has_override_shell):
 				failures.append("target_store_shell_missing")
-			elif shell.visible:
+			elif has_override_shell:
+				if shell_override.visible:
+					failures.append("target_store_override_not_hidden_inside")
+				if shell != null and is_instance_valid(shell) and shell.visible:
+					failures.append("target_store_base_shell_visible_with_override")
+			elif shell != null and is_instance_valid(shell) and shell.visible:
 				failures.append("target_store_shell_not_hidden_inside")
 			if store_focus_overlay == null or not store_focus_overlay.visible:
 				failures.append("target_store_overlay_not_visible")
@@ -5031,10 +5409,16 @@ func _run_targeted_validation_checks() -> void:
 				_update_store_focus(0.2)
 				if active_store_index == idx:
 					failures.append("target_store_focus_not_exiting")
-				if interior_root != null and is_instance_valid(interior_root) and interior_root.visible:
-					failures.append("target_store_interior_still_visible_after_exit")
-				if shell != null and is_instance_valid(shell) and not shell.visible:
-					failures.append("target_store_shell_not_restored_after_exit")
+				if has_override_shell:
+					if shell_override != null and is_instance_valid(shell_override) and not shell_override.visible:
+						failures.append("target_store_override_not_restored_after_exit")
+					if shell != null and is_instance_valid(shell) and shell.visible:
+						failures.append("target_store_base_shell_visible_with_override_after_exit")
+				else:
+					if interior_root != null and is_instance_valid(interior_root) and interior_root.visible:
+						failures.append("target_store_interior_still_visible_after_exit")
+					if shell != null and is_instance_valid(shell) and not shell.visible:
+						failures.append("target_store_shell_not_restored_after_exit")
 				if store_focus_overlay != null and store_focus_overlay.visible:
 					failures.append("target_store_overlay_still_visible_after_exit")
 
