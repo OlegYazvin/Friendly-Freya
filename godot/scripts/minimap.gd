@@ -22,6 +22,7 @@ var claimed_poles_enemy = PackedVector2Array()
 var claimed_trees_enemy = PackedVector2Array()
 var claimed_hydrants_enemy = PackedVector2Array()
 var camera_forward = Vector2(1.0, -1.0)
+var freya_forward = Vector2(0.0, -1.0)
 var zoom_level = 2.6
 var min_zoom = 1.0
 var max_zoom = 4.5
@@ -48,6 +49,7 @@ func update_dynamic(
 	poops: PackedVector2Array,
 	vomits: PackedVector2Array,
 	forward: Vector2 = Vector2(1.0, -1.0),
+	freya_face: Vector2 = Vector2(0.0, -1.0),
 	poles_freya: PackedVector2Array = PackedVector2Array(),
 	trees_freya: PackedVector2Array = PackedVector2Array(),
 	hydrants_freya: PackedVector2Array = PackedVector2Array(),
@@ -68,6 +70,8 @@ func update_dynamic(
 	if forward.length_squared() > 0.000001:
 		# Smooth heading changes to reduce minimap rotation jitter.
 		camera_forward = camera_forward.lerp(forward.normalized(), 0.46).normalized()
+	if freya_face.length_squared() > 0.000001:
+		freya_forward = freya_face.normalized()
 	queue_redraw()
 
 func _rotation_angle() -> float:
@@ -312,16 +316,23 @@ func _draw() -> void:
 	draw_circle(freya_map, 4.1, Color(0.0, 0.0, 0.0, 0.98))
 	draw_circle(freya_map, 3.0, Color(1.0, 0.96, 0.34, 1.0))
 	draw_circle(freya_map, 1.2, Color(0.08, 0.08, 0.09, 1.0))
+	var pointer_dir = Vector2(0.0, -1.0)
+	if freya_forward.length_squared() > 0.0001:
+		var forward_map_sample = _to_map_pos(freya_position + freya_forward.normalized(), world_origin, scale_vec, angle, draw_rect)
+		var mapped = forward_map_sample - freya_map
+		if mapped.length_squared() > 0.0001:
+			pointer_dir = mapped.normalized()
+	var pointer_side = Vector2(-pointer_dir.y, pointer_dir.x)
 	var pointer_shadow = PackedVector2Array([
-		freya_map + Vector2(0.9, -6.4),
-		freya_map + Vector2(3.6, -2.1),
-		freya_map + Vector2(-1.8, -2.1)
+		freya_map + pointer_dir * 6.6 + Vector2(0.9, 0.9),
+		freya_map + pointer_side * 2.8 + pointer_dir * 2.1 + Vector2(0.9, 0.9),
+		freya_map - pointer_side * 2.8 + pointer_dir * 2.1 + Vector2(0.9, 0.9)
 	])
 	draw_colored_polygon(pointer_shadow, Color(0.0, 0.0, 0.0, 0.72))
 	var pointer = PackedVector2Array([
-		freya_map + Vector2(0.0, -6.8),
-		freya_map + Vector2(2.8, -2.7),
-		freya_map + Vector2(-2.8, -2.7)
+		freya_map + pointer_dir * 6.8,
+		freya_map + pointer_side * 2.8 + pointer_dir * 2.7,
+		freya_map - pointer_side * 2.8 + pointer_dir * 2.7
 	])
 	draw_colored_polygon(pointer, Color(1.0, 0.86, 0.2, 0.99))
 	draw_polyline(PackedVector2Array([pointer[0], pointer[1], pointer[2], pointer[0]]), Color(0.0, 0.0, 0.0, 0.96), 1.0, true)

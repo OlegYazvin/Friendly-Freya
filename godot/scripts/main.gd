@@ -122,6 +122,8 @@ const STORE_DOOR_DEPTH = 0.86
 const STORE_INTERIOR_MARGIN = 0.34
 const STORE_INTERIOR_WALL_HEIGHT = 2.55
 const STORE_FOCUS_UPDATE_INTERVAL = 0.03
+const CITY_BLOCK_COLUMNS = 5
+const CITY_BLOCK_ROWS = 5
 const TREE_COLLISION_SCALE = 0.34
 const STICK_PICKUP_RANGE = 1.55
 const BONE_PICKUP_RANGE = 1.55
@@ -378,8 +380,8 @@ const DOG_BREED_DEFINITIONS = {
 		"mixable": false
 	}
 }
-const NPC_DOG_COUNT = 24
-const DOG_PARK_NPC_COUNT = 10
+const NPC_DOG_COUNT = 32
+const DOG_PARK_NPC_COUNT = 8
 const NPC_SIDEWALK_PREF_CHANCE = 0.86
 const FREYA_OCCLUSION_SAMPLE_BLOCK_THRESHOLD = 4
 const FREYA_SOCIAL_DANCE_RADIUS = 0.58
@@ -401,6 +403,7 @@ var sidewalks: Array[Rect2] = []
 var alleys: Array[Rect2] = []
 var alley_shoulders: Array[Rect2] = []
 var block_parcels: Array[Rect2] = []
+var city_blocks: Array[Dictionary] = []
 var buildings: Array = []
 var trees: Array = []
 var fire_hydrants: Array = []
@@ -566,7 +569,7 @@ func _ready() -> void:
 	_populate_store_foods()
 
 	_spawn_freya_and_dogs()
-	_seed_poops(30)
+	_seed_poops(44)
 	_create_ui()
 	_sync_minimap_static()
 	_update_minimap_dynamic(0.0)
@@ -643,6 +646,20 @@ func _configure_input() -> void:
 	_ensure_action("aggressive_social", [Key.KEY_X])
 	_ensure_action("objectives", [Key.KEY_TAB])
 	_ensure_action("menu", [Key.KEY_ESCAPE])
+
+func _unhandled_input(event: InputEvent) -> void:
+	if pause_menu_open:
+		return
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if not mouse_event.pressed:
+			return
+		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_on_minimap_zoom_step(MINIMAP_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+		elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_on_minimap_zoom_step(-MINIMAP_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
 
 func _ensure_action(name: String, keys: Array) -> void:
 	if not InputMap.has_action(name):
@@ -1397,52 +1414,110 @@ func _generate_city_layout() -> void:
 	alleys.clear()
 	alley_shoulders.clear()
 	block_parcels.clear()
+	city_blocks.clear()
 
-	for cx in [24.0, 48.0, 72.0, 96.0, 120.0]:
-		_add_road(Rect2(cx - ROAD_W * 0.5, 0.0, ROAD_W, MAP_H))
+	for cx in _road_centers_for_block_axis(MAP_W, CITY_BLOCK_COLUMNS):
+		_add_road(Rect2(float(cx) - ROAD_W * 0.5, 0.0, ROAD_W, MAP_H))
 
-	for cz in [20.0, 44.0, 68.0, 92.0]:
-		_add_road(Rect2(0.0, cz - ROAD_W * 0.5, MAP_W, ROAD_W))
+	for cz in _road_centers_for_block_axis(MAP_H, CITY_BLOCK_ROWS):
+		_add_road(Rect2(0.0, float(cz) - ROAD_W * 0.5, MAP_W, ROAD_W))
 
 	var x_intervals = _compute_non_road_intervals(true)
 	var z_intervals = _compute_non_road_intervals(false)
-	var parcel_candidates: Array[Rect2] = []
-
-	for xr in x_intervals:
-		for zr in z_intervals:
+	for xi in range(x_intervals.size()):
+		var xr: Vector2 = x_intervals[xi]
+		for zi in range(z_intervals.size()):
+			var zr: Vector2 = z_intervals[zi]
 			var parcel = Rect2(xr.x, zr.x, xr.y, zr.y)
 			if parcel.size.x < 10.0 or parcel.size.y < 9.5:
 				continue
-			parcel_candidates.append(parcel)
+			block_parcels.append(parcel)
+			city_blocks.append({
+				"index": city_blocks.size(),
+				"col": xi,
+				"row": zi,
+				"rect": parcel,
+				"center": parcel.position + parcel.size * 0.5
+			})
 
 	var map_center = Vector2(MAP_W * 0.5, MAP_H * 0.5)
 	var park_parcel = Rect2(MAP_W * 0.5 - 8.0, MAP_H * 0.5 - 7.0, 16.0, 14.0)
-	if not parcel_candidates.is_empty():
-		parcel_candidates.sort_custom(func(a: Rect2, b: Rect2):
-			var ac = a.position + a.size * 0.5
-			var bc = b.position + b.size * 0.5
-			return ac.distance_squared_to(map_center) < bc.distance_squared_to(map_center)
-		)
-		var pick_pool = mini(4, parcel_candidates.size())
-		park_parcel = parcel_candidates[rng.randi_range(0, pick_pool - 1)]
+	if not city_blocks.is_empty():
+		var center_col = clampi(int(floor(float(x_intervals.size()) * 0.5)), 0, maxi(0, x_intervals.size() - 1))
+		var center_row = clampi(int(floor(float(z_intervals.size()) * 0.5)), 0, maxi(0, z_intervals.size() - 1))
+		var found_center = false
+		for block in city_blocks:
+			if int(block.get("col", -1)) == center_col and int(block.get("row", -1)) == center_row:
+				park_parcel = block.get("rect", park_parcel)
+				found_center = true
+				break
+		if not found_center:
+			var nearest_idx = 0
+			var nearest_dist = 1000000000.0
+			for i in range(city_blocks.size()):
+				var center: Vector2 = city_blocks[i].get("center", map_center)
+				var dist_sq = center.distance_squared_to(map_center)
+				if dist_sq < nearest_dist:
+					nearest_dist = dist_sq
+					nearest_idx = i
+			park_parcel = city_blocks[nearest_idx].get("rect", park_parcel)
 
 	var park_size = Vector2(
-		clampf(minf(16.4, park_parcel.size.x - 0.9), 9.6, 17.0),
-		clampf(minf(13.9, park_parcel.size.y - 0.9), 8.8, 15.2)
+		clampf(minf(16.4, park_parcel.size.x - 1.4), 9.6, 17.0),
+		clampf(minf(13.9, park_parcel.size.y - 1.4), 8.8, 15.2)
 	)
-	var parcel_center = park_parcel.position + park_parcel.size * 0.5
-	var center_pull = (map_center - parcel_center) * 0.14
-	var jitter = Vector2(rng.randf_range(-0.45, 0.45), rng.randf_range(-0.34, 0.34))
-	var park_origin = parcel_center - park_size * 0.5 + center_pull + jitter
-	park_origin.x = clampf(park_origin.x, park_parcel.position.x + 0.28, park_parcel.position.x + park_parcel.size.x - park_size.x - 0.28)
-	park_origin.y = clampf(park_origin.y, park_parcel.position.y + 0.28, park_parcel.position.y + park_parcel.size.y - park_size.y - 0.28)
+	var park_origin = park_parcel.position + (park_parcel.size - park_size) * 0.5
 	dog_park = Rect2(park_origin, park_size)
 
-	for parcel in parcel_candidates:
-		block_parcels.append(parcel)
+	for parcel in block_parcels:
 		if parcel.intersects(dog_park.grow(0.4)):
 			continue
 		_add_block_alleys(parcel)
+
+func _road_centers_for_block_axis(axis_size: float, block_count: int) -> Array:
+	var centers: Array = []
+	if block_count <= 1:
+		return centers
+	var road_count = block_count - 1
+	var block_span = (axis_size - float(road_count) * ROAD_W) / float(block_count)
+	if block_span <= 0.5:
+		return centers
+	for i in range(road_count):
+		var center = float(i + 1) * block_span + float(i) * ROAD_W + ROAD_W * 0.5
+		centers.append(center)
+	return centers
+
+func _city_center_block() -> Dictionary:
+	if city_blocks.is_empty():
+		return {}
+	var target_col = int(floor(float(CITY_BLOCK_COLUMNS) * 0.5))
+	var target_row = int(floor(float(CITY_BLOCK_ROWS) * 0.5))
+	for block in city_blocks:
+		if int(block.get("col", -1)) == target_col and int(block.get("row", -1)) == target_row:
+			return block
+	var map_center = Vector2(MAP_W * 0.5, MAP_H * 0.5)
+	var best_idx = 0
+	var best_dist = 1000000000.0
+	for i in range(city_blocks.size()):
+		var center: Vector2 = city_blocks[i].get("center", map_center)
+		var dist_sq = center.distance_squared_to(map_center)
+		if dist_sq < best_dist:
+			best_dist = dist_sq
+			best_idx = i
+	return city_blocks[best_idx]
+
+func _city_block_for_point(p: Vector2) -> Dictionary:
+	for block in city_blocks:
+		var rect: Rect2 = block.get("rect", Rect2())
+		if rect.size.x > 0.0 and rect.size.y > 0.0 and rect.has_point(p):
+			return block
+	return {}
+
+func _city_block_index_for_point(p: Vector2) -> int:
+	var block = _city_block_for_point(p)
+	if block.is_empty():
+		return -1
+	return int(block.get("index", -1))
 
 func _add_road(rect: Rect2) -> void:
 	if not _rect_valid(rect):
@@ -1718,6 +1793,7 @@ func _mark_store_buildings() -> void:
 		b["entry_pos"] = Vector2(-1.0, -1.0)
 		b["store_walk_blockers"] = []
 		b["store_interior_rect"] = Rect2()
+		b["store_reachable_points"] = PackedVector2Array()
 		b["store_interior_root"] = null
 		b["store_shell_root"] = null
 		b["store_layout"] = {}
@@ -2533,6 +2609,7 @@ func _clear_store_interiors() -> void:
 		var b: Dictionary = buildings[i]
 		b["store_walk_blockers"] = []
 		b["store_interior_rect"] = Rect2()
+		b["store_reachable_points"] = PackedVector2Array()
 		b["store_interior_root"] = null
 		buildings[i] = b
 
@@ -2768,6 +2845,11 @@ func _build_store_interiors() -> void:
 		var z1 = float(layout.get("z1", fp.position.y + fp.size.y - STORE_INTERIOR_MARGIN))
 		var inner_w = float(layout.get("inner_w", x1 - x0))
 		var inner_d = float(layout.get("inner_d", z1 - z0))
+		var interior_rect: Rect2 = layout.get(
+			"interior_rect",
+			Rect2(x0 + STORE_WALL_THICKNESS, z0 + STORE_WALL_THICKNESS, inner_w - STORE_WALL_THICKNESS * 2.0, inner_d - STORE_WALL_THICKNESS * 2.0)
+		)
+		var entry_inside: Vector2 = layout.get("entry_inside_pos", interior_rect.get_center())
 
 		var interior_root = Node3D.new()
 		interior_root.name = "StoreInterior"
@@ -2802,9 +2884,13 @@ func _build_store_interiors() -> void:
 		var wall_visuals: Array[Rect2] = []
 		var produce_fixtures: Array[Rect2] = []
 		var meat_fixtures: Array[Rect2] = []
+		var wall_blockers: Array[Rect2] = []
+		var candidate_fixtures: Array[Dictionary] = []
 		for wall_rect in layout.get("wall_blockers", []):
 			if wall_rect is Rect2:
-				blockers.append(wall_rect as Rect2)
+				var wr = wall_rect as Rect2
+				blockers.append(wr)
+				wall_blockers.append(wr)
 		for wall_rect in layout.get("wall_visuals", []):
 			if wall_rect is Rect2:
 				wall_visuals.append(wall_rect as Rect2)
@@ -2814,21 +2900,17 @@ func _build_store_interiors() -> void:
 			var fixture_l = Rect2(x0 + wall_t + 0.16, z0 + 0.92, 0.5, side_depth)
 			var fixture_r = Rect2(x1 - wall_t - 0.66, z0 + 0.92, 0.5, side_depth)
 			if fixture_l.size.y > 1.0:
-				blockers.append(fixture_l)
-				produce_fixtures.append(fixture_l)
+				candidate_fixtures.append({"rect": fixture_l, "kind": "produce"})
 			if fixture_r.size.y > 1.0:
-				blockers.append(fixture_r)
-				produce_fixtures.append(fixture_r)
+				candidate_fixtures.append({"rect": fixture_r, "kind": "produce"})
 
 		if inner_w > 6.2 and inner_d > 4.0:
 			var aisle_depth = clampf(inner_d * 0.44, 1.9, inner_d - 1.2)
 			var aisle_z = z0 + (inner_d - aisle_depth) * 0.5
 			var aisle_a = Rect2(x0 + inner_w * 0.33 - 0.18, aisle_z, 0.36, aisle_depth)
 			var aisle_b = Rect2(x0 + inner_w * 0.67 - 0.18, aisle_z, 0.36, aisle_depth)
-			blockers.append(aisle_a)
-			blockers.append(aisle_b)
-			produce_fixtures.append(aisle_a)
-			produce_fixtures.append(aisle_b)
+			candidate_fixtures.append({"rect": aisle_a, "kind": "produce"})
+			candidate_fixtures.append({"rect": aisle_b, "kind": "produce"})
 
 		var meat_counter_w = clampf(inner_w * 0.46, 1.3, inner_w - 1.1)
 		var meat_counter_x = x0 + (inner_w - meat_counter_w) * 0.5
@@ -2838,8 +2920,7 @@ func _build_store_interiors() -> void:
 			meat_counter_w,
 			0.48
 		)
-		blockers.append(meat_counter)
-		meat_fixtures.append(meat_counter)
+		candidate_fixtures.append({"rect": meat_counter, "kind": "meat"})
 
 		if inner_w > 4.2 and inner_d > 3.4:
 			var island_w = clampf(inner_w * 0.24, 0.82, 1.5)
@@ -2850,8 +2931,7 @@ func _build_store_interiors() -> void:
 				island_w,
 				island_d
 			)
-			blockers.append(island)
-			produce_fixtures.append(island)
+			candidate_fixtures.append({"rect": island, "kind": "produce"})
 
 		if inner_w > 7.2 and inner_d > 4.2:
 			var island2_w = clampf(inner_w * 0.2, 0.76, 1.3)
@@ -2862,8 +2942,23 @@ func _build_store_interiors() -> void:
 				island2_w,
 				island2_d
 			)
-			blockers.append(island2)
-			produce_fixtures.append(island2)
+			candidate_fixtures.append({"rect": island2, "kind": "produce"})
+
+		var layout_pick = _select_store_fixtures_for_access(interior_rect, entry_inside, wall_blockers, candidate_fixtures)
+		var selected_fixtures: Array = layout_pick.get("fixtures", [])
+		var reachable_points: PackedVector2Array = layout_pick.get("reachable", PackedVector2Array())
+		blockers = layout_pick.get("blockers", blockers)
+		for item in selected_fixtures:
+			if not (item is Dictionary):
+				continue
+			var fixture_rect: Rect2 = item.get("rect", Rect2())
+			if fixture_rect.size.x <= 0.01 or fixture_rect.size.y <= 0.01:
+				continue
+			var kind = str(item.get("kind", "produce"))
+			if kind == "meat":
+				meat_fixtures.append(fixture_rect)
+			else:
+				produce_fixtures.append(fixture_rect)
 
 		for wall_rect in wall_visuals:
 			var interior_wall_rect = wall_rect
@@ -2912,13 +3007,155 @@ func _build_store_interiors() -> void:
 			interior_root.add_child(fridge)
 
 		b["store_walk_blockers"] = blockers
-		b["store_interior_rect"] = layout.get(
-			"interior_rect",
-			Rect2(x0 + wall_t, z0 + wall_t, inner_w - wall_t * 2.0, inner_d - wall_t * 2.0)
-		)
+		b["store_interior_rect"] = interior_rect
+		b["store_reachable_points"] = reachable_points
 		b["entry_pos"] = layout.get("entry_inside_pos", b.get("entry_pos", Vector2(-1.0, -1.0)))
 		b["store_interior_root"] = interior_root
 		buildings[idx] = b
+
+func _select_store_fixtures_for_access(
+	interior_rect: Rect2,
+	entry_inside: Vector2,
+	wall_blockers: Array[Rect2],
+	candidates: Array[Dictionary]
+) -> Dictionary:
+	var selected: Array[Dictionary] = []
+	for item in candidates:
+		if not (item is Dictionary):
+			continue
+		var rect: Rect2 = item.get("rect", Rect2())
+		if rect.size.x <= 0.03 or rect.size.y <= 0.03:
+			continue
+		selected.append(item)
+
+	var blockers: Array = wall_blockers.duplicate()
+	for item in selected:
+		var rect: Rect2 = item.get("rect", Rect2())
+		if rect.size.x > 0.03 and rect.size.y > 0.03:
+			blockers.append(rect)
+
+	var base_reachable = _store_reachable_points(interior_rect, entry_inside, wall_blockers)
+	var min_reachable = maxi(10, int(floor(float(base_reachable.size()) * 0.55)))
+	var reachable = _store_reachable_points(interior_rect, entry_inside, blockers)
+	var guard = 0
+	while reachable.size() < min_reachable and not selected.is_empty() and guard < 10:
+		guard += 1
+		var best_idx = -1
+		var best_count = reachable.size()
+		for i in range(selected.size()):
+			var test_blockers: Array = wall_blockers.duplicate()
+			for j in range(selected.size()):
+				if j == i:
+					continue
+				var test_rect: Rect2 = selected[j].get("rect", Rect2())
+				if test_rect.size.x > 0.03 and test_rect.size.y > 0.03:
+					test_blockers.append(test_rect)
+			var test_count = _store_reachable_points(interior_rect, entry_inside, test_blockers).size()
+			if test_count > best_count:
+				best_count = test_count
+				best_idx = i
+		if best_idx < 0:
+			selected.remove_at(selected.size() - 1)
+		else:
+			selected.remove_at(best_idx)
+
+		blockers = wall_blockers.duplicate()
+		for item in selected:
+			var rect: Rect2 = item.get("rect", Rect2())
+			if rect.size.x > 0.03 and rect.size.y > 0.03:
+				blockers.append(rect)
+		reachable = _store_reachable_points(interior_rect, entry_inside, blockers)
+
+	return {
+		"fixtures": selected,
+		"reachable": reachable,
+		"blockers": blockers
+	}
+
+func _store_reachable_points(
+	interior_rect: Rect2,
+	entry_inside: Vector2,
+	blockers: Array,
+	cell_size: float = 0.34
+) -> PackedVector2Array:
+	var reachable = PackedVector2Array()
+	if interior_rect.size.x <= 0.12 or interior_rect.size.y <= 0.12:
+		return reachable
+
+	var cols = maxi(3, int(ceil(interior_rect.size.x / maxf(0.18, cell_size))))
+	var rows = maxi(3, int(ceil(interior_rect.size.y / maxf(0.18, cell_size))))
+	var total = cols * rows
+	if total <= 0:
+		return reachable
+	var step_x = interior_rect.size.x / float(cols)
+	var step_y = interior_rect.size.y / float(rows)
+
+	var centers: Array[Vector2] = []
+	centers.resize(total)
+	var walkable = PackedByteArray()
+	walkable.resize(total)
+	walkable.fill(0)
+	var visited = PackedByteArray()
+	visited.resize(total)
+	visited.fill(0)
+
+	var walkable_count = 0
+	var inner_rect = interior_rect.grow(-0.03)
+	for row in range(rows):
+		for col in range(cols):
+			var idx = row * cols + col
+			var center = Vector2(
+				interior_rect.position.x + (float(col) + 0.5) * step_x,
+				interior_rect.position.y + (float(row) + 0.5) * step_y
+			)
+			centers[idx] = center
+			if not inner_rect.has_point(center):
+				continue
+			if _point_in_rect_list(blockers, center, 0.09):
+				continue
+			walkable[idx] = 1
+			walkable_count += 1
+
+	if walkable_count <= 0:
+		return reachable
+
+	var start_idx = -1
+	var nearest_dist = 1000000000.0
+	for idx in range(total):
+		if walkable[idx] == 0:
+			continue
+		var d = centers[idx].distance_squared_to(entry_inside)
+		if d < nearest_dist:
+			nearest_dist = d
+			start_idx = idx
+	if start_idx < 0:
+		return reachable
+
+	var queue: Array[int] = [start_idx]
+	visited[start_idx] = 1
+	var read_idx = 0
+	while read_idx < queue.size():
+		var current = queue[read_idx]
+		read_idx += 1
+		reachable.append(centers[current])
+
+		var row = int(current / cols)
+		var col = int(current - row * cols)
+		var neighbor_indices = [
+			Vector2i(col + 1, row),
+			Vector2i(col - 1, row),
+			Vector2i(col, row + 1),
+			Vector2i(col, row - 1)
+		]
+		for coord in neighbor_indices:
+			if coord.x < 0 or coord.x >= cols or coord.y < 0 or coord.y >= rows:
+				continue
+			var next_idx = coord.y * cols + coord.x
+			if visited[next_idx] != 0 or walkable[next_idx] == 0:
+				continue
+			visited[next_idx] = 1
+			queue.append(next_idx)
+	return reachable
 
 func _rebuild_walkability_cache() -> void:
 	blocking_building_rects.clear()
@@ -2952,8 +3189,8 @@ func _create_store_entry_indicator(building: Dictionary) -> Dictionary:
 	)
 
 	var marker = Node3D.new()
-	marker.name = "StoreEntryArrow"
-	var base_world = Vector3(entry_outside.x, 0.26, entry_outside.y)
+	marker.name = "StoreEntryMarker"
+	var base_world = Vector3(entry_outside.x, 0.055, entry_outside.y)
 	marker.position = base_world
 	if static_root != null:
 		static_root.add_child(marker)
@@ -2962,99 +3199,57 @@ func _create_store_entry_indicator(building: Dictionary) -> Dictionary:
 	else:
 		add_child(marker)
 
-	var border_mat = StandardMaterial3D.new()
-	border_mat.albedo_color = Color(0.01, 0.01, 0.01, 0.97)
-	border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	border_mat.no_depth_test = true
+	var plate_mat = StandardMaterial3D.new()
+	plate_mat.albedo_color = Color(0.98, 0.9, 0.44, 0.6)
+	plate_mat.roughness = 0.38
+	plate_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	plate_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	plate_mat.emission_enabled = true
+	plate_mat.emission = Color(0.96, 0.82, 0.28)
+	plate_mat.emission_energy_multiplier = 0.36
 
 	var arrow_mat = StandardMaterial3D.new()
-	arrow_mat.albedo_color = Color(1.0, 0.31, 0.06, 0.99)
+	arrow_mat.albedo_color = Color(1.0, 0.95, 0.72, 0.92)
+	arrow_mat.roughness = 0.26
 	arrow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	arrow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	arrow_mat.no_depth_test = true
 	arrow_mat.emission_enabled = true
-	arrow_mat.emission = Color(1.0, 0.44, 0.05)
-	arrow_mat.emission_energy_multiplier = 2.12
+	arrow_mat.emission = Color(1.0, 0.9, 0.58)
+	arrow_mat.emission_energy_multiplier = 0.62
 
-	var core_mat = StandardMaterial3D.new()
-	core_mat.albedo_color = Color(1.0, 0.97, 0.38, 0.98)
-	core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	core_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	core_mat.no_depth_test = true
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(1.0, 0.95, 0.4)
-	core_mat.emission_energy_multiplier = 1.25
+	var base_plate = MeshInstance3D.new()
+	var base_plate_mesh = CylinderMesh.new()
+	base_plate_mesh.top_radius = 0.2
+	base_plate_mesh.bottom_radius = 0.22
+	base_plate_mesh.height = 0.012
+	base_plate.mesh = base_plate_mesh
+	base_plate.position = Vector3(0.0, -0.01, 0.0)
+	base_plate.material_override = plate_mat
+	base_plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marker.add_child(base_plate)
 
-	var backplate = MeshInstance3D.new()
-	var backplate_mesh = BoxMesh.new()
-	backplate_mesh.size = Vector3(0.38, 0.075, 0.74)
-	backplate.mesh = backplate_mesh
-	backplate.position = Vector3(0.0, -0.015, -front_sign * 0.1)
-	backplate.material_override = border_mat
-	marker.add_child(backplate)
-
-	var stem_border = MeshInstance3D.new()
-	var stem_border_mesh = BoxMesh.new()
-	stem_border_mesh.size = Vector3(0.14, 0.055, 0.34)
-	stem_border.mesh = stem_border_mesh
-	stem_border.position = Vector3(0.0, 0.0, front_sign * 0.09)
-	stem_border.material_override = border_mat
-	marker.add_child(stem_border)
-
+	var inward = -front_sign
+	var base_rot = 0.0 if inward > 0.0 else 180.0
 	var shaft = MeshInstance3D.new()
 	var shaft_mesh = BoxMesh.new()
-	shaft_mesh.size = Vector3(0.09, 0.045, 0.29)
+	shaft_mesh.size = Vector3(0.04, 0.018, 0.15)
 	shaft.mesh = shaft_mesh
-	shaft.position = Vector3(0.0, 0.008, front_sign * 0.1)
+	shaft.position = Vector3(0.0, 0.002, inward * 0.025)
+	shaft.rotation_degrees.y = base_rot
 	shaft.material_override = arrow_mat
+	shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	marker.add_child(shaft)
 
-	var head_border = MeshInstance3D.new()
-	var head_border_mesh = BoxMesh.new()
-	head_border_mesh.size = Vector3(0.2, 0.055, 0.18)
-	head_border.mesh = head_border_mesh
-	head_border.position = Vector3(0.0, 0.0, -front_sign * 0.17)
-	head_border.material_override = border_mat
-	marker.add_child(head_border)
-
-	var head = MeshInstance3D.new()
-	var head_mesh = BoxMesh.new()
-	head_mesh.size = Vector3(0.15, 0.045, 0.14)
-	head.mesh = head_mesh
-	head.position = Vector3(0.0, 0.008, -front_sign * 0.17)
-	head.material_override = arrow_mat
-	marker.add_child(head)
-
 	for side in [-1.0, 1.0]:
-		var wing_border = MeshInstance3D.new()
-		var wing_border_mesh = BoxMesh.new()
-		wing_border_mesh.size = Vector3(0.13, 0.055, 0.29)
-		wing_border.mesh = wing_border_mesh
-		wing_border.position = Vector3(side * 0.101, 0.0, -front_sign * 0.255)
-		wing_border.rotation_degrees.y = side * 50.0
-		wing_border.material_override = border_mat
-		marker.add_child(wing_border)
-
 		var wing = MeshInstance3D.new()
 		var wing_mesh = BoxMesh.new()
-		wing_mesh.size = Vector3(0.087, 0.045, 0.24)
+		wing_mesh.size = Vector3(0.034, 0.018, 0.14)
 		wing.mesh = wing_mesh
-		wing.position = Vector3(side * 0.094, 0.008, -front_sign * 0.255)
-		wing.rotation_degrees.y = side * 50.0
+		wing.position = Vector3(side * 0.045, 0.002, inward * 0.095)
+		wing.rotation_degrees.y = base_rot + side * 44.0
 		wing.material_override = arrow_mat
+		wing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		marker.add_child(wing)
-
-	var core = MeshInstance3D.new()
-	var core_mesh = BoxMesh.new()
-	core_mesh.size = Vector3(0.04, 0.035, 0.2)
-	core.mesh = core_mesh
-	core.position = Vector3(0.0, 0.012, -front_sign * 0.06)
-	core.material_override = core_mat
-	marker.add_child(core)
 
 	building["entry_pos"] = layout.get("entry_inside_pos", building.get("entry_pos", Vector2(-1.0, -1.0)))
 	store_entry_indicators.append({
@@ -3086,11 +3281,25 @@ func _spawn_store_food_in_building(building: Dictionary) -> bool:
 	var interior_rect: Rect2 = building.get("store_interior_rect", fp.grow(-0.42))
 	if interior_rect.size.x < 0.8 or interior_rect.size.y < 0.8:
 		interior_rect = fp.grow(-0.42)
-	for attempt in range(24):
-		var p = Vector2(
-			rng.randf_range(interior_rect.position.x, interior_rect.position.x + interior_rect.size.x),
-			rng.randf_range(interior_rect.position.y, interior_rect.position.y + interior_rect.size.y)
-		)
+
+	var reachable_points: PackedVector2Array = building.get("store_reachable_points", PackedVector2Array())
+	if reachable_points.is_empty():
+		var entry_inside: Vector2 = building.get("entry_pos", interior_rect.get_center())
+		var blockers = building.get("store_walk_blockers", [])
+		if blockers is Array:
+			reachable_points = _store_reachable_points(interior_rect, entry_inside, blockers)
+	for attempt in range(42):
+		var p = Vector2.ZERO
+		if not reachable_points.is_empty():
+			var base = reachable_points[rng.randi_range(0, reachable_points.size() - 1)]
+			p = base + Vector2(rng.randf_range(-0.08, 0.08), rng.randf_range(-0.08, 0.08))
+			p.x = clampf(p.x, interior_rect.position.x + 0.08, interior_rect.position.x + interior_rect.size.x - 0.08)
+			p.y = clampf(p.y, interior_rect.position.y + 0.08, interior_rect.position.y + interior_rect.size.y - 0.08)
+		else:
+			p = Vector2(
+				rng.randf_range(interior_rect.position.x, interior_rect.position.x + interior_rect.size.x),
+				rng.randf_range(interior_rect.position.y, interior_rect.position.y + interior_rect.size.y)
+			)
 		if not _is_walkable(p.x, p.y, 0.12):
 			continue
 		var too_close = false
@@ -4307,7 +4516,7 @@ func _random_dir() -> Vector3:
 
 func _seed_poops(count: int) -> void:
 	for i in range(count):
-		_spawn_poop(rng.randf() < 0.5)
+		_spawn_poop(false)
 
 func _spawn_poop(prefer_dog_park: bool = false) -> void:
 	var p2 = Vector2.ZERO
@@ -4324,9 +4533,36 @@ func _spawn_poop(prefer_dog_park: bool = false) -> void:
 			found = true
 			break
 	if not found:
-		var p3 = _random_walkable_point(true, 0.1)
-		p2 = Vector2(p3.x, p3.z)
+		for attempt in range(120):
+			var candidate = Vector2(
+				rng.randf_range(0.8, MAP_W - 0.8),
+				rng.randf_range(0.8, MAP_H - 0.8)
+			)
+			if dog_park.grow(0.45).has_point(candidate):
+				continue
+			if _surface_at(candidate) != "grass":
+				continue
+			if not _is_walkable(candidate.x, candidate.y, 0.1):
+				continue
+			p2 = candidate
+			found = true
+			break
+	if not found:
+		for attempt in range(90):
+			var p3 = _random_walkable_point(true, 0.1)
+			var fallback = Vector2(p3.x, p3.z)
+			if dog_park.grow(0.45).has_point(fallback):
+				continue
+			if _surface_at(fallback) == "road":
+				continue
+			p2 = fallback
+			found = true
+			break
+	if not found:
+		return
 	if _surface_at(p2) == "road":
+		return
+	if not prefer_dog_park and dog_park.grow(0.35).has_point(p2):
 		return
 	for item in poops:
 		var pos: Vector2 = item["pos"]
@@ -4353,14 +4589,21 @@ func _spawn_poop(prefer_dog_park: bool = false) -> void:
 
 func _freya_spawn_point_near_dog_park() -> Vector3:
 	if dog_park.size.x > 0.8 and dog_park.size.y > 0.8:
-		var inner = dog_park.grow(-0.5)
-		var point = _random_walkable_point_in_rect(inner, true, FREYA_COLLISION_RADIUS, 180)
-		if point.x < 900000000.0:
-			return point
-		var nearby = dog_park.grow(2.0)
-		point = _random_walkable_point_in_rect(nearby, true, FREYA_COLLISION_RADIUS, 220)
-		if point.x < 900000000.0:
-			return point
+		var outer = dog_park.grow(3.2)
+		var inner_block = dog_park.grow(0.55)
+		var clipped = outer.intersection(Rect2(0.0, 0.0, MAP_W, MAP_H))
+		for i in range(260):
+			var p = Vector2(
+				rng.randf_range(clipped.position.x + FREYA_COLLISION_RADIUS, clipped.position.x + clipped.size.x - FREYA_COLLISION_RADIUS),
+				rng.randf_range(clipped.position.y + FREYA_COLLISION_RADIUS, clipped.position.y + clipped.size.y - FREYA_COLLISION_RADIUS)
+			)
+			if inner_block.has_point(p):
+				continue
+			if not _is_walkable(p.x, p.y, FREYA_COLLISION_RADIUS):
+				continue
+			if _surface_at(p) == "road":
+				continue
+			return Vector3(p.x, 0.0, p.y)
 	return _random_walkable_point(true, FREYA_COLLISION_RADIUS)
 
 func _random_walkable_point_in_rect(rect: Rect2, avoid_roads: bool, radius: float, attempts: int) -> Vector3:
@@ -4842,32 +5085,64 @@ func _create_dog_relation_wings(relation: String) -> Node3D:
 		var wing_base = MeshInstance3D.new()
 		wing_base.name = "WingLeft" if side < 0.0 else "WingRight"
 		var wing_mesh = BoxMesh.new()
-		wing_mesh.size = Vector3(0.14, 0.06, 0.29)
+		wing_mesh.size = Vector3(0.14, 0.06, 0.29) if relation == "enemy" else Vector3(0.11, 0.05, 0.22)
 		wing_base.mesh = wing_mesh
-		wing_base.position = Vector3(side * 0.185, 0.0, -0.03)
-		wing_base.rotation_degrees.y = side * 58.0
+		wing_base.position = Vector3(side * (0.185 if relation == "enemy" else 0.165), 0.0, -0.03)
+		wing_base.rotation_degrees.y = side * (58.0 if relation == "enemy" else 52.0)
 		wing_base.material_override = wing_mat
 		wing_base.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(wing_base)
 
-		var wing_tip = MeshInstance3D.new()
-		var tip_mesh = BoxMesh.new()
-		tip_mesh.size = Vector3(0.12, 0.052, 0.22)
-		wing_tip.mesh = tip_mesh
-		wing_tip.position = Vector3(side * 0.255, 0.0, -0.1)
-		wing_tip.rotation_degrees.y = side * 34.0
-		wing_tip.material_override = trim_mat
-		wing_tip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		wing_base.add_child(wing_tip)
+		if relation == "friendly":
+			var feather_count = 4
+			for fi in range(feather_count):
+				var feather = MeshInstance3D.new()
+				var feather_mesh = BoxMesh.new()
+				var t = float(fi) / float(feather_count - 1)
+				feather_mesh.size = Vector3(
+					lerpf(0.078, 0.034, t),
+					lerpf(0.031, 0.022, t),
+					lerpf(0.17, 0.1, t)
+				)
+				feather.mesh = feather_mesh
+				feather.position = Vector3(
+					side * lerpf(0.05, 0.2, t),
+					-0.012 - t * 0.018,
+					-0.032 - t * 0.065
+				)
+				feather.rotation_degrees = Vector3(0.0, side * lerpf(18.0, 38.0, t), side * lerpf(6.0, 13.0, t))
+				feather.material_override = wing_mat
+				feather.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				wing_base.add_child(feather)
+
+			var wing_tip_cap = MeshInstance3D.new()
+			var cap_mesh = SphereMesh.new()
+			cap_mesh.radius = 0.035
+			cap_mesh.height = 0.07
+			wing_tip_cap.mesh = cap_mesh
+			wing_tip_cap.position = Vector3(side * 0.235, -0.045, -0.104)
+			wing_tip_cap.material_override = trim_mat
+			wing_tip_cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			wing_base.add_child(wing_tip_cap)
+		else:
+			var wing_tip = MeshInstance3D.new()
+			var tip_mesh = BoxMesh.new()
+			tip_mesh.size = Vector3(0.12, 0.052, 0.22)
+			wing_tip.mesh = tip_mesh
+			wing_tip.position = Vector3(side * 0.255, 0.0, -0.1)
+			wing_tip.rotation_degrees.y = side * 34.0
+			wing_tip.material_override = trim_mat
+			wing_tip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			wing_base.add_child(wing_tip)
 
 	if relation == "friendly":
 		var halo = MeshInstance3D.new()
 		halo.name = "Halo"
 		var halo_mesh = TorusMesh.new()
-		halo_mesh.inner_radius = 0.11
-		halo_mesh.outer_radius = 0.15
+		halo_mesh.inner_radius = 0.125
+		halo_mesh.outer_radius = 0.17
 		halo.mesh = halo_mesh
-		halo.position = Vector3(0.0, 0.22, -0.02)
+		halo.position = Vector3(0.0, 0.23, -0.01)
 		halo.rotation_degrees.x = 88.0
 		halo.material_override = trim_mat
 		halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -6289,9 +6564,9 @@ func _update_vomit_sprays(delta: float) -> void:
 func _update_poops(delta: float) -> void:
 	poop_spawn_timer -= delta
 	if poop_spawn_timer <= 0.0:
-		poop_spawn_timer = rng.randf_range(2.2, 4.8)
-		if poops.size() < 34:
-			_spawn_poop(rng.randf() < 0.62)
+		poop_spawn_timer = rng.randf_range(1.8, 3.8)
+		if poops.size() < 48:
+			_spawn_poop(false)
 
 func _update_vomit_puddles(delta: float) -> void:
 	for i in range(vomit_puddles.size() - 1, -1, -1):
@@ -6337,9 +6612,9 @@ func _update_store_entry_indicators(delta: float = 0.016) -> void:
 		var base: Vector3 = item.get("base", Vector3.ZERO)
 		var front_sign = float(item.get("front_sign", 1.0))
 		var phase = float(item.get("phase", 0.0))
-		var t = world_time * 2.4 + phase
-		var bob = 0.06 * sin(t * 1.7)
-		var glide = (0.5 + 0.5 * sin(t)) * 0.24
+		var t = world_time * 1.9 + phase
+		var bob = 0.014 * sin(t * 1.6)
+		var glide = (0.5 + 0.5 * sin(t * 0.92)) * 0.055
 		marker.position = base + Vector3(0.0, bob, -front_sign * glide)
 
 func _point_in_rect_list(rects: Array, p: Vector2, pad: float = 0.0) -> bool:
@@ -6952,6 +7227,23 @@ func _run_headless_smoke_checks() -> bool:
 	var failures: Array[String] = []
 	var park_center = dog_park.position + dog_park.size * 0.5
 	var initial_spawn_distance = Vector2(freya.global_position.x, freya.global_position.z).distance_to(park_center)
+	var expected_blocks = CITY_BLOCK_COLUMNS * CITY_BLOCK_ROWS
+	if city_blocks.size() != expected_blocks:
+		failures.append("city_block_count_%d_expected_%d" % [city_blocks.size(), expected_blocks])
+	var center_block = _city_center_block()
+	if center_block.is_empty():
+		failures.append("center_block_missing")
+	else:
+		var center_rect: Rect2 = center_block.get("rect", Rect2())
+		if center_rect.size.x <= 0.01 or center_rect.size.y <= 0.01:
+			failures.append("center_block_rect_invalid")
+		else:
+			if not center_rect.has_point(park_center):
+				failures.append("dog_park_not_center_block")
+			elif not center_rect.encloses(dog_park):
+				failures.append("dog_park_not_fully_inside_center_block")
+	if dog_park.has_point(Vector2(freya.global_position.x, freya.global_position.z)):
+		failures.append("freya_spawned_inside_dog_park")
 
 	# Poop-eating check
 	var test_poop = Node3D.new()
@@ -7730,20 +8022,6 @@ func _create_ui() -> void:
 	zoom_label.add_theme_color_override("font_color", Color(0.9, 0.94, 0.97, 0.95))
 	top_row.add_child(zoom_label)
 
-	var zoom_out_button = Button.new()
-	zoom_out_button.text = "-"
-	zoom_out_button.custom_minimum_size = Vector2(24.0, 22.0)
-	zoom_out_button.add_theme_font_size_override("font_size", 18)
-	zoom_out_button.pressed.connect(_on_minimap_zoom_step.bind(-MINIMAP_ZOOM_STEP))
-	top_row.add_child(zoom_out_button)
-
-	var zoom_in_button = Button.new()
-	zoom_in_button.text = "+"
-	zoom_in_button.custom_minimum_size = Vector2(24.0, 22.0)
-	zoom_in_button.add_theme_font_size_override("font_size", 18)
-	zoom_in_button.pressed.connect(_on_minimap_zoom_step.bind(MINIMAP_ZOOM_STEP))
-	top_row.add_child(zoom_in_button)
-
 	minimap_zoom_slider = HSlider.new()
 	minimap_zoom_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	minimap_zoom_slider.custom_minimum_size = Vector2(0.0, 16.0)
@@ -8223,6 +8501,11 @@ func _update_minimap_dynamic(delta: float) -> void:
 	if map_forward.length_squared() < 0.000001:
 		map_forward = Vector3(1.0, 0.0, -1.0)
 	map_forward = map_forward.normalized()
+	var freya_forward = -freya.global_transform.basis.z
+	freya_forward.y = 0.0
+	if freya_forward.length_squared() < 0.000001:
+		freya_forward = map_forward
+	freya_forward = freya_forward.normalized()
 
 	minimap.update_dynamic(
 		Vector2(freya.global_position.x, freya.global_position.z),
@@ -8230,6 +8513,7 @@ func _update_minimap_dynamic(delta: float) -> void:
 		poop_points,
 		vomit_points,
 		Vector2(map_forward.x, map_forward.z),
+		Vector2(freya_forward.x, freya_forward.z),
 		claim_points["poles_freya"],
 		claim_points["trees_freya"],
 		claim_points["hydrants_freya"],
