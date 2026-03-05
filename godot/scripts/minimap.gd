@@ -321,7 +321,7 @@ func _draw() -> void:
 		var forward_map_sample = _to_map_pos(freya_position + freya_forward.normalized(), world_origin, scale_vec, angle, draw_rect)
 		var mapped = forward_map_sample - freya_map
 		if mapped.length_squared() > 0.0001:
-			pointer_dir = mapped.normalized()
+			pointer_dir = -mapped.normalized()
 	var pointer_side = Vector2(-pointer_dir.y, pointer_dir.x)
 	var pointer_shadow = PackedVector2Array([
 		freya_map + pointer_dir * 6.6 + Vector2(0.9, 0.9),

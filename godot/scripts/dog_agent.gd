@@ -433,6 +433,8 @@ func _compute_model_bounds(root: Node3D, include_root_transform: bool = false) -
 		for c in n.get_children():
 			if c is Node3D:
 				var child := c as Node3D
+				if child.name == "DogRelationWings":
+					continue
 				node_stack.append(child)
 				xf_stack.append(xf * child.transform)
 

@@ -19,6 +19,12 @@ const FREYA_BASE_SPEED = 4.6
 const FREYA_RUN_MULT = 1.55
 const FREYA_STICK_RUN_MULT = 1.36
 const CAMERA_ORBIT_SPEED = 1.95
+const CAMERA_PLANAR_BASE = 16.4
+const CAMERA_HEIGHT_BASE = 14.3
+const CAMERA_ZOOM_MIN = 8.6
+const CAMERA_ZOOM_MAX = 24.5
+const CAMERA_ZOOM_STEP = 1.0
+const CAMERA_ZOOM_SMOOTH = 7.0
 const STICK_VISUAL_SCALE = 1.2
 const STICK_THICKNESS_MULT = 1.45
 const STICK_MOUTH_FORWARD_OFFSET = -0.08
@@ -437,6 +443,8 @@ var freya_move_dir = Vector3.ZERO
 var freya_social_dance_phase = 0.0
 var camera_focus = Vector3.ZERO
 var camera_orbit_angle = 0.0
+var camera_planar_distance = CAMERA_PLANAR_BASE
+var camera_zoom_target = CAMERA_PLANAR_BASE
 
 var world_time = 0.0
 var poop_spawn_timer = 4.1
@@ -637,8 +645,10 @@ func _configure_input() -> void:
 	_ensure_action("run", [Key.KEY_SHIFT])
 	_remove_action_key("eat", int(Key.KEY_E))
 	_ensure_action("eat", [Key.KEY_F])
-	_ensure_action("camera_rotate_ccw", [Key.KEY_Q])
-	_ensure_action("camera_rotate_cw", [Key.KEY_E])
+	_remove_action_key("camera_rotate_ccw", int(Key.KEY_Q))
+	_remove_action_key("camera_rotate_cw", int(Key.KEY_E))
+	_ensure_action("camera_rotate_ccw", [Key.KEY_E])
+	_ensure_action("camera_rotate_cw", [Key.KEY_Q])
 	_ensure_action("vomit", [Key.KEY_SPACE])
 	_ensure_action("drop_stick", [Key.KEY_V])
 	_ensure_action("claim", [Key.KEY_R])
@@ -655,11 +665,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not mouse_event.pressed:
 			return
 		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_on_minimap_zoom_step(MINIMAP_ZOOM_STEP)
+			_adjust_camera_zoom(-CAMERA_ZOOM_STEP)
 			get_viewport().set_input_as_handled()
 		elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_on_minimap_zoom_step(-MINIMAP_ZOOM_STEP)
+			_adjust_camera_zoom(CAMERA_ZOOM_STEP)
 			get_viewport().set_input_as_handled()
+
+func _adjust_camera_zoom(delta_distance: float) -> void:
+	camera_zoom_target = clampf(camera_zoom_target + delta_distance, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
 
 func _ensure_action(name: String, keys: Array) -> void:
 	if not InputMap.has_action(name):
@@ -4167,6 +4180,8 @@ func _spawn_freya_and_dogs() -> void:
 		var height_mult_secondary = float(secondary_def.get("target_height_mult", height_mult_primary))
 		var target_length = FREYA_MODEL_TARGET_LENGTH * lerpf(length_mult_secondary, length_mult_primary, primary_ratio) * size_mult
 		var target_height = FREYA_MODEL_TARGET_HEIGHT * lerpf(height_mult_secondary, height_mult_primary, primary_ratio) * size_mult
+		target_length = clampf(target_length, FREYA_MODEL_TARGET_LENGTH * 0.62, FREYA_MODEL_TARGET_LENGTH * 1.34)
+		target_height = clampf(target_height, FREYA_MODEL_TARGET_HEIGHT * 0.54, FREYA_MODEL_TARGET_HEIGHT * 1.22)
 		var model_scale = _npc_model_scale_for_path(dog_model)
 
 		var breed_profile = str(primary_def.get("breed_profile", "mixed"))
@@ -4907,11 +4922,18 @@ func _update_dogs(delta: float) -> void:
 			if current_surface == "grass":
 				state["wander"] = minf(float(state["wander"]), 0.35)
 
+		var near: float = dog.global_position.distance_to(freya.global_position)
+		var in_social_range = near < SOCIALIZE_RANGE
+		if friendly_social and (not aggressive_social) and in_social_range:
+			var sniff_result = _apply_mutual_butt_sniff(dog, state, delta)
+			dir = sniff_result.get("dir", dir)
+			state = sniff_result.get("state", state)
+			near = float(sniff_result.get("near", near))
+			in_social_range = near < SOCIALIZE_RANGE
+
 		dog.update_motion(delta, dir, false, false)
 		state["dir"] = dir
 
-		var near: float = dog.global_position.distance_to(freya.global_position)
-		var in_social_range = near < SOCIALIZE_RANGE
 		if socializing and in_social_range:
 			freya_social = clamp(freya_social + delta * (31.0 if aggressive_social else 22.0), 0.0, 100.0)
 			if friendly_social and near < 3.4 and near < passive_social_target_dist:
@@ -4958,6 +4980,53 @@ func _count_dogs_near_freya(radius: float) -> int:
 		if dn.global_position.distance_to(freya.global_position) < radius:
 			count += 1
 	return count
+
+func _node_forward_2d(node: Node3D) -> Vector2:
+	if node == null or not is_instance_valid(node):
+		return Vector2.RIGHT
+	var f3 = -node.global_transform.basis.z
+	f3.y = 0.0
+	if f3.length_squared() < 0.0001:
+		return Vector2.RIGHT
+	return Vector2(f3.x, f3.z).normalized()
+
+func _apply_mutual_butt_sniff(dog: Node3D, state: Dictionary, delta: float) -> Dictionary:
+	var result = {
+		"dir": state.get("dir", Vector3.FORWARD),
+		"state": state,
+		"near": dog.global_position.distance_to(freya.global_position)
+	}
+	if dog == null or not is_instance_valid(dog) or freya == null or not is_instance_valid(freya):
+		return result
+
+	var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	var dog_forward = _node_forward_2d(dog)
+	var freya_forward = _node_forward_2d(freya)
+	var dog_butt = dog_pos - dog_forward * 0.4
+	var freya_butt = freya_pos - freya_forward * 0.43
+
+	var dog_to_freya_butt = freya_butt - dog_pos
+	var freya_to_dog_butt = dog_butt - freya_pos
+	if dog_to_freya_butt.length_squared() > 0.0001:
+		var sniff_dir = dog_to_freya_butt.normalized()
+		var sniff3 = Vector3(sniff_dir.x, 0.0, sniff_dir.y)
+		result["dir"] = sniff3
+		if dog.has_method("force_face_direction"):
+			dog.call("force_face_direction", sniff3, delta * 4.6)
+	if freya_to_dog_butt.length_squared() > 0.0001 and freya.has_method("force_face_direction"):
+		var freya_sniff = freya_to_dog_butt.normalized()
+		freya.call("force_face_direction", Vector3(freya_sniff.x, 0.0, freya_sniff.y), delta * 4.4)
+
+	if dog_to_freya_butt.length_squared() > 0.0001:
+		var dog_step = minf(0.9, float(state.get("speed", 2.0)) * 0.46) * delta
+		var dog_target = dog_pos + dog_to_freya_butt.normalized() * dog_step
+		if _is_walkable(dog_target.x, dog_target.y, DOG_COLLISION_RADIUS) and _surface_at(dog_target) != "road":
+			dog.global_position.x = dog_target.x
+			dog.global_position.z = dog_target.y
+
+	result["near"] = dog.global_position.distance_to(freya.global_position)
+	return result
 
 func _update_aggressive_bark_context(delta: float, aggressive_social: bool) -> void:
 	aggressive_bark_nearby_count = _count_dogs_near_freya(SOCIALIZE_RANGE + 0.05) if aggressive_social else 0
@@ -7504,11 +7573,20 @@ func _update_camera(delta: float) -> void:
 	var target: Vector3 = freya.global_position + Vector3(0.0, 1.0, 0.0) + look_ahead
 	if delta <= 0.0:
 		camera_focus = target
+		camera_planar_distance = camera_zoom_target
 	else:
 		camera_focus = camera_focus.lerp(target, clamp(delta * 5.2, 0.0, 1.0))
+		camera_planar_distance = lerpf(
+			camera_planar_distance,
+			camera_zoom_target,
+			clampf(delta * CAMERA_ZOOM_SMOOTH, 0.0, 1.0)
+		)
 
-	var planar_offset = Vector3(-11.6, 0.0, 11.6).rotated(Vector3.UP, camera_orbit_angle)
-	var offset = Vector3(planar_offset.x, 14.3, planar_offset.z)
+	var base_planar = Vector3(-1.0, 0.0, 1.0).normalized() * camera_planar_distance
+	var planar_offset = base_planar.rotated(Vector3.UP, camera_orbit_angle)
+	var zoom_ratio = camera_planar_distance / CAMERA_PLANAR_BASE
+	var cam_height = CAMERA_HEIGHT_BASE * clampf(pow(zoom_ratio, 0.88), 0.68, 1.58)
+	var offset = Vector3(planar_offset.x, cam_height, planar_offset.z)
 	camera_node.global_position = camera_focus + offset
 	camera_node.look_at(camera_focus + Vector3(0.0, -0.15, 0.0), Vector3.UP)
 
