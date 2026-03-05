@@ -4,6 +4,7 @@ const DogAgentScript = preload("res://scripts/dog_agent.gd")
 const BuildingFactoryScript = preload("res://scripts/building_factory.gd")
 const TreeFactoryScript = preload("res://scripts/tree_factory.gd")
 const MiniMapScript = preload("res://scripts/minimap.gd")
+const ClaimUtilsScript = preload("res://scripts/claim_utils.gd")
 
 const MAP_W = 144.0
 const MAP_H = 118.0
@@ -78,9 +79,9 @@ const CLAIM_TARGET_NONE = 0
 const CLAIM_TARGET_LIGHT_POLE = 1
 const CLAIM_TARGET_TREE = 2
 const CLAIM_TARGET_FIRE_HYDRANT = 3
-const CLAIM_OWNER_NONE = ""
-const CLAIM_OWNER_FREYA = "freya"
-const CLAIM_OWNER_ENEMY = "enemy"
+const CLAIM_OWNER_NONE = ClaimUtilsScript.OWNER_NONE
+const CLAIM_OWNER_FREYA = ClaimUtilsScript.OWNER_FREYA
+const CLAIM_OWNER_ENEMY = ClaimUtilsScript.OWNER_ENEMY
 const CLAIM_RANGE = 1.8
 const CLAIM_FILL_TIME = 2.75
 const CLAIM_RING_PULSE_SPEED = 2.25
@@ -4609,22 +4610,10 @@ func _update_dogs(delta: float) -> void:
 	if aggressive_social:
 		friendly_social = false
 	var socializing = friendly_social or aggressive_social
-	aggressive_bark_nearby_count = 0
 	var passive_social_target = Vector3.ZERO
 	var passive_social_target_dist = 1000000.0
 	var has_passive_social_target = false
-	if aggressive_social:
-		for d in dogs:
-			var dn: Node3D = d.get("node", null)
-			if dn == null or not is_instance_valid(dn):
-				continue
-			if dn.global_position.distance_to(freya.global_position) < SOCIALIZE_RANGE + 0.05:
-				aggressive_bark_nearby_count += 1
-	if aggressive_social:
-		var pack_target = float(max(1, aggressive_bark_nearby_count))
-		aggressive_bark_pressure = lerpf(aggressive_bark_pressure, pack_target, clampf(delta * 7.0, 0.0, 1.0))
-	else:
-		aggressive_bark_pressure = maxf(1.0, aggressive_bark_pressure - delta * 2.4)
+	_update_aggressive_bark_context(delta, aggressive_social)
 
 	for i in range(dogs.size()):
 		var state: Dictionary = dogs[i]
@@ -4706,35 +4695,70 @@ func _update_dogs(delta: float) -> void:
 					_queue_bark_sequence(true, rng.randi_range(1, 2), false)
 					state["bark"] = rng.randf_range(0.52, 0.96)
 
-		var friendly_timer = float(state.get("friendly_timer", 0.0))
-		var aggressive_timer = float(state.get("aggressive_timer", 0.0))
-		if in_social_range:
-			if friendly_social:
-				friendly_timer = minf(DOG_RELATION_ALIGN_TIME, friendly_timer + delta)
-				aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.82)
-			elif aggressive_social:
-				aggressive_timer = minf(DOG_RELATION_ALIGN_TIME, aggressive_timer + delta)
-				friendly_timer = maxf(0.0, friendly_timer - delta * 0.82)
-			else:
-				friendly_timer = maxf(0.0, friendly_timer - delta * 0.24)
-				aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.24)
-		else:
-			friendly_timer = maxf(0.0, friendly_timer - delta * 0.55)
-			aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.55)
-		state["friendly_timer"] = friendly_timer
-		state["aggressive_timer"] = aggressive_timer
-
-		var relation = str(state.get("relation", "neutral"))
-		if friendly_timer >= DOG_RELATION_ALIGN_TIME and relation != "friendly":
-			state = _set_dog_relation(state, "friendly")
-		elif aggressive_timer >= DOG_RELATION_ALIGN_TIME and relation != "enemy":
-			state = _set_dog_relation(state, "enemy")
+		state = _advance_dog_relation_timers(state, delta, in_social_range, friendly_social, aggressive_social)
+		state = _resolve_dog_relation_transition(state)
 
 		state = _update_enemy_claim_for_dog(state, delta)
 		_update_dog_relation_wings(state)
 		dogs[i] = state
 
 	_update_passive_social_dance(delta, friendly_social, aggressive_social, has_passive_social_target, passive_social_target)
+
+func _count_dogs_near_freya(radius: float) -> int:
+	if freya == null:
+		return 0
+	var count = 0
+	for d in dogs:
+		var dn: Node3D = d.get("node", null)
+		if dn == null or not is_instance_valid(dn):
+			continue
+		if dn.global_position.distance_to(freya.global_position) < radius:
+			count += 1
+	return count
+
+func _update_aggressive_bark_context(delta: float, aggressive_social: bool) -> void:
+	aggressive_bark_nearby_count = _count_dogs_near_freya(SOCIALIZE_RANGE + 0.05) if aggressive_social else 0
+	if aggressive_social:
+		var pack_target = float(max(1, aggressive_bark_nearby_count))
+		aggressive_bark_pressure = lerpf(aggressive_bark_pressure, pack_target, clampf(delta * 7.0, 0.0, 1.0))
+	else:
+		aggressive_bark_pressure = maxf(1.0, aggressive_bark_pressure - delta * 2.4)
+
+func _advance_dog_relation_timers(
+	state: Dictionary,
+	delta: float,
+	in_social_range: bool,
+	friendly_social: bool,
+	aggressive_social: bool
+) -> Dictionary:
+	var friendly_timer = float(state.get("friendly_timer", 0.0))
+	var aggressive_timer = float(state.get("aggressive_timer", 0.0))
+	if in_social_range:
+		if friendly_social:
+			friendly_timer = minf(DOG_RELATION_ALIGN_TIME, friendly_timer + delta)
+			aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.82)
+		elif aggressive_social:
+			aggressive_timer = minf(DOG_RELATION_ALIGN_TIME, aggressive_timer + delta)
+			friendly_timer = maxf(0.0, friendly_timer - delta * 0.82)
+		else:
+			friendly_timer = maxf(0.0, friendly_timer - delta * 0.24)
+			aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.24)
+	else:
+		friendly_timer = maxf(0.0, friendly_timer - delta * 0.55)
+		aggressive_timer = maxf(0.0, aggressive_timer - delta * 0.55)
+	state["friendly_timer"] = friendly_timer
+	state["aggressive_timer"] = aggressive_timer
+	return state
+
+func _resolve_dog_relation_transition(state: Dictionary) -> Dictionary:
+	var friendly_timer = float(state.get("friendly_timer", 0.0))
+	var aggressive_timer = float(state.get("aggressive_timer", 0.0))
+	var relation = str(state.get("relation", "neutral"))
+	if friendly_timer >= DOG_RELATION_ALIGN_TIME and relation != "friendly":
+		return _set_dog_relation(state, "friendly")
+	if aggressive_timer >= DOG_RELATION_ALIGN_TIME and relation != "enemy":
+		return _set_dog_relation(state, "enemy")
+	return state
 
 func _claim_target_name(target_type: int) -> String:
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
@@ -5156,6 +5180,18 @@ func _handle_actions() -> void:
 		else:
 			_show_status("No stick to drop", 0.55)
 
+func _claim_owner_from_entry(entry: Dictionary) -> String:
+	return ClaimUtilsScript.owner_from_entry(entry)
+
+func _entry_is_claimed_by(entry: Dictionary, owner: String) -> bool:
+	return ClaimUtilsScript.is_claimed_by(entry, owner)
+
+func _entry_is_claimed(entry: Dictionary) -> bool:
+	return ClaimUtilsScript.is_claimed(entry)
+
+func _apply_claim_owner_to_entry(entry: Dictionary, owner: String) -> Dictionary:
+	return ClaimUtilsScript.apply_owner(entry, owner)
+
 func _find_nearest_claim_target() -> Dictionary:
 	var found := false
 	var best_dist_sq := CLAIM_RANGE * CLAIM_RANGE
@@ -5165,7 +5201,7 @@ func _find_nearest_claim_target() -> Dictionary:
 
 	for i in range(street_poles.size()):
 		var pole: Dictionary = street_poles[i]
-		if str(pole.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(pole, CLAIM_OWNER_FREYA):
 			continue
 		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
 		var dist_sq = freya_pos.distance_squared_to(pos)
@@ -5177,7 +5213,7 @@ func _find_nearest_claim_target() -> Dictionary:
 
 	for i in range(trees.size()):
 		var tree: Dictionary = trees[i]
-		if str(tree.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(tree, CLAIM_OWNER_FREYA):
 			continue
 		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
 		var dist_sq = freya_pos.distance_squared_to(pos)
@@ -5189,7 +5225,7 @@ func _find_nearest_claim_target() -> Dictionary:
 
 	for i in range(fire_hydrants.size()):
 		var hydrant: Dictionary = fire_hydrants[i]
-		if str(hydrant.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(hydrant, CLAIM_OWNER_FREYA):
 			continue
 		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
 		var dist_sq = freya_pos.distance_squared_to(pos)
@@ -5205,39 +5241,24 @@ func _claim_target_owner(target_type: int, index: int) -> String:
 	if index < 0:
 		return CLAIM_OWNER_NONE
 	if target_type == CLAIM_TARGET_LIGHT_POLE and index < street_poles.size():
-		return str(street_poles[index].get("claimed_by", CLAIM_OWNER_NONE))
+		return _claim_owner_from_entry(street_poles[index])
 	if target_type == CLAIM_TARGET_TREE and index < trees.size():
-		return str(trees[index].get("claimed_by", CLAIM_OWNER_NONE))
+		return _claim_owner_from_entry(trees[index])
 	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index < fire_hydrants.size():
-		return str(fire_hydrants[index].get("claimed_by", CLAIM_OWNER_NONE))
+		return _claim_owner_from_entry(fire_hydrants[index])
 	return CLAIM_OWNER_NONE
 
 func _set_claim_owner(target_type: int, index: int, owner: String) -> void:
 	if index < 0:
 		return
-	var owner_key = owner
-	if owner_key != CLAIM_OWNER_FREYA and owner_key != CLAIM_OWNER_ENEMY:
-		owner_key = CLAIM_OWNER_NONE
-	var is_claimed = owner_key != CLAIM_OWNER_NONE
+	var owner_key = ClaimUtilsScript.normalized_owner(owner)
 	if target_type == CLAIM_TARGET_LIGHT_POLE and index < street_poles.size():
-		var pole: Dictionary = street_poles[index]
-		pole["claimed_by"] = owner_key
-		pole["claimed"] = is_claimed
-		pole["claim_progress"] = 0.0
-		street_poles[index] = pole
+		street_poles[index] = _apply_claim_owner_to_entry(street_poles[index], owner_key)
 	elif target_type == CLAIM_TARGET_TREE and index < trees.size():
-		var tree: Dictionary = trees[index]
-		tree["claimed_by"] = owner_key
-		tree["claimed"] = is_claimed
-		tree["claim_progress"] = 0.0
-		trees[index] = tree
+		trees[index] = _apply_claim_owner_to_entry(trees[index], owner_key)
 	elif target_type == CLAIM_TARGET_FIRE_HYDRANT and index < fire_hydrants.size():
-		var hydrant: Dictionary = fire_hydrants[index]
-		hydrant["claimed_by"] = owner_key
-		hydrant["claimed"] = is_claimed
-		hydrant["claim_progress"] = 0.0
-		fire_hydrants[index] = hydrant
-	if is_claimed:
+		fire_hydrants[index] = _apply_claim_owner_to_entry(fire_hydrants[index], owner_key)
+	if owner_key != CLAIM_OWNER_NONE:
 		_ensure_claim_ring_for_target(target_type, index)
 
 func _find_nearest_claim_target_owned_by(origin: Vector2, owner: String, max_range: float) -> Dictionary:
@@ -5248,7 +5269,7 @@ func _find_nearest_claim_target_owned_by(origin: Vector2, owner: String, max_ran
 
 	for i in range(street_poles.size()):
 		var pole: Dictionary = street_poles[i]
-		if str(pole.get("claimed_by", CLAIM_OWNER_NONE)) != owner:
+		if not _entry_is_claimed_by(pole, owner):
 			continue
 		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
 		var dist_sq = origin.distance_squared_to(pos)
@@ -5260,7 +5281,7 @@ func _find_nearest_claim_target_owned_by(origin: Vector2, owner: String, max_ran
 
 	for i in range(trees.size()):
 		var tree: Dictionary = trees[i]
-		if str(tree.get("claimed_by", CLAIM_OWNER_NONE)) != owner:
+		if not _entry_is_claimed_by(tree, owner):
 			continue
 		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
 		var dist_sq = origin.distance_squared_to(pos)
@@ -5272,7 +5293,7 @@ func _find_nearest_claim_target_owned_by(origin: Vector2, owner: String, max_ran
 
 	for i in range(fire_hydrants.size()):
 		var hydrant: Dictionary = fire_hydrants[i]
-		if str(hydrant.get("claimed_by", CLAIM_OWNER_NONE)) != owner:
+		if not _entry_is_claimed_by(hydrant, owner):
 			continue
 		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
 		var dist_sq = origin.distance_squared_to(pos)
@@ -5332,7 +5353,7 @@ func _reset_claim_progress(target_type: int, index: int) -> void:
 		if index >= street_poles.size():
 			return
 		var pole: Dictionary = street_poles[index]
-		if str(pole.get("claimed_by", CLAIM_OWNER_NONE)) != CLAIM_OWNER_FREYA:
+		if not _entry_is_claimed_by(pole, CLAIM_OWNER_FREYA):
 			pole["claim_progress"] = 0.0
 			street_poles[index] = pole
 		return
@@ -5340,7 +5361,7 @@ func _reset_claim_progress(target_type: int, index: int) -> void:
 		if index >= trees.size():
 			return
 		var tree: Dictionary = trees[index]
-		if str(tree.get("claimed_by", CLAIM_OWNER_NONE)) != CLAIM_OWNER_FREYA:
+		if not _entry_is_claimed_by(tree, CLAIM_OWNER_FREYA):
 			tree["claim_progress"] = 0.0
 			trees[index] = tree
 		return
@@ -5348,7 +5369,7 @@ func _reset_claim_progress(target_type: int, index: int) -> void:
 		if index >= fire_hydrants.size():
 			return
 		var hydrant: Dictionary = fire_hydrants[index]
-		if str(hydrant.get("claimed_by", CLAIM_OWNER_NONE)) != CLAIM_OWNER_FREYA:
+		if not _entry_is_claimed_by(hydrant, CLAIM_OWNER_FREYA):
 			hydrant["claim_progress"] = 0.0
 			fire_hydrants[index] = hydrant
 
@@ -5447,6 +5468,32 @@ func _claim_progress_for_target(target_type: int, index: int) -> float:
 	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
 		return clampf(float(fire_hydrants[index].get("claim_progress", 0.0)), 0.0, 1.0)
 	return 0.0
+
+func _claim_entry_for_target(target_type: int, index: int) -> Dictionary:
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		return street_poles[index]
+	if target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		return trees[index]
+	if target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		return fire_hydrants[index]
+	return {}
+
+func _set_claim_entry_for_target(target_type: int, index: int, entry: Dictionary) -> void:
+	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
+		street_poles[index] = entry
+	elif target_type == CLAIM_TARGET_TREE and index >= 0 and index < trees.size():
+		trees[index] = entry
+	elif target_type == CLAIM_TARGET_FIRE_HYDRANT and index >= 0 and index < fire_hydrants.size():
+		fire_hydrants[index] = entry
+
+func _advance_claim_progress(target_type: int, index: int, delta: float, fill_time: float) -> bool:
+	var entry = _claim_entry_for_target(target_type, index)
+	if entry.is_empty():
+		return false
+	var progress = clampf(float(entry.get("claim_progress", 0.0)) + delta / maxf(0.001, fill_time), 0.0, 1.0)
+	entry["claim_progress"] = progress
+	_set_claim_entry_for_target(target_type, index, entry)
+	return progress >= 1.0
 
 func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
 	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
@@ -5703,31 +5750,9 @@ func _update_claiming(delta: float) -> void:
 	active_claim_target_index = target_index
 	_update_claim_pee_dribble(delta)
 
-	var claimed_now = false
-	if target_type == CLAIM_TARGET_LIGHT_POLE:
-		var pole: Dictionary = street_poles[target_index]
-		var progress = clampf(float(pole.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
-		pole["claim_progress"] = progress
-		street_poles[target_index] = pole
-		if progress >= 1.0:
-			_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
-			claimed_now = true
-	elif target_type == CLAIM_TARGET_TREE:
-		var tree: Dictionary = trees[target_index]
-		var progress = clampf(float(tree.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
-		tree["claim_progress"] = progress
-		trees[target_index] = tree
-		if progress >= 1.0:
-			_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
-			claimed_now = true
-	elif target_type == CLAIM_TARGET_FIRE_HYDRANT:
-		var hydrant: Dictionary = fire_hydrants[target_index]
-		var progress = clampf(float(hydrant.get("claim_progress", 0.0)) + delta / CLAIM_FILL_TIME, 0.0, 1.0)
-		hydrant["claim_progress"] = progress
-		fire_hydrants[target_index] = hydrant
-		if progress >= 1.0:
-			_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
-			claimed_now = true
+	var claimed_now = _advance_claim_progress(target_type, target_index, delta, CLAIM_FILL_TIME)
+	if claimed_now:
+		_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
 
 	if not claimed_now:
 		return
@@ -5760,8 +5785,8 @@ func _update_claim_rings() -> void:
 		if ring == null or not is_instance_valid(ring):
 			continue
 		var ring_node := ring as Node3D
-		var owner = str(pole.get("claimed_by", CLAIM_OWNER_NONE))
-		var claimed = owner != CLAIM_OWNER_NONE
+		var owner = _claim_owner_from_entry(pole)
+		var claimed = _entry_is_claimed(pole)
 		ring_node.visible = claimed
 		if not claimed:
 			continue
@@ -5777,8 +5802,8 @@ func _update_claim_rings() -> void:
 		if ring == null or not is_instance_valid(ring):
 			continue
 		var ring_node := ring as Node3D
-		var owner = str(tree.get("claimed_by", CLAIM_OWNER_NONE))
-		var claimed = owner != CLAIM_OWNER_NONE
+		var owner = _claim_owner_from_entry(tree)
+		var claimed = _entry_is_claimed(tree)
 		ring_node.visible = claimed
 		if not claimed:
 			continue
@@ -5794,8 +5819,8 @@ func _update_claim_rings() -> void:
 		if ring == null or not is_instance_valid(ring):
 			continue
 		var ring_node := ring as Node3D
-		var owner = str(hydrant.get("claimed_by", CLAIM_OWNER_NONE))
-		var claimed = owner != CLAIM_OWNER_NONE
+		var owner = _claim_owner_from_entry(hydrant)
+		var claimed = _entry_is_claimed(hydrant)
 		ring_node.visible = claimed
 		if not claimed:
 			continue
@@ -7865,21 +7890,21 @@ func _update_stats_overlay() -> void:
 func _claimed_light_pole_count() -> int:
 	var total = 0
 	for pole in street_poles:
-		if str(pole.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(pole, CLAIM_OWNER_FREYA):
 			total += 1
 	return total
 
 func _claimed_tree_count() -> int:
 	var total = 0
 	for tree in trees:
-		if str(tree.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(tree, CLAIM_OWNER_FREYA):
 			total += 1
 	return total
 
 func _claimed_fire_hydrant_count() -> int:
 	var total = 0
 	for hydrant in fire_hydrants:
-		if str(hydrant.get("claimed_by", CLAIM_OWNER_NONE)) == CLAIM_OWNER_FREYA:
+		if _entry_is_claimed_by(hydrant, CLAIM_OWNER_FREYA):
 			total += 1
 	return total
 
@@ -8191,33 +8216,7 @@ func _update_minimap_dynamic(delta: float) -> void:
 	for v in vomit_puddles:
 		vomit_points.append(v["pos"])
 
-	var claimed_poles_freya = PackedVector2Array()
-	var claimed_trees_freya = PackedVector2Array()
-	var claimed_hydrants_freya = PackedVector2Array()
-	var claimed_poles_enemy = PackedVector2Array()
-	var claimed_trees_enemy = PackedVector2Array()
-	var claimed_hydrants_enemy = PackedVector2Array()
-	for pole in street_poles:
-		var owner = str(pole.get("claimed_by", CLAIM_OWNER_NONE))
-		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
-		if owner == CLAIM_OWNER_FREYA:
-			claimed_poles_freya.append(pos)
-		elif owner == CLAIM_OWNER_ENEMY:
-			claimed_poles_enemy.append(pos)
-	for tree in trees:
-		var owner = str(tree.get("claimed_by", CLAIM_OWNER_NONE))
-		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
-		if owner == CLAIM_OWNER_FREYA:
-			claimed_trees_freya.append(pos)
-		elif owner == CLAIM_OWNER_ENEMY:
-			claimed_trees_enemy.append(pos)
-	for hydrant in fire_hydrants:
-		var owner = str(hydrant.get("claimed_by", CLAIM_OWNER_NONE))
-		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
-		if owner == CLAIM_OWNER_FREYA:
-			claimed_hydrants_freya.append(pos)
-		elif owner == CLAIM_OWNER_ENEMY:
-			claimed_hydrants_enemy.append(pos)
+	var claim_points = _collect_claimed_minimap_points()
 
 	var map_forward = -camera_node.global_transform.basis.z
 	map_forward.y = 0.0
@@ -8231,13 +8230,52 @@ func _update_minimap_dynamic(delta: float) -> void:
 		poop_points,
 		vomit_points,
 		Vector2(map_forward.x, map_forward.z),
-		claimed_poles_freya,
-		claimed_trees_freya,
-		claimed_hydrants_freya,
-		claimed_poles_enemy,
-		claimed_trees_enemy,
-		claimed_hydrants_enemy
+		claim_points["poles_freya"],
+		claim_points["trees_freya"],
+		claim_points["hydrants_freya"],
+		claim_points["poles_enemy"],
+		claim_points["trees_enemy"],
+		claim_points["hydrants_enemy"]
 	)
+
+func _collect_claimed_minimap_points() -> Dictionary:
+	var poles_freya = PackedVector2Array()
+	var trees_freya = PackedVector2Array()
+	var hydrants_freya = PackedVector2Array()
+	var poles_enemy = PackedVector2Array()
+	var trees_enemy = PackedVector2Array()
+	var hydrants_enemy = PackedVector2Array()
+
+	for pole in street_poles:
+		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
+		var owner = _claim_owner_from_entry(pole)
+		if owner == CLAIM_OWNER_FREYA:
+			poles_freya.append(pos)
+		elif owner == CLAIM_OWNER_ENEMY:
+			poles_enemy.append(pos)
+	for tree in trees:
+		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
+		var owner = _claim_owner_from_entry(tree)
+		if owner == CLAIM_OWNER_FREYA:
+			trees_freya.append(pos)
+		elif owner == CLAIM_OWNER_ENEMY:
+			trees_enemy.append(pos)
+	for hydrant in fire_hydrants:
+		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		var owner = _claim_owner_from_entry(hydrant)
+		if owner == CLAIM_OWNER_FREYA:
+			hydrants_freya.append(pos)
+		elif owner == CLAIM_OWNER_ENEMY:
+			hydrants_enemy.append(pos)
+
+	return {
+		"poles_freya": poles_freya,
+		"trees_freya": trees_freya,
+		"hydrants_freya": hydrants_freya,
+		"poles_enemy": poles_enemy,
+		"trees_enemy": trees_enemy,
+		"hydrants_enemy": hydrants_enemy
+	}
 
 func _on_minimap_zoom_changed(value: float) -> void:
 	if minimap != null and minimap.has_method("set_zoom"):
