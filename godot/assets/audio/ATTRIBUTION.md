@@ -46,16 +46,23 @@ Derived files:
 
 Pee source file:
 - `pee/dog_urination_stream_330024.mp3`
+- `pee/urinating_bathroom_17120.mp3`
 
 Source:
 - Freesound, "Urination", uploaded by `Mafon2`
 - URL: https://freesound.org/people/Mafon2/sounds/330024/
 - Direct preview URL used in project:
   `https://cdn.freesound.org/previews/330/330024_1196472-hq.mp3`
+- Freesound, "urinating bathroom urinal fan.aif", uploaded by user `dcaudio`
+- URL: https://freesound.org/people/dcaudio/sounds/17120/
+- Direct preview URL used in project:
+  `https://cdn.freesound.org/previews/17/17120_137-hq.mp3`
 
 License:
-- CC0 (Public Domain)
+- CC0 (Public Domain) for `dog_urination_stream_330024.mp3`
 - https://creativecommons.org/publicdomain/zero/1.0/
+- CC BY 3.0 for `urinating_bathroom_17120.mp3`
+- https://creativecommons.org/licenses/by/3.0/
 
 Eat source files:
 - `eat/dog_eating_dinner_760336.mp3`
