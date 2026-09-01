@@ -42,6 +42,23 @@ run_scene_validation() {
 	esac
 }
 
+prepare_project_imports() {
+	case "$launcher_kind" in
+		direct)
+			"$godot_bin" --headless --path "$PROJECT_PATH" --import
+			;;
+		flatpak)
+			flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" --import
+			;;
+		host_spawn)
+			host-spawn flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" --import
+			;;
+	esac
+}
+
+echo "Preparing Friendly Freya imported resources..."
+prepare_project_imports
+
 echo "Running Friendly Freya startup-choice validation..."
 run_scene_validation res://scenes/Startup.tscn FREYA_STARTUP_VALIDATE=1
 
