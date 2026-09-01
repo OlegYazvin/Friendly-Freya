@@ -36,6 +36,13 @@ var _mouth_anchor_node: Node3D
 var _mouth_anchor_skeleton: Skeleton3D
 var _mouth_anchor_bone = -1
 var _hidden_leg_chains: Array[Dictionary] = []
+var _cosmetic_style = "none"
+var _cosmetic_color_index = -1
+var _breed_shape_signature = "voxel_default"
+var _cosmetic_root: Node3D
+var _army_collar_root: Node3D
+var _discomfort_strength = 0.0
+var _discomfort_phase = 0.0
 
 func configure(config: Dictionary) -> void:
 	is_freya = bool(config.get("is_freya", false))
@@ -53,9 +60,348 @@ func configure(config: Dictionary) -> void:
 	_build_visual()
 
 func _build_visual() -> void:
-	if _try_build_custom_model():
+	if not _try_build_custom_model():
+		_build_model()
+	_add_npc_cosmetic_variation()
+
+func _cosmetic_material(color: Color, metallic: float = 0.02) -> StandardMaterial3D:
+	var material = StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.52
+	material.metallic = metallic
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+func _add_npc_cosmetic_variation() -> void:
+	if is_freya:
+		_cosmetic_style = "freya"
+		_cosmetic_color_index = -1
 		return
-	_build_model()
+	var cosmetic_rng = RandomNumberGenerator.new()
+	cosmetic_rng.seed = int(variant_seed) ^ 0x45D9F3B
+	var palette = [
+		Color8(38, 118, 168),
+		Color8(208, 72, 62),
+		Color8(226, 164, 42),
+		Color8(71, 153, 91),
+		Color8(130, 79, 164),
+		Color8(47, 47, 51)
+	]
+	_cosmetic_color_index = cosmetic_rng.randi_range(0, palette.size() - 1)
+	var style_index = cosmetic_rng.randi_range(0, 3)
+	_cosmetic_style = ["collar", "tagged_collar", "bandana", "wide_collar"][style_index]
+	var accent: Color = palette[_cosmetic_color_index]
+	var neck_frame = _accessory_neck_frame()
+	var neck_radius = float(neck_frame.get("radius", 0.13)) * (1.08 if style_index == 3 else 1.0)
+
+	var root = Node3D.new()
+	root.name = "DogCosmetics"
+	add_child(root)
+	_cosmetic_root = root
+	_apply_neck_frame(root, neck_frame)
+
+	var collar = MeshInstance3D.new()
+	collar.name = "Collar"
+	var collar_mesh = TorusMesh.new()
+	collar_mesh.inner_radius = neck_radius * 0.76
+	collar_mesh.outer_radius = neck_radius
+	collar_mesh.rings = 12
+	collar_mesh.ring_segments = 6
+	collar.mesh = collar_mesh
+	collar.rotation_degrees.x = 90.0
+	collar.scale = Vector3(1.0, 0.78, 1.0)
+	collar.material_override = _cosmetic_material(accent)
+	root.add_child(collar)
+
+	if style_index == 1:
+		var tag = MeshInstance3D.new()
+		tag.name = "CollarTag"
+		var tag_mesh = SphereMesh.new()
+		tag_mesh.radius = clampf(neck_radius * 0.24, 0.022, 0.042)
+		tag_mesh.height = tag_mesh.radius * 2.0
+		tag.mesh = tag_mesh
+		tag.position = Vector3(0.0, -neck_radius * 0.88, -neck_radius * 0.86)
+		tag.scale = Vector3(1.0, 1.15, 0.42)
+		tag.material_override = _cosmetic_material(Color8(226, 190, 72), 0.48)
+		root.add_child(tag)
+	elif style_index == 2:
+		var bandana = MeshInstance3D.new()
+		bandana.name = "Bandana"
+		var surface = SurfaceTool.new()
+		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var half_w = neck_radius * 0.86
+		surface.add_vertex(Vector3(-half_w, -neck_radius * 0.26, -neck_radius * 0.94))
+		surface.add_vertex(Vector3(half_w, -neck_radius * 0.26, -neck_radius * 0.94))
+		surface.add_vertex(Vector3(0.0, -neck_radius * 1.78, -neck_radius * 0.98))
+		surface.generate_normals()
+		bandana.mesh = surface.commit()
+		bandana.material_override = _cosmetic_material(accent.lightened(0.08))
+		root.add_child(bandana)
+	elif style_index == 3:
+		collar.scale.y = 1.18
+
+func cosmetic_signature() -> String:
+	return "%s:%d" % [_cosmetic_style, _cosmetic_color_index]
+
+func visual_style_signature() -> String:
+	if scene_path.get_file() == "freya_portuguese_water_dog.glb":
+		return "freya_voxel_rig"
+	if scene_path.is_empty():
+		return "procedural_voxel"
+	return "external_model"
+
+func breed_shape_signature() -> String:
+	return _breed_shape_signature
+
+func _accessory_neck_frame() -> Dictionary:
+	var bounds = _compute_model_bounds(self)
+	var body_center = bounds.get_center()
+	# The imported skeleton's named head node is not a stable surface anchor after
+	# per-breed bone shaping. Rendered bounds plus the rig's facing axis keep the
+	# band between the chest and head for every voxel silhouette.
+	var dog_forward = Vector3(sin(_model_forward_yaw_offset), 0.0, cos(_model_forward_yaw_offset))
+	if dog_forward.length_squared() < 0.001:
+		dog_forward = Vector3.FORWARD
+	dog_forward = dog_forward.normalized()
+	var forward_extent = absf(dog_forward.x) * bounds.size.x + absf(dog_forward.z) * bounds.size.z
+	var dog_right = Vector3(-dog_forward.z, 0.0, dog_forward.x)
+	var neck_width = absf(dog_right.x) * bounds.size.x + absf(dog_right.z) * bounds.size.z
+	var neck_center = body_center + dog_forward * forward_extent * 0.32
+	neck_center.y = bounds.position.y + bounds.size.y * 0.62
+	var radius = clampf(minf(neck_width * 0.26, bounds.size.y * 0.18), 0.095, 0.22)
+	return {
+		"position": neck_center,
+		"axis": dog_forward,
+		"radius": radius
+	}
+
+func _apply_neck_frame(root: Node3D, frame: Dictionary) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	var neck_axis: Vector3 = frame.get("axis", Vector3.FORWARD)
+	if neck_axis.length_squared() < 0.001:
+		neck_axis = Vector3.FORWARD
+	root.position = frame.get("position", Vector3.ZERO)
+	root.quaternion = Quaternion(Vector3.FORWARD, neck_axis.normalized())
+
+func _army_camo_material() -> StandardMaterial3D:
+	var colors = [Color8(42, 59, 29), Color8(100, 119, 52), Color8(190, 158, 79), Color8(25, 34, 21)]
+	var image = Image.create(96, 24, false, Image.FORMAT_RGBA8)
+	for y in range(image.get_height()):
+		for x in range(image.get_width()):
+			var block_x = int(x / 6)
+			var block_y = int(y / 6)
+			var color_index = posmod(block_x * 5 + block_y * 3 + int(block_x / 3), colors.size())
+			image.set_pixel(x, y, colors[color_index])
+	var material = _cosmetic_material(Color.WHITE)
+	material.albedo_texture = ImageTexture.create_from_image(image)
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	return material
+
+func set_army_aligned(aligned: bool) -> void:
+	if is_freya:
+		return
+	if _army_collar_root != null and is_instance_valid(_army_collar_root):
+		if aligned:
+			return
+		# Alignment can be toggled twice during one frame by validation/restoration.
+		# Free immediately so a new true state cannot briefly stack two collars.
+		_army_collar_root.free()
+		_army_collar_root = null
+		if _cosmetic_root != null and is_instance_valid(_cosmetic_root):
+			_cosmetic_root.visible = true
+		return
+	if not aligned:
+		return
+
+	var neck_frame = _accessory_neck_frame()
+	var neck_radius = float(neck_frame.get("radius", 0.13)) * 1.18
+	var root = Node3D.new()
+	root.name = "ArmyCamoCollar"
+	add_child(root)
+	_army_collar_root = root
+	_apply_neck_frame(root, neck_frame)
+	if _cosmetic_root != null and is_instance_valid(_cosmetic_root):
+		_cosmetic_root.visible = false
+
+	var base = MeshInstance3D.new()
+	base.name = "ArmyCollarBase"
+	var base_mesh = TorusMesh.new()
+	base_mesh.inner_radius = neck_radius * 0.66
+	base_mesh.outer_radius = neck_radius * 1.3
+	base_mesh.rings = 16
+	base_mesh.ring_segments = 8
+	base.mesh = base_mesh
+	base.rotation_degrees.x = 90.0
+	base.scale = Vector3(1.0, 2.05, 1.0)
+	base.material_override = _army_camo_material()
+	base.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(base)
+
+	# Large block-color plates keep the camouflage readable after the texture
+	# becomes only a few pixels wide at normal gameplay zoom.
+	var camo_colors = [Color8(42, 59, 29), Color8(111, 130, 58), Color8(196, 164, 83), Color8(28, 37, 23)]
+	var camo_materials: Array[StandardMaterial3D] = []
+	for color in camo_colors:
+		camo_materials.append(_cosmetic_material(color, 0.78))
+	for plate_index in range(12):
+		var angle = TAU * float(plate_index) / 12.0
+		var plate = MeshInstance3D.new()
+		plate.name = "ArmyCollarCamoPlate%02d" % plate_index
+		var plate_mesh = BoxMesh.new()
+		plate_mesh.size = Vector3(neck_radius * 0.52, neck_radius * 0.4, neck_radius * 1.5)
+		plate.mesh = plate_mesh
+		plate.position = Vector3(cos(angle) * neck_radius * 1.1, sin(angle) * neck_radius * 1.1, 0.0)
+		plate.rotation.z = angle + PI * 0.5
+		plate.material_override = camo_materials[plate_index % camo_materials.size()]
+		plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		root.add_child(plate, true)
+
+	var edge_material = _cosmetic_material(Color8(166, 145, 75), 0.55)
+	for edge_index in range(2):
+		var edge = MeshInstance3D.new()
+		edge.name = "ArmyCollarEdgeBand%d" % edge_index
+		var edge_mesh = TorusMesh.new()
+		edge_mesh.inner_radius = neck_radius * 1.27
+		edge_mesh.outer_radius = neck_radius * 1.37
+		edge_mesh.rings = 16
+		edge_mesh.ring_segments = 5
+		edge.mesh = edge_mesh
+		edge.rotation_degrees.x = 90.0
+		edge.position.z = neck_radius * (-0.76 if edge_index == 0 else 0.76)
+		edge.material_override = edge_material
+		edge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		root.add_child(edge, true)
+
+	# A broad dorsal panel keeps the collar identifiable from the normal
+	# overhead camera even when a dog's muzzle or chest hides the throat buckle.
+	var top_panel = MeshInstance3D.new()
+	top_panel.name = "ArmyCollarTopPanel"
+	var top_panel_mesh = BoxMesh.new()
+	top_panel_mesh.size = Vector3(neck_radius * 0.8, neck_radius * 0.3, neck_radius * 1.48)
+	top_panel.mesh = top_panel_mesh
+	top_panel.position = Vector3(0.0, neck_radius * 1.28, 0.0)
+	top_panel.material_override = camo_materials[2]
+	top_panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(top_panel)
+	for patch_index in range(2):
+		var top_patch = MeshInstance3D.new()
+		top_patch.name = "ArmyCollarTopCamoPatch%d" % patch_index
+		var top_patch_mesh = BoxMesh.new()
+		top_patch_mesh.size = Vector3(neck_radius * 0.3, neck_radius * 0.08, neck_radius * 0.5)
+		top_patch.mesh = top_patch_mesh
+		top_patch.position = Vector3(
+			neck_radius * (-0.2 if patch_index == 0 else 0.2),
+			neck_radius * 1.445,
+			neck_radius * (-0.34 if patch_index == 0 else 0.34)
+		)
+		top_patch.material_override = camo_materials[3 if patch_index == 0 else 0]
+		top_patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		root.add_child(top_patch, true)
+
+	var buckle = MeshInstance3D.new()
+	buckle.name = "ArmyCollarBuckle"
+	var buckle_mesh = BoxMesh.new()
+	buckle_mesh.size = Vector3(neck_radius * 0.72, neck_radius * 0.38, neck_radius * 0.66)
+	buckle.mesh = buckle_mesh
+	buckle.position = Vector3(0.0, -neck_radius * 1.2, -neck_radius * 0.03)
+	buckle.material_override = _cosmetic_material(Color8(213, 176, 70), 0.28)
+	buckle.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(buckle)
+
+	var buckle_inset = MeshInstance3D.new()
+	buckle_inset.name = "ArmyCollarBuckleInset"
+	var inset_mesh = BoxMesh.new()
+	inset_mesh.size = Vector3(neck_radius * 0.34, neck_radius * 0.12, neck_radius * 0.7)
+	buckle_inset.mesh = inset_mesh
+	buckle_inset.position = Vector3(0.0, -neck_radius * 1.405, -neck_radius * 0.03)
+	buckle_inset.material_override = _cosmetic_material(Color8(62, 67, 38), 0.58)
+	buckle_inset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(buckle_inset)
+
+func _update_neck_accessory_poses() -> void:
+	if (_cosmetic_root == null or not is_instance_valid(_cosmetic_root)) and (_army_collar_root == null or not is_instance_valid(_army_collar_root)):
+		return
+	var frame = _accessory_neck_frame()
+	_apply_neck_frame(_cosmetic_root, frame)
+	_apply_neck_frame(_army_collar_root, frame)
+
+func army_collar_is_neck_mounted() -> bool:
+	if _army_collar_root == null or not is_instance_valid(_army_collar_root):
+		return false
+	var frame = _accessory_neck_frame()
+	var expected: Vector3 = frame.get("position", Vector3.ZERO)
+	var radius = float(frame.get("radius", 0.13))
+	if _army_collar_root.position.distance_to(expected) > maxf(0.035, radius * 0.35):
+		return false
+	var bounds = _compute_model_bounds(self)
+	if _army_collar_root.position.y >= bounds.end.y - radius * 0.15:
+		return false
+	var base: MeshInstance3D = _army_collar_root.get_node_or_null("ArmyCollarBase")
+	if base == null or not (base.material_override is BaseMaterial3D):
+		return false
+	if (base.material_override as BaseMaterial3D).albedo_texture == null:
+		return false
+	var stack: Array[Node] = [_army_collar_root]
+	while not stack.is_empty():
+		var current: Node = stack.pop_back()
+		if current is Label3D:
+			return false
+		for child in current.get_children():
+			stack.append(child)
+	return true
+
+func army_collar_is_clearly_visible() -> bool:
+	if not army_collar_is_neck_mounted():
+		return false
+	var frame = _accessory_neck_frame()
+	var frame_radius = float(frame.get("radius", 0.13))
+	var base: MeshInstance3D = _army_collar_root.get_node_or_null("ArmyCollarBase")
+	if base == null or not (base.mesh is TorusMesh):
+		return false
+	var torus = base.mesh as TorusMesh
+	var outer_diameter = torus.outer_radius * 2.0
+	var axial_width = (torus.outer_radius - torus.inner_radius) * base.scale.y
+	if outer_diameter < frame_radius * 2.65 or axial_width < maxf(0.075, frame_radius * 0.72):
+		return false
+	if _army_collar_root.get_node_or_null("ArmyCollarBuckle") == null or _army_collar_root.get_node_or_null("ArmyCollarBuckleInset") == null or _army_collar_root.get_node_or_null("ArmyCollarTopPanel") == null:
+		return false
+	var plate_count = 0
+	var edge_count = 0
+	var plate_colors := {}
+	for child in _army_collar_root.get_children():
+		if child.name.begins_with("ArmyCollarCamoPlate"):
+			plate_count += 1
+			if child is MeshInstance3D:
+				var material = (child as MeshInstance3D).material_override
+				if material is BaseMaterial3D:
+					plate_colors[(material as BaseMaterial3D).albedo_color.to_html(false)] = true
+		elif child.name.begins_with("ArmyCollarEdgeBand"):
+			edge_count += 1
+	return plate_count >= 12 and edge_count == 2 and plate_colors.size() >= 3
+
+func set_discomfort(strength: float, threat_world_position: Vector3, delta: float) -> void:
+	var target_strength = clampf(strength, 0.0, 1.0) if is_freya else 0.0
+	_discomfort_strength = lerpf(
+		_discomfort_strength,
+		target_strength,
+		clampf(delta * (7.0 if target_strength > _discomfort_strength else 4.2), 0.0, 1.0)
+	)
+	_discomfort_phase = fposmod(_discomfort_phase + delta * (15.0 + _discomfort_strength * 8.0), TAU)
+	if _visual_root != null and is_instance_valid(_visual_root):
+		var tremble = sin(_discomfort_phase) * 0.052 * _discomfort_strength
+		_visual_root.rotation.z = lerpf(_visual_root.rotation.z, tremble, clampf(delta * 12.0, 0.0, 1.0))
+		_visual_root.rotation.x = lerpf(_visual_root.rotation.x, 0.12 * _discomfort_strength, clampf(delta * 7.0, 0.0, 1.0))
+	if _tail_pivot != null and is_instance_valid(_tail_pivot):
+		_tail_pivot.rotation.x = lerpf(_tail_pivot.rotation.x, -0.82 * _discomfort_strength, clampf(delta * 7.5, 0.0, 1.0))
+	if _head_pivot != null and is_instance_valid(_head_pivot):
+		var away = global_position - threat_world_position
+		var side_sign = 1.0 if global_transform.basis.x.dot(away) >= 0.0 else -1.0
+		var glance = side_sign * (0.16 + 0.08 * sin(_discomfort_phase * 0.47)) * _discomfort_strength
+		_head_pivot.rotation.y = lerpf(_head_pivot.rotation.y, glance, clampf(delta * 5.0, 0.0, 1.0))
+
+func discomfort_strength() -> float:
+	return _discomfort_strength
 
 func _try_build_custom_model() -> bool:
 	if scene_path.is_empty():
@@ -236,10 +582,19 @@ func _npc_tinted_material(source: Material) -> Material:
 	if styled is BaseMaterial3D:
 		var base := styled as BaseMaterial3D
 		var src := base.albedo_color
-		var sat = maxf(src.r, maxf(src.g, src.b)) - minf(src.r, minf(src.g, src.b))
-		var tint_strength = 0.18 if sat < 0.36 else 0.1
-		base.albedo_color = src.lerp(coat_color, tint_strength)
-		base.roughness = clampf(base.roughness + 0.05, 0.0, 1.0)
+		# All NPCs share Freya's textured voxel mesh. Multiplying that texture by a
+		# breed palette color preserves its block shading while making coat families
+		# legible instead of retaining the source model's original beige coat.
+		var source_light = clampf(src.r * 0.2126 + src.g * 0.7152 + src.b * 0.0722, 0.55, 1.0)
+		var shade = lerpf(0.88, 1.06, source_light)
+		base.albedo_color = Color(
+			clampf(coat_color.r * shade, 0.0, 1.0),
+			clampf(coat_color.g * shade, 0.0, 1.0),
+			clampf(coat_color.b * shade, 0.0, 1.0),
+			src.a
+		)
+		base.roughness = maxf(base.roughness, 0.84)
+		base.metallic = minf(base.metallic, 0.03)
 	return styled
 
 func _hide_node_branch(root: Node3D) -> void:
@@ -433,7 +788,7 @@ func _compute_model_bounds(root: Node3D, include_root_transform: bool = false) -
 		for c in n.get_children():
 			if c is Node3D:
 				var child := c as Node3D
-				if child.name == "DogRelationWings":
+				if child.name == "DogCosmetics" or child.name == "ArmyCamoCollar":
 					continue
 				node_stack.append(child)
 				xf_stack.append(xf * child.transform)
@@ -539,9 +894,11 @@ func _set_bone_pose_scale_if_exists(skel: Skeleton3D, bone_name: String, scale_v
 
 func _apply_external_breed_shape(model_root: Node3D) -> void:
 	if is_freya:
+		_breed_shape_signature = "freya"
 		return
 	var skel := _find_first_skeleton(model_root)
 	if skel == null:
+		_breed_shape_signature = "voxel_default"
 		return
 
 	var body_scale = Vector3.ONE
@@ -551,31 +908,85 @@ func _apply_external_breed_shape(model_root: Node3D) -> void:
 	var tail_scale = Vector3.ONE
 	match breed_profile:
 		"chihuahua":
-			body_scale = Vector3(0.9, 0.88, 0.88)
-			head_scale = Vector3(1.22, 1.18, 1.2)
-			muzzle_scale = Vector3(0.82, 0.86, 0.88)
-			leg_scale = Vector3(0.9, 0.84, 0.9)
-			tail_scale = Vector3(0.94, 1.04, 1.24)
-		"labrador", "retriever":
-			body_scale = Vector3(1.08, 1.04, 1.14)
-			head_scale = Vector3(1.04, 1.02, 1.06)
-			muzzle_scale = Vector3(1.08, 0.97, 1.14)
-			leg_scale = Vector3(1.03, 1.04, 1.03)
-			tail_scale = Vector3(1.04, 1.0, 1.12)
-		"pitbull", "bulldog":
-			body_scale = Vector3(1.2, 1.16, 1.02)
-			head_scale = Vector3(1.24, 1.15, 1.06)
-			muzzle_scale = Vector3(0.84, 0.82, 0.84)
-			leg_scale = Vector3(1.0, 0.9, 1.0)
-			tail_scale = Vector3(0.84, 0.9, 0.86)
+			body_scale = Vector3(0.86, 0.88, 0.86)
+			head_scale = Vector3(1.18, 1.16, 1.14)
+			muzzle_scale = Vector3(0.8, 0.84, 0.84)
+			leg_scale = Vector3(0.86, 0.86, 0.86)
+			tail_scale = Vector3(0.9, 1.04, 1.2)
+		"labrador":
+			body_scale = Vector3(1.06, 1.02, 1.1)
+			head_scale = Vector3(1.02, 1.0, 1.04)
+			muzzle_scale = Vector3(1.06, 0.98, 1.1)
+			leg_scale = Vector3(1.02, 1.02, 1.02)
+			tail_scale = Vector3(1.0, 1.0, 1.08)
+		"retriever":
+			body_scale = Vector3(1.04, 1.03, 1.09)
+			head_scale = Vector3(1.01, 1.02, 1.03)
+			muzzle_scale = Vector3(1.02, 0.98, 1.06)
+			leg_scale = Vector3(1.0, 1.04, 1.0)
+			tail_scale = Vector3(1.08, 1.04, 1.14)
+		"pitbull":
+			body_scale = Vector3(1.14, 1.08, 1.0)
+			head_scale = Vector3(1.12, 1.08, 1.02)
+			muzzle_scale = Vector3(0.88, 0.86, 0.86)
+			leg_scale = Vector3(1.08, 0.94, 1.08)
+			tail_scale = Vector3(0.85, 0.92, 0.83)
+		"bulldog":
+			body_scale = Vector3(1.18, 1.1, 0.92)
+			head_scale = Vector3(1.18, 1.12, 0.96)
+			muzzle_scale = Vector3(0.76, 0.78, 0.72)
+			leg_scale = Vector3(1.08, 0.82, 1.08)
+			tail_scale = Vector3(0.72, 0.8, 0.68)
 		"boxer":
-			body_scale = Vector3(1.08, 1.09, 1.06)
-			head_scale = Vector3(1.16, 1.08, 1.05)
-			muzzle_scale = Vector3(0.82, 0.8, 0.8)
-			leg_scale = Vector3(1.02, 1.06, 1.0)
+			body_scale = Vector3(1.08, 1.08, 1.04)
+			head_scale = Vector3(1.12, 1.07, 1.03)
+			muzzle_scale = Vector3(0.82, 0.82, 0.8)
+			leg_scale = Vector3(1.02, 1.07, 1.0)
 			tail_scale = Vector3(0.9, 0.9, 0.88)
-		_:
-			return
+		"shepherd":
+			body_scale = Vector3(0.96, 1.06, 1.1)
+			head_scale = Vector3(0.98, 1.04, 1.03)
+			muzzle_scale = Vector3(0.92, 0.98, 1.14)
+			leg_scale = Vector3(0.95, 1.1, 0.95)
+			tail_scale = Vector3(0.96, 1.0, 1.14)
+		"husky":
+			body_scale = Vector3(1.08, 1.06, 1.02)
+			head_scale = Vector3(1.08, 1.08, 1.02)
+			muzzle_scale = Vector3(0.93, 0.95, 0.94)
+			leg_scale = Vector3(1.04, 1.03, 1.04)
+			tail_scale = Vector3(1.1, 1.08, 1.12)
+		"terrier":
+			body_scale = Vector3(0.94, 0.94, 0.92)
+			head_scale = Vector3(1.08, 1.05, 0.98)
+			muzzle_scale = Vector3(0.88, 0.92, 0.9)
+			leg_scale = Vector3(0.88, 0.92, 0.88)
+			tail_scale = Vector3(0.88, 1.05, 1.08)
+		"hound":
+			body_scale = Vector3(0.9, 1.02, 1.14)
+			head_scale = Vector3(0.92, 0.96, 1.0)
+			muzzle_scale = Vector3(0.88, 0.94, 1.18)
+			leg_scale = Vector3(0.88, 1.12, 0.88)
+			tail_scale = Vector3(0.78, 1.02, 1.2)
+		"poodle":
+			body_scale = Vector3(0.88, 1.06, 0.98)
+			head_scale = Vector3(1.04, 1.1, 1.0)
+			muzzle_scale = Vector3(0.9, 0.96, 1.03)
+			leg_scale = Vector3(0.82, 1.15, 0.82)
+			tail_scale = Vector3(0.85, 1.02, 0.94)
+		"mixed":
+			var shape_phase = float(posmod(variant_seed, 9)) / 8.0
+			body_scale = Vector3(lerpf(0.94, 1.08, shape_phase), lerpf(1.04, 0.96, shape_phase), lerpf(1.08, 0.94, shape_phase))
+			head_scale = Vector3(lerpf(1.08, 0.96, shape_phase), 1.02, lerpf(0.96, 1.08, shape_phase))
+			muzzle_scale = Vector3(0.94, 0.96, lerpf(0.9, 1.12, shape_phase))
+			leg_scale = Vector3(0.96, lerpf(0.94, 1.08, shape_phase), 0.96)
+			tail_scale = Vector3(0.94, 1.0, lerpf(0.9, 1.12, shape_phase))
+
+	_breed_shape_signature = "%s|%.2f,%.2f,%.2f|%.2f,%.2f,%.2f|%.2f,%.2f,%.2f" % [
+		breed_profile,
+		body_scale.x, body_scale.y, body_scale.z,
+		head_scale.x, head_scale.y, head_scale.z,
+		muzzle_scale.x, muzzle_scale.y, muzzle_scale.z
+	]
 
 	_set_bone_pose_scale_if_exists(skel, "Body", body_scale)
 	_set_bone_pose_scale_if_exists(skel, "Head", head_scale)
@@ -715,6 +1126,7 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 			_visual_root.rotation.x = sin(_step_time * gait_hz * 0.52 + 0.8) * pitch
 		else:
 			_visual_root.rotation.x = 0.0
+	_update_neck_accessory_poses()
 
 func force_face_direction(direction: Vector3, delta: float) -> void:
 	if direction.length_squared() < 0.0001:
@@ -744,7 +1156,9 @@ func mouth_world_position() -> Vector3:
 	return head_world_position()
 
 func has_move_animation() -> bool:
-	return _anim_player != null and _has_move_animation
+	# Imported static breeds receive the procedural stride/bob below, while rigs
+	# with authored clips use their AnimationPlayer. Both visibly react to motion.
+	return (_anim_player != null and _has_move_animation) or (_visual_root != null and is_instance_valid(_visual_root))
 
 func visual_dimensions() -> Vector3:
 	var bounds := _compute_model_bounds(self)

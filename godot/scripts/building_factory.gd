@@ -3,79 +3,39 @@ class_name BuildingFactory
 
 const EXTERNAL_BUILDING_MODEL_SPECS = [
 	{
-		"path": "res://assets/models/buildings/building_apartment.glb",
-		"min_floors": 2,
-		"max_floors": 8,
-		"min_width": 5.0,
-		"min_depth": 4.6,
-		"min_area": 24.0,
-		"min_y_ratio": 0.88,
-		"max_y_ratio": 1.5
-	},
-	{
-		"path": "res://assets/models/buildings/building_large_01.glb",
-		"min_floors": 2,
-		"max_floors": 10,
-		"min_width": 5.0,
-		"min_depth": 4.6,
-		"min_area": 24.0,
-		"min_y_ratio": 0.86,
-		"max_y_ratio": 1.55
-	},
-	{
-		"path": "res://assets/models/buildings/building_large_02.glb",
-		"min_floors": 2,
-		"max_floors": 10,
-		"min_width": 5.0,
-		"min_depth": 4.6,
-		"min_area": 24.0,
-		"min_y_ratio": 0.86,
-		"max_y_ratio": 1.55
-	},
-	{
 		"path": "res://assets/models/buildings/building_house.glb",
 		"min_floors": 1,
 		"max_floors": 1,
 		"min_width": 4.4,
 		"min_depth": 4.2,
 		"min_area": 18.0,
-		"min_y_ratio": 0.92,
-		"max_y_ratio": 1.18
-	},
-	{
-		"path": "res://assets/models/buildings/building_roofgarden.glb",
-		"min_floors": 2,
-		"max_floors": 7,
-		"min_width": 5.2,
-		"min_depth": 4.8,
-		"min_area": 26.0,
-		"min_y_ratio": 0.88,
-		"max_y_ratio": 1.48
-	},
-	{
-		"path": "res://assets/models/buildings/building_big.glb",
-		"min_floors": 2,
-		"max_floors": 12,
-		"min_width": 5.2,
-		"min_depth": 4.8,
-		"min_area": 28.0,
-		"min_y_ratio": 0.84,
-		"max_y_ratio": 1.52
+		"min_y_ratio": 0.78,
+		"max_y_ratio": 1.28
 	}
 ]
 const EXTERNAL_MODEL_MIN_LOT_WIDTH = 5.0
 const EXTERNAL_MODEL_MIN_LOT_DEPTH = 4.6
 const EXTERNAL_MODEL_MIN_LOT_AREA = 24.0
+# Imported house roofs do not align reliably with generated metric lots. Keep
+# neighborhood shells on one construction system so eaves and walls agree.
+const EXTERNAL_HOUSE_MODEL_CHANCE = 0.0
 const CHICAGO_BRICK_PATTERN_WIDTH_PX = 32
 const CHICAGO_BRICK_PATTERN_HEIGHT_PX = 10
 const CHICAGO_MORTAR_WIDTH_PX = 2
-const CHICAGO_BRICK_UV_SCALE = 5.4
+# World-space triplanar mapping keeps a brick close to a real modular brick
+# (about 20.3 x 6.8 cm including mortar) on every wall, independent of lot size.
+const CHICAGO_BRICK_UV_SCALE = 0.42
+const CHICAGO_BRICK_WORLD_WIDTH_M = 0.211
+const CHICAGO_BRICK_WORLD_HEIGHT_M = 0.074
 
 static var _materials_ready = false
 static var _wall_materials: Array[StandardMaterial3D] = []
 static var _chicago_brick_materials: Array[StandardMaterial3D] = []
 static var _roof_material: StandardMaterial3D
+static var _roof_materials: Array[StandardMaterial3D] = []
 static var _trim_material: StandardMaterial3D
+static var _soffit_material: StandardMaterial3D
+static var _contact_shadow_material: StandardMaterial3D
 static var _glass_material: StandardMaterial3D
 static var _stone_material: StandardMaterial3D
 static var _chicago_limestone_material: StandardMaterial3D
@@ -88,17 +48,23 @@ static func _ensure_materials() -> void:
 	_materials_ready = true
 
 	var wall_colors = [
-		Color8(165, 90, 62),
-		Color8(147, 82, 66),
-		Color8(178, 98, 70),
-		Color8(132, 96, 76)
+		Color8(218, 205, 180),
+		Color8(181, 199, 182),
+		Color8(177, 197, 211),
+		Color8(224, 218, 202),
+		Color8(172, 111, 83)
 	]
 	for c in wall_colors:
 		var mat = StandardMaterial3D.new()
-		mat.albedo_color = c
+		mat.albedo_color = Color.WHITE
+		mat.albedo_texture = _make_suburban_siding_texture(c)
 		mat.roughness = 0.88
 		mat.metallic = 0.02
 		mat.ao_enabled = true
+		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		mat.uv1_triplanar = true
+		mat.uv1_world_triplanar = true
+		mat.uv1_scale = Vector3.ONE * 0.62
 		_wall_materials.append(mat)
 
 	_chicago_brick_materials.clear()
@@ -118,15 +84,37 @@ static func _ensure_materials() -> void:
 		Color8(210, 194, 178)
 	))
 
-	_roof_material = StandardMaterial3D.new()
-	_roof_material.albedo_color = Color8(78, 70, 64)
-	_roof_material.roughness = 0.92
-	_roof_material.metallic = 0.0
-	_roof_material.cull_mode = StandardMaterial3D.CULL_DISABLED
+	_roof_materials.clear()
+	for roof_color in [Color8(68, 73, 76), Color8(92, 79, 69), Color8(72, 83, 70)]:
+		var roof_mat = StandardMaterial3D.new()
+		roof_mat.albedo_color = Color.WHITE
+		roof_mat.albedo_texture = _make_asphalt_shingle_texture(roof_color)
+		roof_mat.roughness = 0.94
+		roof_mat.metallic = 0.0
+		roof_mat.cull_mode = StandardMaterial3D.CULL_DISABLED
+		roof_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		roof_mat.uv1_triplanar = true
+		roof_mat.uv1_world_triplanar = true
+		roof_mat.uv1_scale = Vector3.ONE * 0.78
+		roof_mat.ao_enabled = true
+		roof_mat.ao_light_affect = 0.34
+		_roof_materials.append(roof_mat)
+	_roof_material = _roof_materials[0]
 
 	_trim_material = StandardMaterial3D.new()
-	_trim_material.albedo_color = Color8(205, 196, 182)
+	_trim_material.albedo_color = Color8(235, 232, 220)
 	_trim_material.roughness = 0.65
+
+	_soffit_material = StandardMaterial3D.new()
+	_soffit_material.albedo_color = Color8(207, 205, 194)
+	_soffit_material.roughness = 0.8
+	_soffit_material.ao_enabled = true
+
+	_contact_shadow_material = StandardMaterial3D.new()
+	_contact_shadow_material.albedo_color = Color(0.08, 0.09, 0.085, 0.24)
+	_contact_shadow_material.roughness = 1.0
+	_contact_shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_contact_shadow_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_glass_material = StandardMaterial3D.new()
 	_glass_material.albedo_color = Color8(89, 114, 136)
@@ -167,15 +155,18 @@ static func _ensure_external_models() -> void:
 static func create_building(footprint: Rect2, floors: int, front_is_south: bool, rng: RandomNumberGenerator) -> Dictionary:
 	_ensure_materials()
 	_ensure_external_models()
+	floors = clampi(floors, 1, 3)
 
 	var width = footprint.size.x
 	var depth = footprint.size.y
 	var area = width * depth
 	var allow_external = (
 		_external_building_specs.size() > 0
+		and floors == 1
 		and width >= EXTERNAL_MODEL_MIN_LOT_WIDTH
 		and depth >= EXTERNAL_MODEL_MIN_LOT_DEPTH
 		and area >= EXTERNAL_MODEL_MIN_LOT_AREA
+		and rng.randf() < EXTERNAL_HOUSE_MODEL_CHANCE
 	)
 	if allow_external:
 		var external_created = _create_external_building(footprint, floors, front_is_south, rng)
@@ -185,144 +176,392 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 	var root = Node3D.new()
 	root.name = "Building"
 
-	var floor_h = 4.9
-	var body_h = float(floors) * floor_h + 1.2
+	var floor_h = 2.78
+	var body_h = float(floors) * floor_h + 0.24
 	var center = Vector3(footprint.position.x + width * 0.5, 0.0, footprint.position.y + depth * 0.5)
 	root.position = center
 
 	var wall_mat: StandardMaterial3D = _wall_materials[rng.randi_range(0, _wall_materials.size() - 1)]
-	var roof_parts: Array[MeshInstance3D] = []
+	var roof_parts: Array = []
 
 	var base = MeshInstance3D.new()
+	base.name = "BuildingBody"
 	var base_mesh = BoxMesh.new()
 	base_mesh.size = Vector3(width, body_h, depth)
 	base.mesh = base_mesh
 	base.position = Vector3(0.0, body_h * 0.5, 0.0)
 	base.material_override = wall_mat
 	root.add_child(base)
+	_add_foundation_contact_shadow(root, width, depth)
 
-	var cornice = MeshInstance3D.new()
-	var cornice_mesh = BoxMesh.new()
-	cornice_mesh.size = Vector3(width + 0.12, 0.18, depth + 0.12)
-	cornice.mesh = cornice_mesh
-	cornice.position = Vector3(0.0, body_h - 0.32, 0.0)
-	cornice.material_override = _trim_material
-	root.add_child(cornice)
-
-	var roof_slab = MeshInstance3D.new()
-	var slab_mesh = BoxMesh.new()
-	slab_mesh.size = Vector3(width + 0.16, 0.26, depth + 0.16)
-	roof_slab.mesh = slab_mesh
-	roof_slab.position = Vector3(0.0, body_h + 0.13, 0.0)
-	roof_slab.material_override = _roof_material
-	roof_parts.append(roof_slab)
-	root.add_child(roof_slab)
-
-	var parapet_h = 0.82 + float(floors) * 0.16
-	var parapet_t = 0.14
-	for side in ["north", "south", "east", "west"]:
-		var wall = MeshInstance3D.new()
-		var mesh = BoxMesh.new()
-		var pos = Vector3.ZERO
-		var side_h = clampf(parapet_h + rng.randf_range(-0.08, 0.16), 0.68, parapet_h + 0.24)
-		if side == "north" or side == "south":
-			mesh.size = Vector3(width + 0.18, side_h, parapet_t)
-			pos = Vector3(0.0, body_h + side_h * 0.5, -depth * 0.5 - 0.01 if side == "north" else depth * 0.5 + 0.01)
-		else:
-			mesh.size = Vector3(parapet_t, side_h, depth + 0.18)
-			pos = Vector3(-width * 0.5 - 0.01 if side == "west" else width * 0.5 + 0.01, body_h + side_h * 0.5, 0.0)
-		wall.mesh = mesh
-		wall.position = pos
-		wall.material_override = _roof_material
-		roof_parts.append(wall)
-		root.add_child(wall)
-
-	var mech = MeshInstance3D.new()
-	var mech_mesh = BoxMesh.new()
-	mech_mesh.size = Vector3(rng.randf_range(0.62, 0.88), rng.randf_range(0.36, 0.52), rng.randf_range(0.46, 0.72))
-	mech.mesh = mech_mesh
-	mech.position = Vector3(
-		rng.randf_range(-width * 0.3, width * 0.3),
-		body_h + mech_mesh.size.y * 0.5 + 0.12,
-		rng.randf_range(-depth * 0.26, depth * 0.26)
-	)
-	mech.material_override = _stone_material
-	roof_parts.append(mech)
-	root.add_child(mech)
-
-	var vent = MeshInstance3D.new()
-	var vent_mesh = CylinderMesh.new()
-	vent_mesh.top_radius = rng.randf_range(0.045, 0.075)
-	vent_mesh.bottom_radius = vent_mesh.top_radius + rng.randf_range(0.012, 0.03)
-	vent_mesh.height = rng.randf_range(0.54, 0.86)
-	vent.mesh = vent_mesh
-	vent.position = Vector3(
-		rng.randf_range(-width * 0.32, width * 0.32),
-		body_h + vent_mesh.height * 0.5 + 0.16,
-		rng.randf_range(-depth * 0.3, depth * 0.3)
-	)
-	vent.material_override = _stone_material
-	roof_parts.append(vent)
-	root.add_child(vent)
-
-	_add_rooftop_silhouette_profile(root, width, depth, body_h, parapet_h, rng, roof_parts)
+	var roof_rise = clampf(minf(width, depth) * rng.randf_range(0.2, 0.26), 0.88, 1.46)
+	var roof_ridge_axis = "x" if width >= depth else "z"
+	var roof_material_index = rng.randi_range(0, _roof_materials.size() - 1)
+	var roof_material: StandardMaterial3D = _roof_materials[roof_material_index]
+	var roof_style = "gable"
+	if rng.randf() < 0.34:
+		roof_style = "hip"
+		_add_suburban_hip_roof(root, width, depth, body_h, roof_rise, roof_material, roof_parts)
+	else:
+		_add_suburban_gable_roof(root, width, depth, body_h, roof_rise, wall_mat, roof_material, roof_parts)
+	if rng.randf() < 0.54:
+		_add_suburban_chimney(root, width, depth, body_h, roof_rise, rng, roof_parts)
 
 	var half_w = width * 0.5
 	var half_d = depth * 0.5
 	var front_z = half_d if front_is_south else -half_d
 	var front_sign = 1.0 if front_is_south else -1.0
-	var side_inset = 0.025
-	var front_inset = 0.02
-
+	var window_transforms: Array[Transform3D] = []
+	var window_size = Vector3(0.72, 1.08, 0.04)
 	for floor_index in range(floors):
-		var z0 = 0.72 + float(floor_index) * floor_h
-		var z1 = min(body_h - 0.9, z0 + 2.15)
-		var y_center = (z0 + z1) * 0.5
-		var y_size = max(1.0, z1 - z0)
-
-		var front_cols = max(2, int(floor((width - 1.0) / 1.45)))
+		var y_center = 1.48 + float(floor_index) * floor_h
+		var front_cols = clampi(int(floor((width - 0.9) / 1.7)), 2, 4)
 		for c in range(front_cols):
-			var tx = lerp(-half_w + 0.55, half_w - 0.55, float(c) / max(1.0, float(front_cols - 1)))
-			_add_window_box(root, Vector3(0.72, y_size, 0.03), Vector3(tx, y_center, front_z - front_sign * front_inset), _glass_material)
-			_add_trim_box(root, Vector3(0.82, 0.1, 0.05), Vector3(tx, z1 + 0.12, front_z - front_sign * 0.025), _trim_material)
+			var tx = lerp(-half_w + 0.72, half_w - 0.72, float(c) / max(1.0, float(front_cols - 1)))
+			window_transforms.append(Transform3D(Basis.IDENTITY, Vector3(tx, y_center, front_z + front_sign * 0.025)))
 
-		var side_cols = max(2, int(floor((depth - 1.2) / 1.45)))
+		var side_cols = clampi(int(floor((depth - 1.4) / 2.25)), 1, 3)
 		for c in range(side_cols):
-			var tz = lerp(-half_d + 0.6, half_d - 0.6, float(c) / max(1.0, float(side_cols - 1)))
-			_add_window_box(root, Vector3(0.03, y_size * 0.95, 0.72), Vector3(half_w - side_inset, y_center, tz), _glass_material)
-			_add_window_box(root, Vector3(0.03, y_size * 0.95, 0.72), Vector3(-half_w + side_inset, y_center, tz), _glass_material)
+			var tz = lerp(-half_d + 0.82, half_d - 0.82, float(c) / max(1.0, float(side_cols - 1))) if side_cols > 1 else 0.0
+			window_transforms.append(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(half_w + 0.025, y_center, tz)))
+			window_transforms.append(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-half_w - 0.025, y_center, tz)))
+	_add_box_multimesh(root, window_size, window_transforms, _glass_material, "Windows", false, 76.0)
 
-	if floors <= 1:
-		var stoop_depth = 0.62
-		var stoop = MeshInstance3D.new()
-		var stoop_mesh = BoxMesh.new()
-		stoop_mesh.size = Vector3(width * 0.26, 0.16, stoop_depth)
-		stoop.mesh = stoop_mesh
-		stoop.position = Vector3(0.0, 0.08, front_z + front_sign * (stoop_depth * 0.5 + 0.02))
-		stoop.material_override = _stone_material
-		root.add_child(stoop)
-	else:
-		var bay = MeshInstance3D.new()
-		var bay_mesh = BoxMesh.new()
-		bay_mesh.size = Vector3(width * 0.34, 1.6, 0.48)
-		bay.mesh = bay_mesh
-		bay.position = Vector3(0.0, floor_h + 0.55, front_z + front_sign * 0.26)
-		bay.material_override = _wall_materials[(rng.randi_range(0, _wall_materials.size() - 1))]
-		root.add_child(bay)
+	var porch_style = _add_suburban_front_porch(root, width, front_z, front_sign, rng)
 
 	var brick_height = _chicago_brick_base_height(floors, body_h)
 	_add_chicago_brick_base(root, width, depth, brick_height, rng)
 
-	var resolved_h = max(body_h + parapet_h, _snap_building_to_ground(root))
+	var resolved_h = max(body_h + roof_rise, _snap_building_to_ground(root))
 	return {
 		"node": root,
 		"footprint": footprint,
 		"height": resolved_h,
+		"body_height": body_h,
+		"roof_eave_y": body_h - 0.12,
+		"roof_rise": roof_rise,
+		"roof_ridge_axis": roof_ridge_axis,
+		"roof_material_index": roof_material_index,
 		"roof_parts": roof_parts,
+		"roof_style": roof_style,
+		"porch_style": porch_style,
 		"front_is_south": front_is_south,
 		"model_source": "procedural",
 		"external_model_path": ""
 	}
+
+static func _add_box_multimesh(
+	parent: Node3D,
+	size: Vector3,
+	transforms: Array[Transform3D],
+	material: Material,
+	node_name: String,
+	cast_shadows: bool = false,
+	visibility_end: float = 0.0
+) -> MultiMeshInstance3D:
+	if parent == null or transforms.is_empty():
+		return null
+	var box = BoxMesh.new()
+	box.size = size
+	var mm = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = box
+	mm.instance_count = transforms.size()
+	for i in range(transforms.size()):
+		mm.set_instance_transform(i, transforms[i])
+	var instance = MultiMeshInstance3D.new()
+	instance.name = node_name
+	instance.multimesh = mm
+	instance.material_override = material
+	instance.cast_shadow = (
+		GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if cast_shadows
+		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	)
+	if visibility_end > 0.0:
+		instance.visibility_range_end = visibility_end
+		instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	parent.add_child(instance)
+	return instance
+
+static func _add_suburban_gable_roof(
+	root: Node3D,
+	width: float,
+	depth: float,
+	body_h: float,
+	roof_rise: float,
+	wall_material: Material,
+	roof_material: Material,
+	roof_parts: Array
+) -> void:
+	var ridge_along_x = width >= depth
+	var run_span = depth if ridge_along_x else width
+	var half_run = run_span * 0.5 + 0.24
+	var eave_y = body_h - 0.12
+	var ridge_y = body_h + roof_rise
+	var roof_span_y = ridge_y - eave_y
+	var pitch = atan2(roof_span_y, half_run)
+	var panel_length = sqrt(half_run * half_run + roof_span_y * roof_span_y)
+	var panel_mesh_size = Vector3(width + 0.52, 0.16, panel_length) if ridge_along_x else Vector3(panel_length, 0.16, depth + 0.52)
+	var transforms: Array[Transform3D] = []
+	for side in [-1.0, 1.0]:
+		var basis = Basis(Vector3.RIGHT, side * pitch) if ridge_along_x else Basis(Vector3.FORWARD, -side * pitch)
+		var pos = Vector3(0.0, (eave_y + ridge_y) * 0.5, side * half_run * 0.5) if ridge_along_x else Vector3(side * half_run * 0.5, (eave_y + ridge_y) * 0.5, 0.0)
+		transforms.append(Transform3D(basis, pos))
+	var roof = _add_box_multimesh(root, panel_mesh_size, transforms, roof_material, "GableRoof", true)
+	if roof != null:
+		roof_parts.append(roof)
+
+	# Fill the triangular gable ends into the wall shell. Roof cutaway can hide
+	# shingles, but must never remove the wall that visibly supports them.
+	var half_w = width * 0.5
+	var half_d = depth * 0.5
+	var surface = SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var gable_vertices = []
+	if ridge_along_x:
+		var end_x = half_w + 0.012
+		gable_vertices = [
+			Vector3(end_x, body_h - 0.035, half_d),
+			Vector3(end_x, body_h - 0.035, -half_d),
+			Vector3(end_x, ridge_y - 0.035, 0.0),
+			Vector3(-end_x, body_h - 0.035, -half_d),
+			Vector3(-end_x, body_h - 0.035, half_d),
+			Vector3(-end_x, ridge_y - 0.035, 0.0)
+		]
+	else:
+		var end_z = half_d + 0.012
+		gable_vertices = [
+			Vector3(-half_w, body_h - 0.035, end_z),
+			Vector3(half_w, body_h - 0.035, end_z),
+			Vector3(0.0, ridge_y - 0.035, end_z),
+			Vector3(half_w, body_h - 0.035, -end_z),
+			Vector3(-half_w, body_h - 0.035, -end_z),
+			Vector3(0.0, ridge_y - 0.035, -end_z)
+		]
+	for vertex in gable_vertices:
+		surface.add_vertex(vertex)
+	surface.generate_normals()
+	var gable_mesh = surface.commit()
+	var gable_ends = MeshInstance3D.new()
+	gable_ends.name = "SupportedGableEnds"
+	gable_ends.mesh = gable_mesh
+	gable_ends.material_override = wall_material
+	gable_ends.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(gable_ends)
+
+	# Deep fascia overlaps the wall top and removes the bright seam that made
+	# edge-aligned roof planes read as detached from the house.
+	var fascia_transforms: Array[Transform3D] = []
+	for side in [-1.0, 1.0]:
+		var fascia_pos = Vector3(0.0, body_h - 0.055, side * (depth * 0.5 + 0.2)) if ridge_along_x else Vector3(side * (width * 0.5 + 0.2), body_h - 0.055, 0.0)
+		fascia_transforms.append(Transform3D(Basis.IDENTITY, fascia_pos))
+	var fascia_size = Vector3(width + 0.54, 0.2, 0.16) if ridge_along_x else Vector3(0.16, 0.2, depth + 0.54)
+	var fascia = _add_box_multimesh(
+		root,
+		fascia_size,
+		fascia_transforms,
+		_trim_material,
+		"GableEaveFascia",
+		false
+	)
+	if fascia != null:
+		roof_parts.append(fascia)
+	var soffit = _add_box_multimesh(
+		root,
+		(Vector3(width + 0.48, 0.055, 0.28) if ridge_along_x else Vector3(0.28, 0.055, depth + 0.48)),
+		fascia_transforms,
+		_soffit_material,
+		"GableSoffit",
+		false
+	)
+	if soffit != null:
+		soffit.position.y -= 0.105
+		roof_parts.append(soffit)
+
+static func _add_suburban_hip_roof(
+	root: Node3D,
+	width: float,
+	depth: float,
+	body_h: float,
+	roof_rise: float,
+	roof_material: Material,
+	roof_parts: Array
+) -> void:
+	var half_w = width * 0.5 + 0.26
+	var half_d = depth * 0.5 + 0.26
+	var eave_y = body_h - 0.12
+	var front_left = Vector3(-half_w, eave_y, half_d)
+	var front_right = Vector3(half_w, eave_y, half_d)
+	var back_left = Vector3(-half_w, eave_y, -half_d)
+	var back_right = Vector3(half_w, eave_y, -half_d)
+	var triangles = []
+	if half_w >= half_d:
+		# Wide ranch houses need an east-west ridge. A single centered peak on a
+		# long footprint creates the giant pyramid silhouette that read as a
+		# floating roof.
+		var ridge_half_x = maxf(0.0, half_w - half_d)
+		var ridge_left = Vector3(-ridge_half_x, body_h + roof_rise, 0.0)
+		var ridge_right = Vector3(ridge_half_x, body_h + roof_rise, 0.0)
+		triangles = [
+			front_left, front_right, ridge_right,
+			front_left, ridge_right, ridge_left,
+			back_right, back_left, ridge_left,
+			back_right, ridge_left, ridge_right,
+			back_left, front_left, ridge_left,
+			front_right, back_right, ridge_right
+		]
+	else:
+		var ridge_half_z = maxf(0.0, half_d - half_w)
+		var ridge_front = Vector3(0.0, body_h + roof_rise, ridge_half_z)
+		var ridge_back = Vector3(0.0, body_h + roof_rise, -ridge_half_z)
+		triangles = [
+			front_left, front_right, ridge_front,
+			back_right, back_left, ridge_back,
+			back_left, front_left, ridge_front,
+			back_left, ridge_front, ridge_back,
+			front_right, back_right, ridge_back,
+			front_right, ridge_back, ridge_front
+		]
+	var surface = SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for vertex in triangles:
+		surface.add_vertex(vertex)
+	surface.generate_normals()
+	var roof = MeshInstance3D.new()
+	roof.name = "HipRoof"
+	roof.mesh = surface.commit()
+	roof.material_override = roof_material
+	roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(roof)
+	roof_parts.append(roof)
+
+	var fascia_specs = [
+		[Vector3(width + 0.56, 0.2, 0.16), Vector3(0.0, body_h - 0.055, half_d - 0.03)],
+		[Vector3(width + 0.56, 0.2, 0.16), Vector3(0.0, body_h - 0.055, -half_d + 0.03)],
+		[Vector3(0.16, 0.2, depth + 0.56), Vector3(half_w - 0.03, body_h - 0.055, 0.0)],
+		[Vector3(0.16, 0.2, depth + 0.56), Vector3(-half_w + 0.03, body_h - 0.055, 0.0)]
+	]
+	for spec in fascia_specs:
+		var fascia = _add_roof_box(root, spec[0], spec[1], _trim_material, roof_parts)
+		fascia.name = "HipEaveFascia"
+		var soffit_size: Vector3 = spec[0]
+		soffit_size.y = 0.055
+		if soffit_size.x < soffit_size.z:
+			soffit_size.x = 0.28
+		else:
+			soffit_size.z = 0.28
+		var soffit_pos: Vector3 = spec[1]
+		soffit_pos.y -= 0.105
+		var soffit = _add_roof_box(root, soffit_size, soffit_pos, _soffit_material, roof_parts)
+		soffit.name = "HipSoffit"
+
+static func _add_suburban_chimney(
+	root: Node3D,
+	width: float,
+	depth: float,
+	body_h: float,
+	roof_rise: float,
+	rng: RandomNumberGenerator,
+	roof_parts: Array
+) -> void:
+	var chimney = MeshInstance3D.new()
+	var chimney_mesh = BoxMesh.new()
+	chimney_mesh.size = Vector3(0.42, 1.18, 0.48)
+	chimney.mesh = chimney_mesh
+	chimney.position = Vector3(
+		rng.randf_range(-width * 0.28, width * 0.28),
+		body_h + roof_rise * 0.62,
+		rng.randf_range(-depth * 0.24, depth * 0.24)
+	)
+	chimney.material_override = _chicago_brick_materials[0]
+	chimney.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chimney.visibility_range_end = 78.0
+	chimney.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	root.add_child(chimney)
+	roof_parts.append(chimney)
+
+static func _add_suburban_front_porch(root: Node3D, width: float, front_z: float, front_sign: float, rng: RandomNumberGenerator) -> String:
+	var style_roll = rng.randf()
+	var porch_style = "stoop"
+	if style_roll >= 0.68:
+		porch_style = "covered"
+	elif style_roll >= 0.34:
+		porch_style = "low_deck"
+	var porch_w = clampf(width * (0.56 if porch_style != "stoop" else 0.42), 2.0, 4.4)
+	var porch_d = 0.72 if porch_style == "stoop" else (1.08 if porch_style == "covered" else 1.28)
+	var porch = MeshInstance3D.new()
+	porch.name = "FrontPorch_%s" % porch_style
+	var porch_mesh = BoxMesh.new()
+	porch_mesh.size = Vector3(porch_w, 0.16 if porch_style != "low_deck" else 0.2, porch_d)
+	porch.mesh = porch_mesh
+	porch.position = Vector3(0.0, porch_mesh.size.y * 0.5, front_z + front_sign * (porch_d * 0.5 + 0.02))
+	porch.material_override = _stone_material
+	porch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(porch)
+
+	if porch_style == "covered":
+		for side in [-1.0, 1.0]:
+			var post = MeshInstance3D.new()
+			post.name = "PorchPost"
+			var post_mesh = BoxMesh.new()
+			post_mesh.size = Vector3(0.12, 2.18, 0.12)
+			post.mesh = post_mesh
+			post.position = Vector3(side * (porch_w * 0.5 - 0.16), 1.17, front_z + front_sign * (porch_d - 0.08))
+			post.material_override = _trim_material
+			post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			root.add_child(post)
+		var canopy = MeshInstance3D.new()
+		canopy.name = "PorchCanopy"
+		var canopy_mesh = BoxMesh.new()
+		canopy_mesh.size = Vector3(porch_w + 0.18, 0.13, porch_d + 0.18)
+		canopy.mesh = canopy_mesh
+		canopy.position = Vector3(0.0, 2.28, front_z + front_sign * (porch_d * 0.5 + 0.02))
+		canopy.material_override = _soffit_material
+		canopy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(canopy)
+	elif porch_style == "low_deck":
+		var step = MeshInstance3D.new()
+		step.name = "DeckStep"
+		var step_mesh = BoxMesh.new()
+		step_mesh.size = Vector3(minf(1.5, porch_w * 0.42), 0.1, 0.36)
+		step.mesh = step_mesh
+		step.position = Vector3(0.0, 0.05, front_z + front_sign * (porch_d + 0.18))
+		step.material_override = _stone_material
+		step.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(step)
+		for side in [-1.0, 1.0]:
+			var rail = MeshInstance3D.new()
+			rail.name = "DeckRail"
+			var rail_mesh = BoxMesh.new()
+			rail_mesh.size = Vector3(0.08, 0.54, porch_d * 0.72)
+			rail.mesh = rail_mesh
+			rail.position = Vector3(side * (porch_w * 0.5 - 0.08), 0.38, front_z + front_sign * porch_d * 0.52)
+			rail.material_override = _trim_material
+			rail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			root.add_child(rail)
+
+	var door = MeshInstance3D.new()
+	door.name = "FrontDoor"
+	var door_mesh = BoxMesh.new()
+	door_mesh.size = Vector3(0.82, 1.92, 0.055)
+	door.mesh = door_mesh
+	door.position = Vector3(0.0, 1.02, front_z + front_sign * 0.035)
+	door.material_override = _trim_material
+	door.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(door)
+	return porch_style
+
+static func _add_foundation_contact_shadow(root: Node3D, width: float, depth: float) -> void:
+	var shadow = MeshInstance3D.new()
+	shadow.name = "FoundationContactShadow"
+	var mesh = BoxMesh.new()
+	mesh.size = Vector3(width + 0.14, 0.026, depth + 0.14)
+	shadow.mesh = mesh
+	shadow.position = Vector3(0.0, 0.019, 0.0)
+	shadow.material_override = _contact_shadow_material
+	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(shadow)
 
 static func _add_rooftop_silhouette_profile(
 	root: Node3D,
@@ -494,6 +733,61 @@ static func _snap_building_to_ground(root: Node3D, ground_y: float = 0.018) -> f
 	root.position.y += dy
 	return bounds.position.y + bounds.size.y + root.position.y
 
+static func _make_suburban_siding_texture(base_color: Color) -> Texture2D:
+	var tex_size = 256
+	var course_height = 16
+	var img = Image.create(tex_size, tex_size, true, Image.FORMAT_RGBA8)
+	for y in range(tex_size):
+		var course_y = posmod(y, course_height)
+		var course = int(floor(float(y) / float(course_height)))
+		var edge_shade = 1.0
+		if course_y <= 1:
+			edge_shade = 0.73
+		elif course_y <= 4:
+			edge_shade = 0.9
+		elif course_y >= course_height - 2:
+			edge_shade = 1.08
+		for x in range(tex_size):
+			var grain = 0.975 + 0.035 * sin(float(x) * 0.19 + float(course) * 1.7)
+			grain += 0.012 * sin(float(x) * 0.057 + float(y) * 0.11)
+			var value = clampf(edge_shade * grain, 0.68, 1.12)
+			img.set_pixel(
+				x,
+				y,
+				Color(
+					clampf(base_color.r * value, 0.0, 1.0),
+					clampf(base_color.g * value, 0.0, 1.0),
+					clampf(base_color.b * value, 0.0, 1.0),
+					1.0
+				)
+			)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+static func _make_asphalt_shingle_texture(base_color: Color) -> Texture2D:
+	var tex_size = 256
+	var course_h = 18
+	var tab_w = 34
+	var img = Image.create(tex_size, tex_size, true, Image.FORMAT_RGBA8)
+	for y in range(tex_size):
+		var course = int(floor(float(y) / float(course_h)))
+		var course_y = posmod(y, course_h)
+		var stagger = (tab_w / 2) if course % 2 == 1 else 0
+		for x in range(tex_size):
+			var tab_x = posmod(x + stagger, tab_w)
+			var grain = 0.91 + 0.075 * sin(float(x) * 0.41 + float(y) * 0.19)
+			grain += 0.035 * sin(float(x) * 1.13 + float(course) * 2.7)
+			if course_y <= 2:
+				grain *= 0.72
+			elif course_y >= course_h - 2:
+				grain *= 1.06
+			if tab_x <= 1 and course_y > 3:
+				grain *= 0.68
+			var value = clampf(grain, 0.58, 1.1)
+			img.set_pixel(x, y, Color(base_color.r * value, base_color.g * value, base_color.b * value, 1.0))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
 static func _make_chicago_brick_texture(base_color: Color, accent_color: Color, mortar_color: Color) -> Texture2D:
 	var tex_w = 384
 	var tex_h = 384
@@ -572,7 +866,9 @@ static func _make_chicago_brick_material(base_color: Color, accent_color: Color,
 	mat.metallic = 0.0
 	mat.ao_enabled = true
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	mat.uv1_scale = Vector3(CHICAGO_BRICK_UV_SCALE, CHICAGO_BRICK_UV_SCALE, 1.0)
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_scale = Vector3.ONE * CHICAGO_BRICK_UV_SCALE
 	return mat
 
 static func brick_style_metrics() -> Dictionary:
@@ -580,14 +876,32 @@ static func brick_style_metrics() -> Dictionary:
 		"uv_scale": CHICAGO_BRICK_UV_SCALE,
 		"brick_px_w": CHICAGO_BRICK_PATTERN_WIDTH_PX,
 		"brick_px_h": CHICAGO_BRICK_PATTERN_HEIGHT_PX,
-		"mortar_px": CHICAGO_MORTAR_WIDTH_PX
+		"mortar_px": CHICAGO_MORTAR_WIDTH_PX,
+		"brick_world_w_m": CHICAGO_BRICK_WORLD_WIDTH_M,
+		"brick_world_h_m": CHICAGO_BRICK_WORLD_HEIGHT_M
+	}
+
+static func suburban_style_metrics() -> Dictionary:
+	_ensure_materials()
+	var textured_siding_materials = 0
+	for material in _wall_materials:
+		if material != null and material.albedo_texture != null:
+			textured_siding_materials += 1
+	var textured_roof_materials = 0
+	for material in _roof_materials:
+		if material != null and material.albedo_texture != null:
+			textured_roof_materials += 1
+	return {
+		"siding_materials": _wall_materials.size(),
+		"textured_siding_materials": textured_siding_materials,
+		"roof_materials": _roof_materials.size(),
+		"textured_roof_materials": textured_roof_materials
 	}
 
 static func _chicago_brick_base_height(floors: int, total_height: float) -> float:
-	var story_count = clampi(floors, 1, 4)
-	var desired = 3.6 + float(story_count - 1) * 2.55
-	var cap_by_height = maxf(3.35, total_height * 0.72)
-	return clampf(desired, 3.35, cap_by_height)
+	var story_count = clampi(floors, 1, 3)
+	var desired = 0.72 + float(story_count - 1) * 0.08
+	return minf(desired, total_height * 0.3)
 
 static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, brick_height: float, rng: RandomNumberGenerator) -> void:
 	if parent == null:
@@ -609,36 +923,16 @@ static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, 
 	var ns_width = maxf(0.7, width - edge_inset * 2.0)
 	var ew_depth = maxf(0.7, depth - edge_inset * 2.0 - shell_t * 2.0)
 
-	var side_panels = [
-		{
-			"size": Vector3(ns_width, brick_height, shell_t),
-			"pos": Vector3(0.0, brick_height * 0.5, -half_d + edge_inset + shell_t * 0.5)
-		},
-		{
-			"size": Vector3(ns_width, brick_height, shell_t),
-			"pos": Vector3(0.0, brick_height * 0.5, half_d - edge_inset - shell_t * 0.5)
-		},
-		{
-			"size": Vector3(shell_t, brick_height, ew_depth),
-			"pos": Vector3(-half_w + edge_inset + shell_t * 0.5, brick_height * 0.5, 0.0)
-		},
-		{
-			"size": Vector3(shell_t, brick_height, ew_depth),
-			"pos": Vector3(half_w - edge_inset - shell_t * 0.5, brick_height * 0.5, 0.0)
-		}
+	var panel_transforms: Array[Transform3D] = [
+		Transform3D(Basis().scaled(Vector3(ns_width, brick_height, shell_t)), Vector3(0.0, brick_height * 0.5, -half_d + edge_inset + shell_t * 0.5)),
+		Transform3D(Basis().scaled(Vector3(ns_width, brick_height, shell_t)), Vector3(0.0, brick_height * 0.5, half_d - edge_inset - shell_t * 0.5)),
+		Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(-half_w + edge_inset + shell_t * 0.5, brick_height * 0.5, 0.0)),
+		Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(half_w - edge_inset - shell_t * 0.5, brick_height * 0.5, 0.0))
 	]
-	for spec in side_panels:
-		var panel = MeshInstance3D.new()
-		var mesh = BoxMesh.new()
-		var panel_size: Vector3 = spec.get("size", Vector3.ONE)
-		var panel_pos: Vector3 = spec.get("pos", Vector3.ZERO)
-		mesh.size = panel_size
-		panel.mesh = mesh
-		panel.position = panel_pos
-		panel.material_override = brick_material
-		parent.add_child(panel)
+	_add_box_multimesh(parent, Vector3.ONE, panel_transforms, brick_material, "BrickFoundation", false, 82.0)
 
 	var belt = MeshInstance3D.new()
+	belt.name = "FoundationBelt"
 	var belt_mesh = BoxMesh.new()
 	belt_mesh.size = Vector3(
 		maxf(0.8, width - edge_inset * 2.0 + 0.04),
@@ -664,7 +958,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 	var width = footprint.size.x
 	var depth = footprint.size.y
 	var area = width * depth
-	var target_h = max(8.8, float(floors) * 5.0 + 1.8)
+	var target_h = float(clampi(floors, 1, 3)) * 2.78 + 1.45
 	var center = Vector3(footprint.position.x + width * 0.5, 0.0, footprint.position.y + depth * 0.5)
 	var compatible_specs: Array[Dictionary] = []
 	for spec in _external_building_specs:
@@ -693,6 +987,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 			continue
 
 		var model_root: Node3D = model as Node3D
+		_configure_external_model_performance(model_root)
 		var bounds := _compute_model_bounds(model_root)
 		if bounds.size.x <= 0.01 or bounds.size.y <= 0.01 or bounds.size.z <= 0.01:
 			model_root.free()
@@ -768,6 +1063,20 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 
 	# No compatible external model found; let caller fall back to procedural generation.
 	return {}
+
+static func _configure_external_model_performance(root: Node) -> void:
+	if root == null:
+		return
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is GeometryInstance3D:
+			var geometry = node as GeometryInstance3D
+			geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			geometry.visibility_range_end = 92.0
+			geometry.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		for child in node.get_children():
+			stack.append(child)
 
 static func _add_external_rooftop_polish(
 	root: Node3D,

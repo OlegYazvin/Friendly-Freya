@@ -7,6 +7,7 @@ var alleys: Array[Rect2] = []
 var sidewalks: Array[Rect2] = []
 var buildings: Array[Rect2] = []
 var store_buildings: Array[Rect2] = []
+var home_building = Rect2()
 var store_entries = PackedVector2Array()
 var store_entry_dirs = PackedVector2Array()
 var dog_park = Rect2()
@@ -18,9 +19,13 @@ var vomit_positions = PackedVector2Array()
 var claimed_poles_freya = PackedVector2Array()
 var claimed_trees_freya = PackedVector2Array()
 var claimed_hydrants_freya = PackedVector2Array()
+var claimed_mailboxes_freya = PackedVector2Array()
 var claimed_poles_enemy = PackedVector2Array()
 var claimed_trees_enemy = PackedVector2Array()
 var claimed_hydrants_enemy = PackedVector2Array()
+var claimed_mailboxes_enemy = PackedVector2Array()
+var alien_buildings: Array[Rect2] = []
+var alien_building_integrities = PackedFloat32Array()
 var camera_forward = Vector2(1.0, -1.0)
 var freya_forward = Vector2(0.0, -1.0)
 var zoom_level = 2.6
@@ -35,6 +40,7 @@ const MINIMAP_ANGLE_SMOOTH = 0.28
 const CLAIM_MARKER_POLE = 1
 const CLAIM_MARKER_TREE = 2
 const CLAIM_MARKER_HYDRANT = 3
+const CLAIM_MARKER_MAILBOX = 4
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -53,9 +59,13 @@ func update_dynamic(
 	poles_freya: PackedVector2Array = PackedVector2Array(),
 	trees_freya: PackedVector2Array = PackedVector2Array(),
 	hydrants_freya: PackedVector2Array = PackedVector2Array(),
+	mailboxes_freya: PackedVector2Array = PackedVector2Array(),
 	poles_enemy: PackedVector2Array = PackedVector2Array(),
 	trees_enemy: PackedVector2Array = PackedVector2Array(),
-	hydrants_enemy: PackedVector2Array = PackedVector2Array()
+	hydrants_enemy: PackedVector2Array = PackedVector2Array(),
+	mailboxes_enemy: PackedVector2Array = PackedVector2Array(),
+	alien_rects: Array[Rect2] = [],
+	alien_integrities: PackedFloat32Array = PackedFloat32Array()
 ) -> void:
 	freya_position = freya_pos
 	dog_positions = dogs
@@ -64,9 +74,13 @@ func update_dynamic(
 	claimed_poles_freya = poles_freya
 	claimed_trees_freya = trees_freya
 	claimed_hydrants_freya = hydrants_freya
+	claimed_mailboxes_freya = mailboxes_freya
 	claimed_poles_enemy = poles_enemy
 	claimed_trees_enemy = trees_enemy
 	claimed_hydrants_enemy = hydrants_enemy
+	claimed_mailboxes_enemy = mailboxes_enemy
+	alien_buildings = alien_rects
+	alien_building_integrities = alien_integrities
 	if forward.length_squared() > 0.000001:
 		# Smooth heading changes to reduce minimap rotation jitter.
 		camera_forward = camera_forward.lerp(forward.normalized(), 0.46).normalized()
@@ -130,10 +144,16 @@ func _draw_claim_markers(
 			draw_circle(center, 1.9, fill_color)
 			draw_circle(center, 1.1, Color(fill_color.r * 0.65, fill_color.g * 0.65, fill_color.b * 0.65, 0.95))
 			draw_arc(center, 1.9, 0.0, TAU, 12, outline_color, 1.0)
-		else:
+		elif marker_type == CLAIM_MARKER_HYDRANT:
 			draw_line(center + Vector2(-1.6, -1.6), center + Vector2(1.6, 1.6), outline_color, 1.2, true)
 			draw_line(center + Vector2(-1.6, 1.6), center + Vector2(1.6, -1.6), outline_color, 1.2, true)
 			draw_circle(center, 1.15, fill_color)
+		else:
+			var mailbox_rect = Rect2(center - Vector2(2.1, 1.55), Vector2(4.2, 3.1))
+			draw_rect(mailbox_rect, fill_color, true)
+			draw_rect(mailbox_rect, outline_color, false, 1.0)
+			draw_line(center + Vector2(-1.85, -1.25), center, outline_color, 0.8, true)
+			draw_line(center + Vector2(1.85, -1.25), center, outline_color, 0.8, true)
 
 func _compute_world_origin(view_world: Vector2) -> Vector2:
 	var origin = freya_position - view_world * 0.5
@@ -194,6 +214,18 @@ func _draw() -> void:
 	for s in store_buildings:
 		_draw_map_rect(s, world_origin, scale_vec, angle, draw_rect, Color(0.08, 0.42, 0.56, 0.6), true)
 		_draw_map_rect(s, world_origin, scale_vec, angle, draw_rect, Color(0.98, 0.98, 0.98, 0.98), false, 2.2)
+
+	if home_building.size.x > 0.0 and home_building.size.y > 0.0:
+		_draw_map_rect(home_building, world_origin, scale_vec, angle, draw_rect, Color(0.94, 0.73, 0.3, 0.78), true)
+		_draw_map_rect(home_building, world_origin, scale_vec, angle, draw_rect, Color(1.0, 0.95, 0.7, 1.0), false, 2.2)
+
+	for alien_index in range(alien_buildings.size()):
+		var alien_rect = alien_buildings[alien_index]
+		var integrity = 1.0
+		if alien_index < alien_building_integrities.size():
+			integrity = clampf(alien_building_integrities[alien_index], 0.0, 1.0)
+		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.24, 0.015, 0.34, 0.48 + integrity * 0.28), true)
+		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.12, 1.0, 0.68, 0.48 + integrity * 0.5), false, 1.4 + integrity * 1.2)
 
 	var pulse = 0.72 + 0.28 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
 	for i in range(store_entries.size()):
@@ -271,6 +303,16 @@ func _draw() -> void:
 		draw_rect
 	)
 	_draw_claim_markers(
+		claimed_mailboxes_freya,
+		CLAIM_MARKER_MAILBOX,
+		Color(0.96, 0.82, 0.35, 0.98),
+		Color(0.12, 0.08, 0.02, 0.96),
+		world_origin,
+		scale_vec,
+		angle,
+		draw_rect
+	)
+	_draw_claim_markers(
 		claimed_poles_enemy,
 		CLAIM_MARKER_POLE,
 		Color(0.94, 0.34, 0.31, 0.98),
@@ -295,6 +337,16 @@ func _draw() -> void:
 		CLAIM_MARKER_HYDRANT,
 		Color(0.97, 0.52, 0.34, 0.98),
 		Color(0.1, 0.0, 0.0, 0.98),
+		world_origin,
+		scale_vec,
+		angle,
+		draw_rect
+	)
+	_draw_claim_markers(
+		claimed_mailboxes_enemy,
+		CLAIM_MARKER_MAILBOX,
+		Color(0.9, 0.38, 0.3, 0.98),
+		Color(0.12, 0.0, 0.0, 0.98),
 		world_origin,
 		scale_vec,
 		angle,

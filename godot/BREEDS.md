@@ -1,14 +1,22 @@
 # Dog Breeds (Strict Definitions)
 
+[Documentation hub](../README.md) · [Godot overview](README_GODOT.md) ·
+[Gameplay direction](../GAMEPLAY_AUDIT.md) ·
+[Model policy](assets/models/README_MODELS.md)
+
+**Document role:** current subsystem policy. Runtime definitions and schema
+validation in [main.gd](scripts/main.gd) are authoritative.
+
 The authoritative breed config is in:
 
-- `res://scripts/main.gd`
+- [scripts/main.gd](scripts/main.gd)
 - `const DOG_BREED_DEFINITIONS`
 - `const NPC_BREED_SEQUENCE`
 
 Each breed definition controls:
 
-- `breed_profile` (procedural morphology fallback in `DogAgent`)
+- `breed_profile` (active shared-rig bone reshaping and procedural fallback
+  morphology in `DogAgent`)
 - `model_candidates` (preferred 3D model files for that breed)
 - `coat_palette` (allowed coat colors for that breed)
 - `speed_range` (NPC movement range)
@@ -18,9 +26,28 @@ Each breed definition controls:
 
 ## Current Runtime Model Policy
 
-- NPC spawn uses animated models only.
-- If a breed's model candidates do not contain walk/run animations, spawn falls back to the animated Freya Portuguese water dog rig.
-- This keeps visual style + walk animation consistency across all dogs.
+- Freya and every NPC breed use the same
+  [Portuguese Water Dog voxel asset](assets/models/freya_portuguese_water_dog.glb), rig,
+  authored gait, material language, and animation timing.
+- Breeds are approximated inside that common art style through deterministic
+  body, head, muzzle, leg, and tail proportions; target height/length; and
+  breed-appropriate coat palettes.
+- This intentionally favors a coherent voxel cast over mixing realistic or
+  low-poly models from unrelated sources. If the shared model is unavailable,
+  the built-in procedural voxel dog remains the last-resort fallback.
+
+See the [model inventory and provenance status](assets/models/README_MODELS.md)
+before adding, replacing, or redistributing model assets.
+
+## Army Alignment Collar Policy
+
+- A recruited dog's ordinary accessory is replaced by a broad camouflage collar
+  fitted to that breed's reshaped neck frame.
+- High-contrast block-color plates, bright edge bands, a readable top panel, and
+  a buckle keep the collar obvious from the normal overhead camera across small
+  and large breeds.
+- The collar communicates army membership only. Possession remains visually
+  secret, and no icon or indicator appears above the dog.
 
 ## Current Breed IDs
 

@@ -1,21 +1,31 @@
 # Run Friendly Freya
 
-Last verified: March 4, 2026
+[Documentation hub](README.md) · [Codebase map](docs/CODEBASE_MAP.md) ·
+[Godot overview and controls](godot/README_GODOT.md)
 
-## Working launch command (this environment)
+Last verified: September 1, 2026 with Godot `4.7.2.stable.flathub`.
+The project declares the Godot `4.6` feature target in
+[project.godot](godot/project.godot).
+
+Run commands from the repository root unless a section says otherwise.
+
+## Launch in This Codex Environment
 
 Use host Flatpak (not sandbox `flatpak`):
 
 ```sh
-host-spawn flatpak run org.godotengine.Godot --path "/data/projects/Friendly Freya/godot"
+host-spawn flatpak run org.godotengine.Godot --path "$PWD/godot"
 ```
 
-## Why this command
+The first screen should offer `Watch Intro` and `Skip To Game`.
+
+Why `host-spawn` is required here:
 
 - `flatpak` is not available directly in the sandbox shell.
-- `host-spawn flatpak` works and successfully launches Godot/Friendly Freya.
+- Godot and the X11 capture tools run on the host.
+- The workspace path is shared with the host.
 
-## Verify it launched
+Verify the process:
 
 ```sh
 host-spawn flatpak ps
@@ -23,12 +33,116 @@ host-spawn flatpak ps
 
 You should see `org.godotengine.Godot` in the list.
 
-## Required Before Deploy
+Stop the current Godot process before a capture run or when explicitly requested:
 
-Run the size/animation/layout guardrail checks before every deploy:
+```sh
+host-spawn flatpak kill org.godotengine.Godot
+```
+
+## Other Environments
+
+Linux with Flatpak available directly:
+
+```sh
+flatpak run org.godotengine.Godot --path "$PWD/godot"
+```
+
+Windows with Godot on `PATH`, from the repository root:
+
+```powershell
+godot --path .\godot
+```
+
+Alternatively, open `godot/project.godot` in the editor and press Play.
+
+## Required Validation
+
+Run the complete guardrail suite after gameplay, scene, timeline, startup, or
+validation changes and before packaging/deploying:
 
 ```sh
 ./scripts/predeploy_size_checks.sh
 ```
 
-This runs headless smoke + targeted validations, including dog/building relative-size checks.
+It runs:
+
+1. startup-choice route, focus, loadability, and selection-lock validation;
+2. UFO intro scene/cast/dialogue/audio/Earth/fleet validation;
+3. gameplay smoke and targeted validation plus family-intro staging, dialogue,
+   effects, audio mapping, and handoff checks.
+
+Successful output includes `STARTUP_OK`, `INTRO_OK`, `SMOKE_OK`, `TARGET_OK`,
+and `FAMILY_INTRO_OK`, followed by `Predeploy checks passed.`
+
+A passing command is required evidence, but visual changes also require an
+inspected deterministic capture.
+
+## Visual Regression Captures
+
+The capture scripts require host `wmctrl` and `xwd`, local `ffmpeg`, an X11
+display, and no running `org.godotengine.Godot` process.
+
+Regenerate all gameplay/world views:
+
+```sh
+./scripts/capture_visual_regressions.sh
+```
+
+Regenerate one gameplay/world view:
+
+```sh
+FREYA_CAPTURE_ONLY=home_inside ./scripts/capture_visual_regressions.sh
+```
+
+Regenerate all startup/UFO/family-intro views:
+
+```sh
+./scripts/capture_intro_regressions.sh
+```
+
+Regenerate one startup/intro view:
+
+```sh
+FREYA_INTRO_CAPTURE_ONLY=intro_09_family_pills ./scripts/capture_intro_regressions.sh
+```
+
+The checked-in outputs and accepted names are cataloged in
+[visual_regressions/README.md](visual_regressions/README.md). Always open the
+changed PNG and inspect composition, visibility, scale, and overlap.
+
+## Release and Export Status
+
+There is no reproducible release/export command checked into the repository.
+The local `godot/export_presets.cfg` is intentionally ignored, and existing
+Windows bundles under `Logs and Monitoring/` are historical artifacts. Do not
+describe or distribute them as current builds.
+
+Before a release, establish and document a versioned export workflow with a
+reviewed preset and export templates matching the chosen Godot editor version.
+Until then, the validation commands above prove the source build only; they do
+not produce a release package.
+
+## Troubleshooting
+
+### Capture says Godot is already running
+
+Confirm the active process with `host-spawn flatpak ps`. Close the window or use
+the explicit kill command above, then rerun the capture. Do not run captures
+against an unrelated active Godot session.
+
+### A capture cannot find the window
+
+Confirm the game launches normally and that `wmctrl -lx` can see a window whose
+class includes `Godot_Engine.Friendly Freya`. The scripts cannot capture in a
+headless-only environment.
+
+### Audio is missing
+
+Check the exact file mapping and license record in
+[godot/assets/audio/ATTRIBUTION.md](godot/assets/audio/ATTRIBUTION.md). Missing or
+invalid audio must remain silent; never synthesize or select substitute audio.
+
+### Documentation and runtime disagree
+
+Use the source-of-truth order in [README.md](README.md#source-of-truth-order),
+verify runtime behavior, and update the current reference alongside the fix.

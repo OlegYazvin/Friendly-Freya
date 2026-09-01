@@ -1,55 +1,121 @@
-# Friendly Freya (Godot 4 Migration)
+# Friendly Freya Godot Project
 
-This is the Godot-native version of Friendly Freya.
+[Documentation hub](../README.md) · [Run and validation](../RUN_FRIENDLY_FREYA.md) ·
+[Codebase map](../docs/CODEBASE_MAP.md) · [Gameplay direction](../GAMEPLAY_AUDIT.md) ·
+[Intro guide](../INTRO_CUTSCENE.md)
 
-## Run (Linux Mint 21.3 with Flatpak Godot, OpenGL compatibility)
+This directory is the authoritative Godot source for Friendly Freya. The
+project targets Godot's `4.6` feature set and uses the OpenGL compatibility
+renderer. See the run guide for the editor version last used to validate it.
 
-```bash
-flatpak run org.godotengine.Godot --path ./godot
+The copies beneath `../Logs and Monitoring/` and any packaged `.exe`, `.pck`, or
+archive are historical build artifacts, not editable source.
+
+## Start the Project
+
+Run commands from the repository root.
+
+Linux with Flatpak available in the current shell:
+
+```sh
+flatpak run org.godotengine.Godot --path "$PWD/godot"
 ```
 
-Project default renderer is set to `gl_compatibility` for Linux-native runs on this machine.
+The Codex workspace needs `host-spawn`; use the exact command in the
+[run guide](../RUN_FRIENDLY_FREYA.md#launch-in-this-codex-environment).
 
-## Run (Windows 10/11)
-
-If Godot is installed and on PATH:
+Windows with Godot on `PATH`:
 
 ```powershell
 godot --path .\godot
 ```
 
-Or open `godot/project.godot` from the Godot editor and press Play.
+Alternatively, open [project.godot](project.godot) in the editor and press Play.
+The configured entry scene is `Startup.tscn`: choose `Watch Intro` or
+`Skip To Game`.
 
 ## Controls
 
-- `WASD` / Arrow keys: move Freya (`Up` maps to up on screen)
-- `Shift`: run
-- `Q` / `E`: rotate camera
-- `F`: eat nearby poop / pick up or drop stick
-- `Space`: vomit when vomit meter is full
+- Startup: choose `Watch Intro` or `Skip To Game`; `Watch Intro` has keyboard
+  focus by default.
+- Intro: `Space`, `Esc`, or the on-screen button skips to gameplay.
+- `WASD` or Arrow keys: move Freya; `Shift`: run.
+- `Q` / `E`: rotate the camera; mouse wheel: zoom.
+- `F`: eat nearby food or bones, use Freya's permanent home bowl, or pick up a
+  stick; `V`: drop a carried stick.
+- Hold `C` near a dog: socialize at a Hunger cost. A possessed dog also raises
+  Vomit; sustained socializing recruits a real dog into Freya's army.
+- Hold `X` near a dog: expel an alien or scare a real dog away.
+- Hold `R`: claim trees, light poles, hydrants, and mailboxes; weaken an alien
+  building beside its wall; or search a nearby dumpster.
+- `Space`: vomit when the Vomit meter is full.
+- Hold `Tab`: show objectives and alien/building counts.
+- `Esc` during gameplay: pause. `Watch Intro` replays the cut-scene and begins a
+  fresh game when it finishes or is skipped.
 
-## Gameplay Systems Included
+The in-game pause menu is the closest player-facing source for controls. Input
+bindings are configured in `main.gd` under `_configure_input` and
+`_unhandled_input`.
 
-- Isometric overhead 3D camera with follow/zoom on Freya
-- Freya (realistic black Portuguese Water Dog model)
-- Hunger / Vomit / Social meters
-- Bark socialization pulses when near other dogs
-- Poop eating reduces hunger (lightly) and raises vomit meter
-- Vomit puddles with irregular geometry
-- Minimap in upper-right
-- Subdivision layout with connected alleys and a north-corner dog park
-- Roof occlusion handling with an indicator when Freya is hidden behind buildings
+## Implemented Gameplay at a Glance
 
-## Optional High-Quality Dog Models
+- A selectable UFO intro leads into a sixteen-beat family prologue staged in
+  the actual generated map home; control begins there after Freya saves Ryah.
+- An isometric procedural suburban neighborhood surrounds a center-block dog
+  park, furnished enterable buildings, storefronts, and Freya's persistent
+  home.
+- Freya is a black, three-legged Portuguese Water Dog rendered with the shared
+  voxel dog rig. NPC breeds use that rig with distinct proportions, scale,
+  coats, and ordinary accessories.
+- Hunger rises very slowly at rest and faster while walking, running, or taking
+  sustained actions. Home-bowl food resets Hunger to zero.
+- Exactly 75% of NPC dogs begin secretly possessed. Possession never changes
+  their appearance; Freya's unease supplies the indirect clue.
+- Socialization costs Hunger and raises Vomit around a possessed dog. Recruited
+  dogs wear a broad camouflage neck collar with no overhead indicator.
+- Grounded voxel imp aliens use collision-aware movement. Expelled/free aliens
+  travel to reachable exterior points before occupying buildings.
+- Occupied storefronts lock their services, reinforce nearby alien buildings,
+  and exclusively generate a map-wide maximum of eight free aliens. Approaching
+  Freya sends a free alien toward the nearest building.
+- Buildings track alien occupant counts. Alien architecture and minimap states
+  are static, while holding `R` by an occupied wall weakens its integrity.
+- Scent claims cover trees, light poles, hydrants, and residential mailboxes.
+  Bones raise Strength; sticks can be carried and increase run speed.
 
-- Put `.glb` dog models in `godot/assets/models/`
-- Follow filename mapping in `godot/assets/models/README_MODELS.md`
-- The game auto-loads those models for Freya/NPC dogs and falls back to built-in procedural dogs if none are present
+For exact current/future distinctions, use
+[GAMEPLAY_AUDIT.md](../GAMEPLAY_AUDIT.md). For breed details, use
+[BREEDS.md](BREEDS.md).
 
-## Predeploy Validation
+## Architecture and Assets
 
-Run this before every deploy:
+The complete ownership map is in [docs/CODEBASE_MAP.md](../docs/CODEBASE_MAP.md).
+The principal runtime flow is:
 
-```bash
+```text
+Startup.tscn → IntroCutscene.tscn (optional) → Main.tscn
+```
+
+`scripts/main.gd` owns the integrated procedural world and gameplay state.
+Focused factories own building, dog, alien, family, UFO, minimap, and tree
+presentation. Runtime map visuals and materials are largely code-native rather
+than prefab/image assets.
+
+Before changing assets, read:
+
+- [Dog breed and shared-rig policy](BREEDS.md)
+- [Model inventory and provenance status](assets/models/README_MODELS.md)
+- [Audio attribution and no-fallback mappings](assets/audio/ATTRIBUTION.md)
+
+## Validation
+
+From the repository root, run:
+
+```sh
 ./scripts/predeploy_size_checks.sh
 ```
+
+This is the authoritative startup, UFO intro, gameplay smoke/target, and family
+intro validation gate. Visual changes additionally require regenerating and
+inspecting the affected image described in the
+[visual regression catalog](../visual_regressions/README.md).
