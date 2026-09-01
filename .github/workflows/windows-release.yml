@@ -163,8 +163,8 @@ jobs:
           Push-Location $exe.Directory.FullName
           try {
             $env:FREYA_STARTUP_VALIDATE = '1'
-            & $exe.FullName --headless --log-file startup-smoke.log
-            $exitCode = $LASTEXITCODE
+            $process = Start-Process -FilePath $exe.FullName -ArgumentList @('--headless', '--log-file', 'startup-smoke.log') -Wait -PassThru
+            $exitCode = $process.ExitCode
             if (Test-Path startup-smoke.log) { Get-Content startup-smoke.log }
             if ($exitCode -ne 0) { throw "FriendlyFreya.exe exited with code $exitCode." }
             if (-not (Select-String -Path startup-smoke.log -Pattern 'STARTUP_OK' -Quiet)) {
