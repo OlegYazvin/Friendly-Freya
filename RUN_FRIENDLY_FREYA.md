@@ -110,17 +110,34 @@ The checked-in outputs and accepted names are cataloged in
 [visual_regressions/README.md](visual_regressions/README.md). Always open the
 changed PNG and inspect composition, visibility, scale, and overlap.
 
-## Release and Export Status
+## Release and Export
 
-There is no reproducible release/export command checked into the repository.
-The local `godot/export_presets.cfg` is intentionally ignored, and existing
-Windows bundles under `Logs and Monitoring/` are historical artifacts. Do not
-describe or distribute them as current builds.
+Windows releases use the tracked `Windows Desktop` preset in
+`godot/export_presets.cfg` and Godot `4.7.2` editor/export templates. The export
+contains `FriendlyFreya.exe` plus a separate `FriendlyFreya.pck`; players must
+keep those files together, but do not need Godot installed.
 
-Before a release, establish and document a versioned export workflow with a
-reviewed preset and export templates matching the chosen Godot editor version.
-Until then, the validation commands above prove the source build only; they do
-not produce a release package.
+To build locally after installing matching export templates:
+
+```sh
+./scripts/predeploy_size_checks.sh
+./scripts/build_windows_release.sh v0.1.0
+```
+
+The build script verifies the executable and PCK, confirms the active CC0 dog
+resource is present, proves inactive model references are absent, adds the
+player instructions and legal notices, creates a ZIP, and writes its SHA-256
+manifest under `dist/`.
+
+Pushing a `v*` tag runs `.github/workflows/windows-release.yml`. That workflow
+downloads checksum-pinned official Godot files, repeats the full project
+validation and export, launches the package on `windows-latest`, and publishes
+the ZIP and checksum only after the Windows smoke test passes. This repository
+is private, so only people granted repository access can download its Release
+assets.
+
+Existing bundles under `Logs and Monitoring/` remain historical artifacts. Do
+not describe or distribute them as current builds.
 
 ## Troubleshooting
 

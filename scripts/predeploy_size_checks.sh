@@ -3,33 +3,51 @@ set -eu
 
 PROJECT_PATH="$(CDPATH= cd -- "$(dirname -- "$0")/../godot" && pwd)"
 
-if command -v flatpak >/dev/null 2>&1; then
+godot_bin=""
+if [ -n "${GODOT_BIN:-}" ]; then
+	if [ -x "$GODOT_BIN" ]; then
+		godot_bin=$GODOT_BIN
+	elif command -v "$GODOT_BIN" >/dev/null 2>&1; then
+		godot_bin=$(command -v "$GODOT_BIN")
+	else
+		echo "Error: GODOT_BIN does not name an executable: $GODOT_BIN" >&2
+		exit 1
+	fi
+	launcher_kind=direct
+elif command -v godot >/dev/null 2>&1; then
+	godot_bin=$(command -v godot)
+	launcher_kind=direct
+elif command -v flatpak >/dev/null 2>&1; then
 	launcher_kind=flatpak
 elif command -v host-spawn >/dev/null 2>&1; then
 	launcher_kind=host_spawn
 else
-	echo "Error: neither flatpak nor host-spawn is available to launch Godot." >&2
+	echo "Error: set GODOT_BIN or install godot, flatpak, or host-spawn." >&2
 	exit 1
 fi
 
+run_scene_validation() {
+	scene_path=$1
+	shift
+	case "$launcher_kind" in
+		direct)
+			env "$@" "$godot_bin" --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			;;
+		flatpak)
+			env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			;;
+		host_spawn)
+			host-spawn env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			;;
+	esac
+}
+
 echo "Running Friendly Freya startup-choice validation..."
-if [ "$launcher_kind" = flatpak ]; then
-	FREYA_STARTUP_VALIDATE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/Startup.tscn --quit
-else
-	host-spawn env FREYA_STARTUP_VALIDATE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/Startup.tscn --quit
-fi
+run_scene_validation res://scenes/Startup.tscn FREYA_STARTUP_VALIDATE=1
 
 echo "Running Friendly Freya intro cut-scene validation..."
-if [ "$launcher_kind" = flatpak ]; then
-	FREYA_INTRO_VALIDATE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/IntroCutscene.tscn --quit
-else
-	host-spawn env FREYA_INTRO_VALIDATE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/IntroCutscene.tscn --quit
-fi
+run_scene_validation res://scenes/IntroCutscene.tscn FREYA_INTRO_VALIDATE=1
 
 echo "Running Friendly Freya gameplay checks (smoke + targeted validation)..."
-if [ "$launcher_kind" = flatpak ]; then
-	FREYA_VALIDATE=1 FREYA_SMOKE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/Main.tscn --quit
-else
-	host-spawn env FREYA_VALIDATE=1 FREYA_SMOKE=1 flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" res://scenes/Main.tscn --quit
-fi
+run_scene_validation res://scenes/Main.tscn FREYA_VALIDATE=1 FREYA_SMOKE=1
 echo "Predeploy checks passed."

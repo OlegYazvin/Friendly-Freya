@@ -518,14 +518,27 @@ func _create_audio_players() -> void:
 func _load_exact_audio_stream(path: String) -> AudioStream:
 	# Audio policy: the exact mapped clip either loads or this event stays silent.
 	# This function intentionally has no candidate list and no fallback stream.
-	if path.is_empty() or not FileAccess.file_exists(path):
+	if path.is_empty():
 		return null
-	if path.to_lower().ends_with(".ogg") or path.to_lower().ends_with(".oga"):
-		return AudioStreamOggVorbis.load_from_file(path)
-	if path.to_lower().ends_with(".wav"):
-		return AudioStreamWAV.load_from_file(path)
-	if path.to_lower().ends_with(".mp3"):
-		return AudioStreamMP3.load_from_file(path)
+	if FileAccess.file_exists(path):
+		if path.to_lower().ends_with(".ogg") or path.to_lower().ends_with(".oga"):
+			var ogg := AudioStreamOggVorbis.load_from_file(path)
+			if ogg != null:
+				return ogg
+		elif path.to_lower().ends_with(".wav"):
+			var wav := AudioStreamWAV.load_from_file(path)
+			if wav != null:
+				return wav
+		elif path.to_lower().ends_with(".mp3"):
+			var mp3 := AudioStreamMP3.load_from_file(path)
+			if mp3 != null:
+				return mp3
+	# Exported PCKs store the imported form of this same exact resource. Loading
+	# it through ResourceLoader is not a substitute or fallback clip.
+	if ResourceLoader.exists(path):
+		var imported_stream = load(path)
+		if imported_stream is AudioStream:
+			return imported_stream as AudioStream
 	return null
 
 
@@ -825,9 +838,9 @@ func _validate_earth_geometry(failures: Array[String]) -> void:
 
 
 func _validate_audio(failures: Array[String]) -> void:
-	if not FileAccess.file_exists(RUNE_AUDIO_PATH) or rune_audio_stream == null:
+	if not ResourceLoader.exists(RUNE_AUDIO_PATH) or rune_audio_stream == null:
 		failures.append("rune_audio_missing_or_invalid")
-	if not FileAccess.file_exists(TRANSLATION_AUDIO_PATH) or translation_audio_stream == null:
+	if not ResourceLoader.exists(TRANSLATION_AUDIO_PATH) or translation_audio_stream == null:
 		failures.append("translation_audio_missing_or_invalid")
 	var event_keys: Array[String] = []
 	for scene in IntroTimeline.dialogue_scenes():

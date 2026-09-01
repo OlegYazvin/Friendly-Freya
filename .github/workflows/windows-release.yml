@@ -1,0 +1,218 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: "4.7.2"
+  GODOT_EDITOR_SHA256: "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4"
+  GODOT_TEMPLATES_SHA256: "f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011"
+  RELEASE_TAG: "v0.1.0"
+
+jobs:
+  build:
+    name: Validate and export
+    runs-on: ubuntu-latest
+    outputs:
+      release-label: ${{ steps.release-label.outputs.value }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Resolve artifact label
+        id: release-label
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            label="$GITHUB_REF_NAME"
+            if [[ "$label" != "$RELEASE_TAG" ]]; then
+              echo "Tag $label does not match configured release $RELEASE_TAG." >&2
+              exit 1
+            fi
+          else
+            label="manual-$GITHUB_RUN_NUMBER"
+          fi
+          case "$label" in
+            *[!A-Za-z0-9._-]*|'')
+              echo "Unsupported release label: $label" >&2
+              exit 1
+              ;;
+          esac
+          echo "value=$label" >> "$GITHUB_OUTPUT"
+
+      - name: Download verified Godot editor
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot"
+          editor_zip="$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          curl --fail --location --retry 3 --output "$editor_zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          echo "${GODOT_EDITOR_SHA256}  $editor_zip" | sha256sum --check --strict
+          unzip -q "$editor_zip" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+
+      - name: Restore Windows export templates
+        id: template-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          key: godot-${{ env.GODOT_VERSION }}-windows-x86-64-templates-${{ env.GODOT_TEMPLATES_SHA256 }}
+
+      - name: Download verified Windows export templates
+        if: steps.template-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          templates_archive="$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          templates_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          curl --fail --location --retry 3 --output "$templates_archive" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          echo "${GODOT_TEMPLATES_SHA256}  $templates_archive" | sha256sum --check --strict
+          mkdir -p "$templates_dir"
+          unzip -j -q "$templates_archive" \
+            templates/version.txt \
+            templates/windows_debug_x86_64.exe \
+            templates/windows_debug_x86_64_console.exe \
+            templates/windows_release_x86_64.exe \
+            templates/windows_release_x86_64_console.exe \
+            -d "$templates_dir"
+          (
+            cd "$templates_dir"
+            sha256sum \
+              version.txt \
+              windows_debug_x86_64.exe \
+              windows_debug_x86_64_console.exe \
+              windows_release_x86_64.exe \
+              windows_release_x86_64_console.exe \
+              > .extracted-files.sha256
+            printf '%s\n' "$GODOT_TEMPLATES_SHA256" > .source-archive.sha256
+          )
+
+      - name: Verify restored export templates
+        shell: bash
+        run: |
+          templates_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          test "$(cat "$templates_dir/version.txt")" = "${GODOT_VERSION}.stable"
+          test "$(cat "$templates_dir/.source-archive.sha256")" = "$GODOT_TEMPLATES_SHA256"
+          (
+            cd "$templates_dir"
+            sha256sum --check --strict .extracted-files.sha256
+          )
+
+      - name: Run startup, intro, and gameplay validation
+        shell: bash
+        run: |
+          GODOT_BIN="$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" \
+            ./scripts/predeploy_size_checks.sh
+
+      - name: Build Windows ZIP
+        shell: bash
+        env:
+          RELEASE_LABEL: ${{ steps.release-label.outputs.value }}
+        run: |
+          GODOT_BIN="$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" \
+            FREYA_RELEASE_OUTPUT_DIR="$GITHUB_WORKSPACE/dist" \
+            ./scripts/build_windows_release.sh "$RELEASE_LABEL"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: friendly-freya-windows
+          path: |
+            dist/Friendly-Freya-${{ steps.release-label.outputs.value }}-Windows-x86_64.zip
+            dist/Friendly-Freya-${{ steps.release-label.outputs.value }}-Windows-x86_64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-smoke:
+    name: Start exported game on Windows
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download Windows package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: friendly-freya-windows
+          path: dist
+
+      - name: Validate archive and start game
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem -Path dist -Filter '*.zip' | Select-Object -First 1
+          if ($null -eq $archive) { throw 'Windows ZIP was not downloaded.' }
+          $checksum = Get-ChildItem -Path dist -Filter '*.zip.sha256' | Select-Object -First 1
+          if ($null -eq $checksum) { throw 'Windows checksum was not downloaded.' }
+          $expectedHash = ((Get-Content -LiteralPath $checksum.FullName -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          $actualHash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) { throw 'Windows ZIP SHA-256 verification failed.' }
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath smoke
+          $exe = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.exe'
+          $pck = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.pck'
+          if ($exe.Length -le 0 -or $pck.Length -le 0) { throw 'Exported EXE or PCK is empty.' }
+
+          Push-Location $exe.Directory.FullName
+          try {
+            $env:FREYA_STARTUP_VALIDATE = '1'
+            & $exe.FullName --headless --log-file startup-smoke.log
+            $exitCode = $LASTEXITCODE
+            if (Test-Path startup-smoke.log) { Get-Content startup-smoke.log }
+            if ($exitCode -ne 0) { throw "FriendlyFreya.exe exited with code $exitCode." }
+            if (-not (Select-String -Path startup-smoke.log -Pattern 'STARTUP_OK' -Quiet)) {
+              throw 'Windows startup log did not contain STARTUP_OK.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+      - windows-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release notes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download verified package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: friendly-freya-windows
+          path: dist
+
+      - name: Create or update release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="dist/Friendly-Freya-${GITHUB_REF_NAME}-Windows-x86_64.zip"
+          checksum="$archive.sha256"
+          (
+            cd dist
+            sha256sum --check --strict "$(basename "$checksum")"
+          )
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "Friendly Freya $GITHUB_REF_NAME" \
+              --notes-file packaging/windows/RELEASE_NOTES.md
+            gh release upload "$GITHUB_REF_NAME" "$archive" "$checksum" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$archive" "$checksum" \
+              --verify-tag \
+              --title "Friendly Freya $GITHUB_REF_NAME" \
+              --notes-file packaging/windows/RELEASE_NOTES.md
+          fi

@@ -13,6 +13,8 @@ const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
 const FAMILY_BARK_AUDIO_PATH = "res://assets/audio/barks/bark_real_01.wav"
 const FAMILY_LOUD_BARK_AUDIO_PATH = "res://assets/audio/barks/aggressive_bark_01.wav"
+const FAMILY_PILL_REVEAL_POSITION = Vector3(0.0, 1.09, -0.4)
+const FAMILY_PILL_REVEAL_BOB = 0.008
 
 const MAP_W = 144.0
 const MAP_H = 118.0
@@ -3383,7 +3385,7 @@ func _begin_family_intro(view_id: String = "", force_static: bool = false) -> vo
 	family_zoe.set_meta("stage_position", family_zoe.position)
 
 	family_pill_reveal = FamilyVisualFactory.create_pill_reveal()
-	family_pill_reveal.position = Vector3(0.0, 0.86, -0.48)
+	family_pill_reveal.position = FAMILY_PILL_REVEAL_POSITION
 	family_gene.add_child(family_pill_reveal, true)
 	family_pill_reveal.visible = false
 	family_gene_beam = FamilyVisualFactory.create_abduction_effect("GeneAbduction", Color(0.31, 0.92, 1.0))
@@ -3745,8 +3747,10 @@ func _apply_family_intro_time(time_seconds: float) -> void:
 	if family_pill_reveal != null:
 		family_pill_reveal.visible = time_seconds >= pills_start and time_seconds < parent_vanish_time
 		family_pill_reveal.rotation.y = sin(time_seconds * 1.8) * 0.08
-		# Keep the bottle bases above Gene's palms instead of intersecting them.
-		family_pill_reveal.position.y = 1.03 + sin(time_seconds * 3.1) * 0.018
+		# The bundle sits just above and behind Gene's palms. Keeping the two
+		# volumes separate prevents the transparent bottles from making his hands
+		# look as though they pass through the lower row.
+		family_pill_reveal.position.y = FAMILY_PILL_REVEAL_POSITION.y + sin(time_seconds * 3.1) * FAMILY_PILL_REVEAL_BOB
 	if family_gene != null:
 		family_gene.visible = time_seconds < parent_vanish_time
 		var gene_base: Vector3 = family_gene.get_meta("stage_position", family_gene.position)
@@ -3780,7 +3784,9 @@ func _apply_gene_pill_hold_pose(arm: Node3D, side: float, amount: float) -> void
 	arm.rotation = Vector3(
 		lerpf(neutral.x, 0.92, amount),
 		neutral.y,
-		lerpf(neutral.z, side * -0.24, amount)
+		# Keep each palm beneath an outside edge of the bundle instead of pulling
+		# both hands inward through the bottles.
+		lerpf(neutral.z, side * -0.11, amount)
 	)
 
 
@@ -3953,6 +3959,10 @@ func _run_family_intro_validation() -> bool:
 		failures.append("pill_reveal_not_visible")
 	if family_gene_left_arm == null or family_gene_right_arm == null or family_gene_left_arm.rotation.x < 0.85 or family_gene_right_arm.rotation.x < 0.85:
 		failures.append("family_gene_pill_hold_pose_missing")
+	elif absf(family_gene_left_arm.rotation.z) > 0.14 or absf(family_gene_right_arm.rotation.z) > 0.14:
+		failures.append("family_gene_hands_too_far_inside_pills")
+	if family_pill_reveal.position.y < 1.07 or family_pill_reveal.position.z < -0.42:
+		failures.append("family_pills_overlap_hands")
 	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_abduction"))
 	if not family_gene_beam.visible or not family_zoe_beam.visible or not family_gene.visible or not family_zoe.visible:
 		failures.append("parent_abduction_checkpoint_bad")
@@ -3971,7 +3981,7 @@ func _run_family_intro_validation() -> bool:
 	var home_rect: Rect2 = buildings[freya_home_index].get("home_interior_rect", Rect2())
 	if not home_rect.grow(0.1).has_point(Vector2(freya.global_position.x, freya.global_position.z)):
 		failures.append("family_freya_not_inside_live_home")
-	if not FileAccess.file_exists(FAMILY_BARK_AUDIO_PATH) or not FileAccess.file_exists(FAMILY_LOUD_BARK_AUDIO_PATH):
+	if not ResourceLoader.exists(FAMILY_BARK_AUDIO_PATH) or not ResourceLoader.exists(FAMILY_LOUD_BARK_AUDIO_PATH):
 		failures.append("family_exact_bark_audio_missing")
 	var saved_events = family_intro_played_events.duplicate()
 	family_intro_played_events.clear()

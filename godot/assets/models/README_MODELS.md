@@ -35,8 +35,10 @@ Buildings currently use the procedural construction path in
 ### Active dog model
 
 - `freya_portuguese_water_dog.glb` — the sole model in both Freya and NPC dog
-  candidate lists
-- `freya_portuguese_water_dog_Atlas.png` — associated texture atlas
+  candidate lists; converted and renamed from the `Dog` model in Quaternius's
+  Cube World Kit
+- `freya_portuguese_water_dog_Atlas.png` — the renamed Cube World Kit texture
+  atlas associated with that model
 
 ### Inactive dog reference assets
 
@@ -63,13 +65,17 @@ Buildings currently use the procedural construction path in
 The building assets other than `building_house.glb` are not referenced by the
 current runtime scripts.
 
-## Provenance and Release Blocker
+## Provenance and Release Scope
 
-The repository does not currently contain source, author, or license records
-for the distributed GLBs or their associated texture files. Do not infer those
-details from filenames or embedded mesh names.
+The active `freya_portuguese_water_dog.glb` and
+`freya_portuguese_water_dog_Atlas.png` are derived from the `Dog` asset in
+Quaternius's [Cube World Kit](https://quaternius.com/packs/cubeworldkit.html).
+The upstream model was converted to binary glTF (`.glb`), and the model and
+atlas were renamed for Friendly Freya. Quaternius publishes the pack under
+[CC0 1.0](https://quaternius.com/faq.html), permitting modification and use in
+personal and commercial projects without required attribution.
 
-Before any redistribution or release, recover and record verifiable provenance
-and license terms for each retained model bundle, or replace it with an asset
-whose provenance and redistribution rights are documented. This requirement
-applies to the active Freya model as well as the inactive reference assets.
+Provenance and license terms for every inactive dog and building reference
+asset listed above remain unresolved. Those inactive assets are retained only
+as source-tree references and are excluded from releases. Do not redistribute
+them unless their provenance and redistribution rights are documented first.

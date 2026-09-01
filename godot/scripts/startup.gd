@@ -2,6 +2,27 @@ extends Control
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
+const RELEASE_REQUIRED_RESOURCES = [
+	"res://assets/models/freya_portuguese_water_dog.glb",
+	"res://assets/models/freya_portuguese_water_dog_Atlas.png"
+]
+const RELEASE_EXCLUDED_RESOURCES = [
+	"res://assets/models/dog_golden.glb",
+	"res://assets/models/dog_golden_Tex_Puppy.png",
+	"res://assets/models/dog_husky.glb",
+	"res://assets/models/dog_labrador.glb",
+	"res://assets/models/dog_labrador_Tex_Beagle.png",
+	"res://assets/models/dog_neighbor_01.glb",
+	"res://assets/models/dog_neighbor_02.glb",
+	"res://assets/models/buildings/building_apartment.glb",
+	"res://assets/models/buildings/building_apartment_Apartment_BaseColor.png",
+	"res://assets/models/buildings/building_big.glb",
+	"res://assets/models/buildings/building_house.glb",
+	"res://assets/models/buildings/building_house_PUSHILIN_house.png",
+	"res://assets/models/buildings/building_large_01.glb",
+	"res://assets/models/buildings/building_large_02.glb",
+	"res://assets/models/buildings/building_roofgarden.glb"
+]
 
 @onready var watch_intro_button: Button = %WatchIntroButton
 @onready var skip_to_game_button: Button = %SkipToGameButton
@@ -14,7 +35,9 @@ func _ready() -> void:
 	skip_to_game_button.pressed.connect(_on_skip_to_game_pressed)
 	watch_intro_button.grab_focus()
 
-	if OS.get_environment("FREYA_STARTUP_VALIDATE") == "1":
+	if OS.get_environment("FREYA_RELEASE_CONTENT_VALIDATE") == "1":
+		_run_release_content_validation()
+	elif OS.get_environment("FREYA_STARTUP_VALIDATE") == "1":
 		_run_startup_validation()
 
 
@@ -89,3 +112,40 @@ func _run_startup_validation() -> void:
 	else:
 		push_error("STARTUP_FAIL: " + ", ".join(failures))
 		get_tree().quit(1)
+
+
+func _run_release_content_validation() -> void:
+	var failures: Array[String] = []
+	var packed_imports := DirAccess.get_files_at("res://.godot/imported")
+	for resource_path in RELEASE_REQUIRED_RESOURCES:
+		if not ResourceLoader.exists(resource_path):
+			failures.append("required_resource_missing_%s" % resource_path.get_file())
+		if not _packed_import_exists(packed_imports, resource_path):
+			failures.append("required_import_missing_%s" % resource_path.get_file())
+	for resource_path in RELEASE_EXCLUDED_RESOURCES:
+		if ResourceLoader.exists(resource_path):
+			failures.append("excluded_resource_present_%s" % resource_path.get_file())
+		if _packed_import_exists(packed_imports, resource_path):
+			failures.append("excluded_import_present_%s" % resource_path.get_file())
+	if DirAccess.dir_exists_absolute("res://assets/models"):
+		for packed_file in DirAccess.get_files_at("res://assets/models"):
+			if packed_file.begins_with("dog_"):
+				failures.append("unexpected_dog_reference_%s" % packed_file)
+	if DirAccess.dir_exists_absolute("res://assets/models/buildings"):
+		for packed_file in DirAccess.get_files_at("res://assets/models/buildings"):
+			failures.append("unexpected_building_reference_%s" % packed_file)
+
+	if failures.is_empty():
+		print("RELEASE_CONTENT_OK: active CC0 model and imports present; inactive reference models and imports excluded")
+		get_tree().quit()
+	else:
+		push_error("RELEASE_CONTENT_FAIL: " + ", ".join(failures))
+		get_tree().quit(1)
+
+
+func _packed_import_exists(packed_imports: PackedStringArray, resource_path: String) -> bool:
+	var prefix := resource_path.get_file() + "-"
+	for packed_import in packed_imports:
+		if packed_import.begins_with(prefix):
+			return true
+	return false

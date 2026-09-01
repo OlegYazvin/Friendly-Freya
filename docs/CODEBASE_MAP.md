@@ -46,6 +46,7 @@ thin scene shells whose scripts construct most runtime content.
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |
 | Regression automation | `scripts/`, `visual_regressions/` | Headless checks and deterministic screenshot baselines |
+| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup smoke, and GitHub Release publication |
 
 `godot/scripts/main.gd` is intentionally the integration point and is much
 larger than the focused factories. Search for the owning function or constant
@@ -126,6 +127,9 @@ These are automation interfaces, not player settings.
 | `FREYA_INTRO_SHOW_SCENE_ID` | Show stable scene-ID overlays in the UFO or family intro | Direct development launch |
 | `FREYA_PERF_BENCHMARK` | Emit aggregate rendering/runtime metrics | Direct benchmark launch |
 | `FREYA_PERF_PROFILE_GAMEPLAY` | Include categorized gameplay timing | Use with the performance benchmark |
+| `GODOT_BIN` | Select a direct Godot executable for validation/export automation | CI or local release tooling |
+| `FREYA_RELEASE_OUTPUT_DIR` | Override the Windows ZIP output directory | `build_windows_release.sh` |
+| `FREYA_EXPORT_GODOT_VERSION` | Override the build script's expected Godot version | Controlled release testing only |
 
 Headless validation and static-view modes use the fixed regression seed; normal
 graphical gameplay remains randomized.
@@ -140,6 +144,7 @@ graphical gameplay remains randomized.
 | Buildings, home, dogs, aliens, collars, or pause UI | Relevant gameplay/world capture |
 | Audio file or mapping | Predeploy checks plus attribution update; missing audio must remain silent |
 | Model policy or breed schema | Predeploy checks plus model/breed documentation update |
+| Export preset, packaging, or release workflow | Full predeploy checks, local package inspection, and a successful Windows Actions smoke run |
 
 ## Search Recipes
 

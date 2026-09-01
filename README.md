@@ -81,16 +81,22 @@ godot/                  Godot project, scenes, scripts, and runtime assets
 scripts/                Validation and deterministic capture entry points
 visual_regressions/     Checked-in reference PNGs and their catalog
 docs/                   Cross-system architecture documentation
+packaging/windows/      Player instructions, notices, and release notes
+.github/workflows/      Reproducible validation and Windows release automation
 Logs and Monitoring/    Packaged Windows snapshots; not authoritative source
 ```
 
 ## Release Readiness
 
-No reproducible release/export command is currently checked in. Existing
-Windows bundles are historical, and distributed model provenance/licenses are
-not yet documented. See the [run guide](RUN_FRIENDLY_FREYA.md#release-and-export-status)
-and [model inventory](godot/assets/models/README_MODELS.md#provenance-and-release-blocker)
-before packaging or distributing the project.
+The repository contains a versioned Windows export preset, a local packaging
+script, and a tag-driven GitHub Actions workflow. Release jobs verify the Godot
+editor and export-template downloads, run all project checks, build the ZIP,
+and start the exported package on a Windows runner before publishing it.
+
+The active dog model is documented CC0 material. Inactive reference models with
+unresolved provenance are explicitly excluded from release exports. See the
+[run guide](RUN_FRIENDLY_FREYA.md#release-and-export) and
+[model inventory](godot/assets/models/README_MODELS.md) for details.
 
 ## Documentation Maintenance
 
