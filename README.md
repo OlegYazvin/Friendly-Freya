@@ -1,10 +1,10 @@
 # Friendly Freya
 
-Friendly Freya is a Godot 4 neighborhood game about a Portuguese Water Dog
-protecting Ryah Diane from a covert alien invasion. The current project includes
-the startup menu, two-part intro, procedural neighborhood, dog socialization and
-possession systems, scent claims, occupied buildings, and deterministic visual
-regression views.
+Friendly Freya is a Godot 4 neighborhood game about a wonderful three-legged
+Portuguese Water Dog protecting Ryah Diane from a covert alien invasion. The
+current project includes the startup menu, two-part intro, procedural
+neighborhood, dog socialization and possession systems, scent claims, occupied
+buildings, and deterministic visual regression views.
 
 ## Start Here
 
