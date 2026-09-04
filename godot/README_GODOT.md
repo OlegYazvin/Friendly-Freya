@@ -32,7 +32,8 @@ godot --path .\godot
 
 Alternatively, open [project.godot](project.godot) in the editor and press Play.
 The configured entry scene is `Startup.tscn`: choose `Watch Intro` or
-`Skip To Game`.
+`Skip To Game`. Its background is generated cinematic key art of the real
+three-legged Freya in a Northbrook-inspired brick town-center streetscape.
 
 ## Controls
 
@@ -59,20 +60,30 @@ bindings are configured in `main.gd` under `_configure_input` and
 
 ## Implemented Gameplay at a Glance
 
-- A selectable UFO intro leads into a sixteen-beat family prologue staged in
-  the actual generated map home; control begins there after Freya saves Ryah.
+- A selectable UFO intro leads into a twenty-beat family prologue staged in the
+  actual generated map home. Gene drops his pills during abduction; after
+  saving Ryah, Freya eats them, has a comic convulsion, and discovers her
+  internal monologue. Freya then starts fully hungry, and an authored-bark
+  thought prompt plus a pulsing bowl pointer keeps her inside until she eats.
+- On Freya's first exit, three temporary dog walkers appear with leashed city
+  dogs. Alien beams abduct the people, then the leashes clear and the dogs
+  resume their normal autonomous behavior.
 - An isometric procedural suburban neighborhood surrounds a center-block dog
-  park, furnished enterable buildings, storefronts, and Freya's persistent
-  home.
+  park with six dogs, a complete gated fence, and varied agility equipment,
+  plus furnished enterable buildings, storefronts, and Freya's persistent home.
 - Freya is a black, three-legged Portuguese Water Dog rendered with the shared
   voxel dog rig. NPC breeds use that rig with distinct proportions, scale,
   coats, and ordinary accessories.
-- Hunger rises very slowly at rest and faster while walking, running, or taking
-  sustained actions. Home-bowl food resets Hunger to zero.
+- Hunger starts at `100%`, rises very slowly at rest after eating, and rises
+  faster while walking, running, or taking sustained actions. Home-bowl food
+  resets Hunger to zero.
 - Exactly 75% of NPC dogs begin secretly possessed. Possession never changes
   their appearance; Freya's unease supplies the indirect clue.
 - Socialization costs Hunger and raises Vomit around a possessed dog. Recruited
   dogs wear a broad camouflage neck collar with no overhead indicator.
+- Dog exchanges draw from independent recorded conversational, excited-social,
+  and aggressive bark pools. Each pool cycles through every clip before reuse
+  and prevents the same recording at a cycle boundary.
 - Grounded voxel imp aliens use collision-aware movement. Expelled/free aliens
   travel to reachable exterior points before occupying buildings.
 - Occupied storefronts lock their services, reinforce nearby alien buildings,

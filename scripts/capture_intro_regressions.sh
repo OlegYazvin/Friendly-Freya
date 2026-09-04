@@ -30,7 +30,10 @@ for spec in \
 	intro_10_family_abduction:Main.tscn:family_abduction \
 	intro_11_family_ryah_targeted:Main.tscn:family_ryah_targeted \
 	intro_12_family_loud_bark:Main.tscn:family_loud_bark \
-	intro_13_family_ryah_saved:Main.tscn:family_ryah_saved
+	intro_13_family_ryah_saved:Main.tscn:family_ryah_saved \
+	intro_14_family_pill_eat:Main.tscn:family_pill_eat \
+	intro_15_family_convulsion:Main.tscn:family_convulsion \
+	intro_16_family_monologue:Main.tscn:family_monologue
 do
 	output_name=${spec%%:*}
 	remainder=${spec#*:}
@@ -61,7 +64,11 @@ do
 		cat "$log_file" >&2
 		exit 1
 	fi
-	if [ "$scene_name" = "Main.tscn" ]; then
+	if [ "$output_name" = "startup_menu" ]; then
+		# The full-resolution title artwork can keep Godot's splash visible longer
+		# than the lightweight intro scene on the older capture GPU.
+		sleep 5
+	elif [ "$scene_name" = "Main.tscn" ]; then
 		# Main builds the real procedural neighborhood and selected home before the
 		# family cutscene can seek to its deterministic checkpoint.
 		sleep 8

@@ -99,6 +99,11 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** Visible aliens are slightly smaller grounded voxel imps with articulated gaits, bounded character speed, collision-aware steering, and an exterior-wall possession handoff.
 - **Implemented:** Every alien-controlled building stores and displays its current alien occupant count.
 - **Implemented:** Freya's permanent food bowl inside Ryah Diane's house is reusable and resets Hunger to zero when Freya eats from it.
+- **Implemented:** Freya starts fully hungry after the family prologue; first-person text, exact authored barks, and a pulsing bowl pointer guide her to eat, while the home boundary turns her back with a reminder until the meal is complete.
+- **Implemented:** Gene drops his pill bottles during abduction; after saving Ryah, Freya eats the spill, performs a comic convulsion, discovers her internal monologue, and only then enters the eat-first tutorial.
+- **Implemented:** Freya's first post-meal exit stages three people with leashed city dogs, abducts the people in separate beams, removes the leashes, and releases those dogs into their default behavior afterward.
+- **Implemented:** The dog park population is six dogs and the park has a complete two-rail perimeter with a visible open gate, weave poles, a jump hurdle, an A-frame, and a crawl tunnel.
+- **Implemented:** Dog audio is separated into conversational, excited-social, and aggressive recorded-bark pools; friendly call-and-response routes by speaker, aggressive socializing stays in its own pool, and per-category shuffle bags exhaust every clip before reuse without immediate cycle-boundary repeats.
 - **Implemented:** Residential mailboxes use the same hold-`R` pee claim, owner/reclaim state, world-ring feedback, and Freya/enemy minimap markers as trees, light poles, and fire hydrants.
 
 ### Pass 1 Implemented

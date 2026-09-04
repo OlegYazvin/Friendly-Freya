@@ -49,6 +49,37 @@ static func create_adult(person_id: String) -> Node3D:
 	return root
 
 
+static func create_pedestrian(pedestrian_index: int) -> Node3D:
+	var root = Node3D.new()
+	root.name = "DogWalker%02d" % pedestrian_index
+	root.set_meta("visual_signature", "friendly_freya_dog_walker_v1")
+	var skin_colors = [Color8(224, 181, 151), Color8(170, 117, 86), Color8(232, 198, 171), Color8(112, 76, 58)]
+	var shirt_colors = [Color8(67, 123, 158), Color8(202, 104, 79), Color8(104, 142, 91), Color8(125, 93, 151)]
+	var pants_colors = [Color8(52, 64, 82), Color8(82, 70, 58), Color8(48, 78, 76), Color8(78, 72, 91)]
+	var hair_colors = [Color8(67, 43, 31), Color8(38, 31, 29), Color8(176, 125, 69), Color8(102, 72, 55)]
+	var skin = _material(skin_colors[pedestrian_index % skin_colors.size()], 0.84)
+	var shirt = _material(shirt_colors[pedestrian_index % shirt_colors.size()], 0.86)
+	var pants = _material(pants_colors[pedestrian_index % pants_colors.size()], 0.9)
+	var hair = _material(hair_colors[pedestrian_index % hair_colors.size()], 0.92)
+	var shoe = _material(Color8(47, 43, 40), 0.88)
+	_box(root, "Torso", Vector3(0.5, 0.72, 0.3), Vector3(0.0, 1.08, 0.0), shirt)
+	for side in [-1.0, 1.0]:
+		_box(root, "Leg", Vector3(0.18, 0.65, 0.22), Vector3(side * 0.14, 0.38, 0.0), pants)
+		_box(root, "Shoe", Vector3(0.21, 0.12, 0.34), Vector3(side * 0.14, 0.06, -0.06), shoe)
+		var arm = Node3D.new()
+		arm.name = "LeashArm" if side > 0.0 else "FreeArm"
+		arm.position = Vector3(side * 0.31, 1.3, 0.0)
+		arm.rotation.z = side * (0.32 if side > 0.0 else -0.12)
+		root.add_child(arm)
+		_box(arm, "Sleeve", Vector3(0.16, 0.28, 0.22), Vector3(0.0, -0.13, 0.0), shirt)
+		_box(arm, "Forearm", Vector3(0.13, 0.38, 0.15), Vector3(0.0, -0.43, 0.0), skin)
+		_sphere(arm, "Hand", 0.09, Vector3(0.0, -0.66, 0.0), skin, Vector3(0.9, 1.05, 0.82))
+	_box(root, "Neck", Vector3(0.16, 0.16, 0.16), Vector3(0.0, 1.52, 0.0), skin)
+	_sphere(root, "Head", 0.25, Vector3(0.0, 1.73, 0.0), skin, Vector3(0.92, 1.08, 0.92))
+	_sphere(root, "Hair", 0.255, Vector3(0.0, 1.86, 0.045), hair, Vector3(1.02, 0.52 + float(pedestrian_index % 2) * 0.18, 1.0))
+	return root
+
+
 static func create_pill_reveal() -> Node3D:
 	var root = Node3D.new()
 	root.name = "GenePillBottleReveal"
@@ -75,6 +106,81 @@ static func create_pill_reveal() -> Node3D:
 		_cylinder(bottle, "AmberBottle", 0.07, 0.1, 0.28, Vector3(0.0, 0.14, 0.0), bottle_materials[bottle_index % bottle_materials.size()])
 		_cylinder(bottle, "WhiteCap", 0.078, 0.078, 0.07, Vector3(0.0, 0.315, 0.0), cap)
 		_box(bottle, "PharmacyLabel", Vector3(0.145, 0.105, 0.012), Vector3(0.0, 0.16, -0.094), label_colors[bottle_index % label_colors.size()])
+	return root
+
+
+static func create_dropped_pills() -> Node3D:
+	var root = Node3D.new()
+	root.name = "DroppedPharmacyPills"
+	root.set_meta("visual_signature", "friendly_freya_dropped_pills_v1")
+	root.set_meta("bottle_count", 9)
+	var bottle_materials = [
+		_transparent_material(Color(0.72, 0.35, 0.12, 0.84)),
+		_transparent_material(Color(0.87, 0.52, 0.16, 0.84)),
+		_transparent_material(Color(0.56, 0.25, 0.1, 0.84))
+	]
+	var cap = _material(Color8(242, 239, 225), 0.66)
+	var label_colors = [
+		_material(Color8(230, 224, 195), 0.82),
+		_material(Color8(198, 224, 224), 0.82),
+		_material(Color8(232, 198, 211), 0.82)
+	]
+	for bottle_index in range(9):
+		var bottle = Node3D.new()
+		bottle.name = "DroppedPillBottle%02d" % bottle_index
+		var angle = TAU * float(bottle_index) / 9.0 + float(bottle_index % 2) * 0.23
+		var radius = 0.18 + float(bottle_index % 3) * 0.12
+		bottle.position = Vector3(cos(angle) * radius, 0.105 + float(bottle_index % 2) * 0.015, sin(angle) * radius * 0.72)
+		bottle.rotation = Vector3(
+			deg_to_rad(float((bottle_index % 3) - 1) * 8.0),
+			angle + float(bottle_index % 4) * 0.17,
+			deg_to_rad(72.0 + float(bottle_index % 3) * 9.0)
+		)
+		root.add_child(bottle)
+		_cylinder(bottle, "AmberBottle", 0.07, 0.1, 0.28, Vector3.ZERO, bottle_materials[bottle_index % bottle_materials.size()])
+		_cylinder(bottle, "WhiteCap", 0.078, 0.078, 0.07, Vector3(0.0, 0.175, 0.0), cap)
+		_box(bottle, "PharmacyLabel", Vector3(0.145, 0.105, 0.012), Vector3(0.0, 0.0, -0.094), label_colors[bottle_index % label_colors.size()])
+
+	# A few loose capsules make the landing read as a comic spill rather than a
+	# second neatly held bundle.
+	var capsule_colors = [
+		_material(Color8(245, 213, 82), 0.68),
+		_material(Color8(111, 203, 216), 0.68),
+		_material(Color8(236, 124, 156), 0.68)
+	]
+	for capsule_index in range(7):
+		var capsule = _box(
+			root,
+			"LooseCapsule%02d" % capsule_index,
+			Vector3(0.08, 0.035, 0.035),
+			Vector3(-0.38 + float(capsule_index) * 0.13, 0.035, 0.29 + sin(float(capsule_index) * 1.8) * 0.09),
+			capsule_colors[capsule_index % capsule_colors.size()]
+		)
+		capsule.rotation.y = float(capsule_index) * 0.73
+	return root
+
+
+static func create_pill_convulsion_effect() -> Node3D:
+	var root = Node3D.new()
+	root.name = "FreyaPillConvulsionEffect"
+	root.set_meta("visual_signature", "friendly_freya_pill_convulsion_v1")
+	var cyan = _emissive_transparent_material(Color(0.22, 0.95, 1.0, 0.82), Color(0.22, 0.95, 1.0), 2.8)
+	var pink = _emissive_transparent_material(Color(1.0, 0.35, 0.76, 0.84), Color(1.0, 0.35, 0.76), 2.8)
+	var yellow = _emissive_transparent_material(Color(1.0, 0.88, 0.24, 0.88), Color(1.0, 0.88, 0.24), 3.0)
+	for ring_index in range(3):
+		var ring = _torus(root, "WobbleRing%d" % ring_index, 0.62 + float(ring_index) * 0.17, 0.68 + float(ring_index) * 0.17, Vector3(0.0, 0.5 + float(ring_index) * 0.26, 0.0), cyan if ring_index % 2 == 0 else pink)
+		ring.rotation = Vector3(0.2 + float(ring_index) * 0.42, 0.0, 0.34 - float(ring_index) * 0.27)
+		ring.set_meta("reaction_phase", float(ring_index) * 0.8)
+	for star_index in range(8):
+		var star = Node3D.new()
+		star.name = "ComicStar%d" % star_index
+		star.set_meta("reaction_phase", TAU * float(star_index) / 8.0)
+		root.add_child(star)
+		var star_material = yellow if star_index % 3 == 0 else (pink if star_index % 3 == 1 else cyan)
+		_box(star, "StarBarA", Vector3(0.24, 0.055, 0.055), Vector3.ZERO, star_material)
+		var cross = _box(star, "StarBarB", Vector3(0.055, 0.24, 0.055), Vector3.ZERO, star_material)
+		cross.rotation.z = PI * 0.25
+	root.visible = false
 	return root
 
 

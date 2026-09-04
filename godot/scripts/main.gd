@@ -15,6 +15,19 @@ const FAMILY_BARK_AUDIO_PATH = "res://assets/audio/barks/bark_real_01.wav"
 const FAMILY_LOUD_BARK_AUDIO_PATH = "res://assets/audio/barks/aggressive_bark_01.wav"
 const FAMILY_PILL_REVEAL_POSITION = Vector3(0.0, 1.09, -0.4)
 const FAMILY_PILL_REVEAL_BOB = 0.008
+const POST_INTRO_MEAL_GUIDANCE_TEXT = "I need to eat, and then figure out what's going on outside."
+const POST_INTRO_MEAL_REMINDER_TEXT = "I have to eat first,"
+const POST_INTRO_MEAL_REMINDER_DURATION = 2.2
+const POST_INTRO_MEAL_REMINDER_COOLDOWN = 1.15
+const POST_INTRO_MEAL_TURNAROUND_DURATION = 0.42
+const POST_INTRO_MEAL_TURNAROUND_SPEED = 1.65
+const POST_INTRO_MEAL_POINTER_BOB_SPEED = 4.2
+const POST_INTRO_MEAL_POINTER_BOB_HEIGHT = 0.08
+const FIRST_EXIT_DOG_WALKER_COUNT = 3
+const FIRST_EXIT_BEAM_START = 0.9
+const FIRST_EXIT_OWNER_VANISH_TIME = 3.35
+const FIRST_EXIT_BEAM_END = 3.85
+const FIRST_EXIT_TOTAL_DURATION = 4.9
 
 const MAP_W = 144.0
 const MAP_H = 118.0
@@ -41,7 +54,22 @@ const STICK_MOUTH_FORWARD_OFFSET = -0.08
 const STICK_MOUTH_UP_OFFSET = -0.02
 const STICK_MOUTH_RIGHT_OFFSET = 0.0
 const STICK_MOUTH_PITCH_DEG = -2.0
-const BARK_PASSIVE_SAMPLE_CANDIDATES = [
+const BARK_CATEGORY_CONVERSATIONAL = "conversational"
+const BARK_CATEGORY_EXCITED_SOCIAL = "excited_social"
+const BARK_CATEGORY_AGGRESSIVE = "aggressive"
+const BARK_CONVERSATIONAL_SAMPLE_CANDIDATES = [
+	"res://assets/audio/barks/conversational_bark_01.wav",
+	"res://assets/audio/barks/conversational_bark_02.wav",
+	"res://assets/audio/barks/conversational_bark_03.wav",
+	"res://assets/audio/barks/conversational_bark_04.wav"
+]
+const BARK_EXCITED_SOCIAL_SAMPLE_CANDIDATES = [
+	"res://assets/audio/barks/excited_social_bark_01.wav",
+	"res://assets/audio/barks/excited_social_bark_02.wav",
+	"res://assets/audio/barks/excited_social_bark_03.wav",
+	"res://assets/audio/barks/excited_social_bark_04.wav",
+	"res://assets/audio/barks/excited_social_bark_05.wav",
+	"res://assets/audio/barks/excited_social_bark_06.wav",
 	"res://assets/audio/barks/bark_real_01.wav",
 	"res://assets/audio/barks/bark_real_02.wav",
 	"res://assets/audio/barks/bark_real_03.wav",
@@ -442,8 +470,8 @@ const DOG_BREED_DEFINITIONS = {
 		"mixable": false
 	}
 }
-const NPC_DOG_COUNT = 24
-const DOG_PARK_NPC_COUNT = 8
+const NPC_DOG_COUNT = 22
+const DOG_PARK_NPC_COUNT = 6
 const NPC_SIDEWALK_PREF_CHANCE = 0.86
 const FREYA_OCCLUSION_SAMPLE_BLOCK_THRESHOLD = 4
 const FREYA_SOCIAL_DANCE_RADIUS = 0.58
@@ -490,6 +518,25 @@ var freya_home_exterior_root: Node3D
 var freya_home_interior_root: Node3D
 var freya_home_bowl_node: Node3D
 var freya_home_bowl_position = Vector2.ZERO
+var post_intro_meal_tutorial_active = false
+var post_intro_meal_tutorial_completed = false
+var post_intro_meal_reminder_timer = 0.0
+var post_intro_meal_reminder_cooldown = 0.0
+var post_intro_meal_turnaround_timer = 0.0
+var post_intro_meal_turnaround_direction = Vector3.ZERO
+var post_intro_meal_bark_request_count = 0
+var post_intro_meal_bowl_highlight_suppressed = false
+var post_intro_meal_bowl_pointer: Node3D
+var post_intro_meal_bowl_pointer_base = Vector3.ZERO
+var first_exit_abduction_active = false
+var first_exit_abduction_completed = false
+var first_exit_abduction_static = false
+var first_exit_abduction_time = 0.0
+var first_exit_abduction_root: Node3D
+var first_exit_abduction_pairs: Array = []
+var first_exit_abduction_layer: CanvasLayer
+var first_exit_abduction_scene_label: Label
+var first_exit_abduction_center = Vector3.ZERO
 var suburban_yard_root: Node3D
 var facade_clearance_rects: Array[Rect2] = []
 var suburban_yard_detail_count = 0
@@ -519,8 +566,14 @@ var static_obstacle_grid: Dictionary = {}
 var store_walk_blockers: Array[Rect2] = []
 
 var dog_park = Rect2()
+var dog_park_root: Node3D
+var dog_park_fence_segment_count = 0
+var dog_park_fence_post_count = 0
+var dog_park_equipment_types: Array[String] = []
+var dog_park_obstacles: Array = []
+var dog_park_fence_blockers: Array[Rect2] = []
 var freya
-var freya_hunger = 34.0
+var freya_hunger = 100.0
 var freya_vomit = 0.0
 var freya_social = 24.0
 var freya_strength = FREYA_STRENGTH_MIN_LEVEL
@@ -612,6 +665,8 @@ var strength_value_label: Label
 var unease_label: Label
 var status_label: Label
 var status_timer = 0.0
+var post_intro_meal_panel: Panel
+var post_intro_meal_label: Label
 var objectives_panel: Panel
 var objectives_list_label: Label
 var stats_panel: Panel
@@ -643,11 +698,17 @@ var pause_menu_panel: Panel
 var pause_menu_open = false
 var pause_intro_button: Button
 var bark_sfx_players: Array[AudioStreamPlayer] = []
-var bark_sfx_streams_passive: Array[AudioStream] = []
+var bark_sfx_streams_conversational: Array[AudioStream] = []
+var bark_sfx_streams_excited_social: Array[AudioStream] = []
 var bark_sfx_streams_aggressive: Array[AudioStream] = []
 var bark_sfx_cursor = 0
-var bark_last_clip_idx = -1
+var bark_shuffle_bags: Dictionary = {}
+var bark_last_clip_by_category: Dictionary = {}
 var bark_sequences: Array = []
+var post_intro_meal_bark_player: AudioStreamPlayer
+var post_intro_meal_bark_stream: AudioStream
+var post_intro_meal_barks_remaining = 0
+var post_intro_meal_bark_gap_timer = 0.0
 var eat_sfx_player: AudioStreamPlayer
 var eat_sfx_streams_food: Array[AudioStream] = []
 var eat_sfx_streams_poop: Array[AudioStream] = []
@@ -677,6 +738,12 @@ var family_zoe: Node3D
 var family_gene_left_arm: Node3D
 var family_gene_right_arm: Node3D
 var family_pill_reveal: Node3D
+var family_dropped_pills: Node3D
+var family_dropped_pills_start = Vector3.ZERO
+var family_dropped_pills_landing = Vector3.ZERO
+var family_pill_convulsion_effect: Node3D
+var family_freya_stage_position = Vector3.ZERO
+var family_freya_stage_scale = Vector3.ONE
 var family_back_roof: MeshInstance3D
 var family_gene_beam: Node3D
 var family_zoe_beam: Node3D
@@ -778,19 +845,33 @@ func _configure_alien_visual_view() -> void:
 	if visual_view == "pause_menu":
 		_toggle_pause_menu(1)
 		return
+	if visual_view == "post_intro_food_tutorial" and freya != null:
+		_apply_freya_home_focus_visuals()
+		camera_zoom_target = 10.8
+		camera_planar_distance = camera_zoom_target
+		_start_post_intro_meal_tutorial(false)
+		return
+	if visual_view in ["first_exit_leashed", "first_exit_abduction", "first_exit_owners_gone"] and freya != null:
+		var home: Dictionary = buildings[freya_home_index] if freya_home_index >= 0 and freya_home_index < buildings.size() else {}
+		var layout: Dictionary = home.get("home_layout", {})
+		var outside: Vector2 = layout.get("entry_outside_pos", home.get("footprint", Rect2()).get_center())
+		freya.global_position = Vector3(outside.x, 0.0, outside.y)
+		post_intro_meal_tutorial_completed = true
+		_apply_freya_home_focus_visuals()
+		var view_time = 0.35 if visual_view == "first_exit_leashed" else (2.15 if visual_view == "first_exit_abduction" else 4.15)
+		_begin_first_exit_abduction(view_time, true)
+		return
 	if visual_view == "dog_park_friendly" and freya != null:
 		freya.global_position = Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y + 1.4)
 		camera_orbit_angle = 0.18
 		camera_zoom_target = 10.8
 		var review_offsets = [
-			Vector3(-2.7, 0.0, -1.4),
-			Vector3(-0.9, 0.0, -1.4),
-			Vector3(0.9, 0.0, -1.4),
-			Vector3(2.7, 0.0, -1.4),
-			Vector3(-2.7, 0.0, 1.4),
-			Vector3(-0.9, 0.0, 1.4),
-			Vector3(0.9, 0.0, 1.4),
-			Vector3(2.7, 0.0, 1.4)
+			Vector3(-2.25, 0.0, -1.25),
+			Vector3(0.0, 0.0, -1.25),
+			Vector3(2.25, 0.0, -1.25),
+			Vector3(-2.25, 0.0, 1.25),
+			Vector3(0.0, 0.0, 1.25),
+			Vector3(2.25, 0.0, 1.25)
 		]
 		var park_visual_index = 0
 		for dog_index in range(dogs.size()):
@@ -959,6 +1040,9 @@ func _process(delta: float) -> void:
 			return
 		_update_family_intro(delta)
 		return
+	if first_exit_abduction_active:
+		_update_first_exit_abduction(delta)
+		return
 	if Input.is_action_just_pressed("menu"):
 		_toggle_pause_menu()
 	if pause_menu_open:
@@ -994,6 +1078,7 @@ func _process(delta: float) -> void:
 	_update_vomit_sprays(delta)
 	_update_store_entry_indicators(delta)
 	_update_camera(delta)
+	_update_post_intro_meal_tutorial(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
 	_update_claim_rings()
@@ -1037,6 +1122,7 @@ func _profile_gameplay_update(delta: float) -> void:
 	started = Time.get_ticks_usec()
 	_update_store_entry_indicators(delta)
 	_update_camera(delta)
+	_update_post_intro_meal_tutorial(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
 	_perf_profile_mark("world_state", started)
@@ -1265,11 +1351,17 @@ func _create_world_roots() -> void:
 	world_root.add_child(dynamic_root)
 
 func _create_audio_setup() -> void:
-	bark_sfx_streams_passive.clear()
-	for stream in _load_bark_streams_from_files(BARK_PASSIVE_SAMPLE_CANDIDATES):
-		bark_sfx_streams_passive.append(stream)
-	if bark_sfx_streams_passive.is_empty():
-		push_warning("Passive bark clips missing; bark playback disabled.")
+	bark_sfx_streams_conversational.clear()
+	for stream in _load_bark_streams_from_files(BARK_CONVERSATIONAL_SAMPLE_CANDIDATES):
+		bark_sfx_streams_conversational.append(stream)
+	if bark_sfx_streams_conversational.is_empty():
+		push_warning("Conversational bark clips missing; conversational bark playback disabled.")
+
+	bark_sfx_streams_excited_social.clear()
+	for stream in _load_bark_streams_from_files(BARK_EXCITED_SOCIAL_SAMPLE_CANDIDATES):
+		bark_sfx_streams_excited_social.append(stream)
+	if bark_sfx_streams_excited_social.is_empty():
+		push_warning("Excited-social bark clips missing; excited-social bark playback disabled.")
 
 	bark_sfx_streams_aggressive.clear()
 	for stream in _load_bark_streams_from_files(BARK_AGGRESSIVE_SAMPLE_CANDIDATES):
@@ -1289,8 +1381,24 @@ func _create_audio_setup() -> void:
 		add_child(player)
 		bark_sfx_players.append(player)
 	bark_sfx_cursor = 0
-	bark_last_clip_idx = -1
+	bark_shuffle_bags.clear()
+	bark_last_clip_by_category.clear()
 	bark_sequences.clear()
+
+	if post_intro_meal_bark_player != null and is_instance_valid(post_intro_meal_bark_player):
+		post_intro_meal_bark_player.queue_free()
+	post_intro_meal_bark_player = AudioStreamPlayer.new()
+	post_intro_meal_bark_player.name = "PostIntroMealBark"
+	post_intro_meal_bark_player.bus = "Master"
+	post_intro_meal_bark_player.volume_db = -3.0
+	post_intro_meal_bark_player.pitch_scale = 1.0
+	post_intro_meal_bark_stream = _load_audio_stream_from_file(FAMILY_BARK_AUDIO_PATH)
+	post_intro_meal_bark_player.stream = post_intro_meal_bark_stream
+	add_child(post_intro_meal_bark_player)
+	post_intro_meal_barks_remaining = 0
+	post_intro_meal_bark_gap_timer = 0.0
+	if post_intro_meal_bark_stream == null:
+		push_warning("Post-intro Freya bark is missing; tutorial bark playback disabled.")
 
 	if claim_pee_audio_player != null and is_instance_valid(claim_pee_audio_player):
 		claim_pee_audio_player.queue_free()
@@ -1388,8 +1496,47 @@ func _load_bark_streams_from_files(candidates: Array) -> Array[AudioStream]:
 			out.append(stream)
 	return out
 
-func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
-	var bark_pool = bark_sfx_streams_aggressive if aggressive else bark_sfx_streams_passive
+func _bark_pool_for_category(category: String) -> Array[AudioStream]:
+	match category:
+		BARK_CATEGORY_CONVERSATIONAL:
+			return bark_sfx_streams_conversational
+		BARK_CATEGORY_EXCITED_SOCIAL:
+			return bark_sfx_streams_excited_social
+		BARK_CATEGORY_AGGRESSIVE:
+			return bark_sfx_streams_aggressive
+		_:
+			return []
+
+func _shuffle_bark_index_bag(bag: Array) -> void:
+	for i in range(bag.size() - 1, 0, -1):
+		var swap_index = rng.randi_range(0, i)
+		var held = bag[i]
+		bag[i] = bag[swap_index]
+		bag[swap_index] = held
+
+func _take_bark_clip_index(category: String, pool_size: int) -> int:
+	if pool_size <= 0:
+		return -1
+	var bag: Array = bark_shuffle_bags.get(category, [])
+	if bag.is_empty():
+		for clip_index in range(pool_size):
+			bag.append(clip_index)
+		_shuffle_bark_index_bag(bag)
+		var last_index = int(bark_last_clip_by_category.get(category, -1))
+		# pop_back() is the next clip. Move a repeated cycle-boundary choice
+		# elsewhere so a reshuffle can never replay the same recording at once.
+		if bag.size() > 1 and int(bag[bag.size() - 1]) == last_index:
+			var swap_index = rng.randi_range(0, bag.size() - 2)
+			var held = bag[swap_index]
+			bag[swap_index] = bag[bag.size() - 1]
+			bag[bag.size() - 1] = held
+	var selected_index = int(bag.pop_back())
+	bark_shuffle_bags[category] = bag
+	bark_last_clip_by_category[category] = selected_index
+	return selected_index
+
+func _play_bark_sound(is_freya_bark: bool, category: String = BARK_CATEGORY_CONVERSATIONAL) -> void:
+	var bark_pool = _bark_pool_for_category(category)
 	if bark_sfx_players.is_empty() or bark_pool.is_empty():
 		return
 	var idx: int = bark_sfx_cursor % bark_sfx_players.size()
@@ -1398,20 +1545,23 @@ func _play_bark_sound(is_freya_bark: bool, aggressive: bool = false) -> void:
 	if player == null:
 		return
 
-	var clip_idx = rng.randi_range(0, bark_pool.size() - 1)
-	if bark_pool.size() > 1 and clip_idx == bark_last_clip_idx:
-		clip_idx = (clip_idx + 1 + rng.randi_range(0, bark_pool.size() - 2)) % bark_pool.size()
-	bark_last_clip_idx = clip_idx
+	var clip_idx = _take_bark_clip_index(category, bark_pool.size())
+	if clip_idx < 0:
+		return
 	var clip: AudioStream = bark_pool[clip_idx]
 	player.stop()
 	player.stream = clip
-	if aggressive:
-		var crowd_gain = clampf((aggressive_bark_pressure - 1.0) * 1.0, 0.0, 5.5)
-		player.pitch_scale = rng.randf_range(0.96, 1.04) * (0.99 if is_freya_bark else 1.0)
-		player.volume_db = (-6.8 if is_freya_bark else -8.0) + crowd_gain
-	else:
-		player.pitch_scale = rng.randf_range(0.98, 1.03) * (0.995 if is_freya_bark else 1.0)
-		player.volume_db = -7.8 if is_freya_bark else -9.0
+	match category:
+		BARK_CATEGORY_AGGRESSIVE:
+			var crowd_gain = clampf((aggressive_bark_pressure - 1.0) * 1.0, 0.0, 5.5)
+			player.pitch_scale = rng.randf_range(0.96, 1.04) * (0.99 if is_freya_bark else 1.0)
+			player.volume_db = (-6.8 if is_freya_bark else -8.0) + crowd_gain
+		BARK_CATEGORY_EXCITED_SOCIAL:
+			player.pitch_scale = rng.randf_range(0.98, 1.035) * (0.995 if is_freya_bark else 1.0)
+			player.volume_db = -7.3 if is_freya_bark else -8.6
+		_:
+			player.pitch_scale = rng.randf_range(0.985, 1.02) * (0.995 if is_freya_bark else 1.0)
+			player.volume_db = -9.0 if is_freya_bark else -10.2
 	player.play()
 
 func _play_claim_pee_sound(start_offset_sec: float = PEE_SOUND_START_OFFSET_SEC) -> void:
@@ -1500,14 +1650,83 @@ func _play_eat_sound(kind: String) -> void:
 func _play_vomit_sound() -> void:
 	_play_random_clip(vomit_sfx_player, vomit_sfx_streams, 0.98, 1.01, -10.2, 0.35, VOMIT_SOUND_START_OFFSET_SEC)
 
-func _queue_bark_sequence(is_freya_bark: bool, barks: int, aggressive: bool = false) -> void:
+func _social_bark_category(is_freya_bark: bool, aggressive: bool) -> String:
+	if aggressive:
+		return BARK_CATEGORY_AGGRESSIVE
+	return BARK_CATEGORY_EXCITED_SOCIAL if is_freya_bark else BARK_CATEGORY_CONVERSATIONAL
+
+func _append_bark_library_validation_failures(failures: Array[String]) -> void:
+	var category_paths = {
+		BARK_CATEGORY_CONVERSATIONAL: BARK_CONVERSATIONAL_SAMPLE_CANDIDATES,
+		BARK_CATEGORY_EXCITED_SOCIAL: BARK_EXCITED_SOCIAL_SAMPLE_CANDIDATES,
+		BARK_CATEGORY_AGGRESSIVE: BARK_AGGRESSIVE_SAMPLE_CANDIDATES
+	}
+	var minimum_sizes = {
+		BARK_CATEGORY_CONVERSATIONAL: 4,
+		BARK_CATEGORY_EXCITED_SOCIAL: 14,
+		BARK_CATEGORY_AGGRESSIVE: 6
+	}
+	var seen_paths := {}
+	for category in category_paths:
+		var paths: Array = category_paths[category]
+		if paths.size() < int(minimum_sizes[category]):
+			failures.append("bark_pool_%s_too_small_%d" % [category, paths.size()])
+		for candidate in paths:
+			var path = str(candidate)
+			if seen_paths.has(path):
+				failures.append("bark_asset_reused_across_pools_%s" % path.get_file())
+			seen_paths[path] = true
+			if not FileAccess.file_exists(path):
+				failures.append("bark_asset_missing_%s" % path.get_file())
+			elif not path.to_lower().ends_with(".wav"):
+				failures.append("bark_asset_not_recorded_wav_%s" % path.get_file())
+
+	if _social_bark_category(false, false) != BARK_CATEGORY_CONVERSATIONAL:
+		failures.append("npc_friendly_bark_not_conversational")
+	if _social_bark_category(true, false) != BARK_CATEGORY_EXCITED_SOCIAL:
+		failures.append("freya_friendly_bark_not_excited_social")
+	if _social_bark_category(false, true) != BARK_CATEGORY_AGGRESSIVE or _social_bark_category(true, true) != BARK_CATEGORY_AGGRESSIVE:
+		failures.append("aggressive_social_bark_routing_bad")
+
+	# Prove each category is a shuffle bag: every recording plays once per cycle,
+	# and the first recording after a reshuffle differs from the previous one.
+	var saved_bags = bark_shuffle_bags.duplicate(true)
+	var saved_last = bark_last_clip_by_category.duplicate(true)
+	var saved_rng_state = rng.state
+	bark_shuffle_bags.clear()
+	bark_last_clip_by_category.clear()
+	for category in category_paths:
+		var pool_size = (category_paths[category] as Array).size()
+		var seen_indices := {}
+		var previous_index = -1
+		for draw in range(pool_size):
+			var selected_index = _take_bark_clip_index(str(category), pool_size)
+			if selected_index < 0 or selected_index >= pool_size:
+				failures.append("bark_shuffle_index_invalid_%s_%d" % [category, selected_index])
+				break
+			if seen_indices.has(selected_index):
+				failures.append("bark_shuffle_repeated_before_cycle_%s_%d" % [category, selected_index])
+				break
+			seen_indices[selected_index] = true
+			previous_index = selected_index
+		if pool_size > 1:
+			var next_cycle_index = _take_bark_clip_index(str(category), pool_size)
+			if next_cycle_index == previous_index:
+				failures.append("bark_shuffle_repeated_at_cycle_boundary_%s" % category)
+	bark_shuffle_bags = saved_bags
+	bark_last_clip_by_category = saved_last
+	rng.state = saved_rng_state
+
+func _queue_bark_sequence(is_freya_bark: bool, barks: int, category: String = BARK_CATEGORY_CONVERSATIONAL) -> void:
 	if barks <= 0:
+		return
+	if category not in [BARK_CATEGORY_CONVERSATIONAL, BARK_CATEGORY_EXCITED_SOCIAL, BARK_CATEGORY_AGGRESSIVE]:
 		return
 	if bark_sequences.size() > 54:
 		return
 	bark_sequences.append({
 		"is_freya": is_freya_bark,
-		"aggressive": aggressive,
+		"category": category,
 		"remaining": barks,
 		"next": 0.0
 	})
@@ -1518,15 +1737,51 @@ func _update_bark_sequences(delta: float) -> void:
 		seq["next"] = float(seq.get("next", 0.0)) - delta
 		if float(seq["next"]) <= 0.0:
 			var is_freya = bool(seq.get("is_freya", false))
-			var aggressive = bool(seq.get("aggressive", false))
-			_play_bark_sound(is_freya, aggressive)
+			var category = str(seq.get("category", BARK_CATEGORY_CONVERSATIONAL))
+			_play_bark_sound(is_freya, category)
 			var remaining = int(seq.get("remaining", 0)) - 1
 			if remaining <= 0:
 				bark_sequences.remove_at(i)
 				continue
 			seq["remaining"] = remaining
-			seq["next"] = rng.randf_range(0.18, 0.34) if aggressive else rng.randf_range(0.28, 0.52)
+			match category:
+				BARK_CATEGORY_AGGRESSIVE:
+					seq["next"] = rng.randf_range(0.18, 0.34)
+				BARK_CATEGORY_EXCITED_SOCIAL:
+					seq["next"] = rng.randf_range(0.22, 0.4)
+				_:
+					seq["next"] = rng.randf_range(0.34, 0.62)
 		bark_sequences[i] = seq
+
+func _queue_post_intro_meal_barks(count: int) -> void:
+	if count <= 0:
+		return
+	post_intro_meal_bark_request_count += count
+	# This tutorial has one exact authored mapping. Missing or failed audio stays
+	# silent; another clip is never selected as a replacement.
+	if post_intro_meal_bark_player == null or not is_instance_valid(post_intro_meal_bark_player) or post_intro_meal_bark_stream == null:
+		return
+	post_intro_meal_barks_remaining = mini(4, post_intro_meal_barks_remaining + count)
+	if not post_intro_meal_bark_player.playing:
+		post_intro_meal_bark_gap_timer = 0.0
+
+func _update_post_intro_meal_barks(delta: float) -> void:
+	if post_intro_meal_barks_remaining <= 0:
+		return
+	if post_intro_meal_bark_player == null or not is_instance_valid(post_intro_meal_bark_player) or post_intro_meal_bark_stream == null:
+		post_intro_meal_barks_remaining = 0
+		return
+	if post_intro_meal_bark_player.playing:
+		return
+	post_intro_meal_bark_gap_timer = maxf(0.0, post_intro_meal_bark_gap_timer - delta)
+	if post_intro_meal_bark_gap_timer > 0.0:
+		return
+	post_intro_meal_bark_player.stream = post_intro_meal_bark_stream
+	post_intro_meal_bark_player.pitch_scale = 1.0
+	post_intro_meal_bark_player.volume_db = -3.0
+	post_intro_meal_bark_player.play()
+	post_intro_meal_barks_remaining -= 1
+	post_intro_meal_bark_gap_timer = 0.16
 
 func _create_prop_materials() -> void:
 	poop_material = StandardMaterial3D.new()
@@ -2308,51 +2563,173 @@ func _add_ground_rect(rect: Rect2, y: float, material: Material) -> void:
 
 func _build_dog_park() -> void:
 	_add_ground_rect(dog_park, 0.03, dog_park_material)
+	dog_park_root = Node3D.new()
+	dog_park_root.name = "EnclosedDogPark"
+	dog_park_root.set_meta("fully_fenced", true)
+	dog_park_root.set_meta("has_walkthrough_gate", true)
+	static_root.add_child(dog_park_root, true)
+	dog_park_fence_segment_count = 0
+	dog_park_fence_post_count = 0
+	dog_park_equipment_types.clear()
+	dog_park_obstacles.clear()
+	dog_park_fence_blockers.clear()
 
 	var fence_mat = StandardMaterial3D.new()
 	fence_mat.albedo_color = Color8(134, 141, 136)
 	fence_mat.roughness = 0.86
+	var gate_mat = StandardMaterial3D.new()
+	gate_mat.albedo_color = Color8(84, 119, 128)
+	gate_mat.roughness = 0.76
 
 	var step = 1.4
 	var x0 = dog_park.position.x
 	var z0 = dog_park.position.y
 	var x1 = dog_park.position.x + dog_park.size.x
 	var z1 = dog_park.position.y + dog_park.size.y
+	var gate_center = (x0 + x1) * 0.5
+	var gate_half_width = 1.05
 
 	for x in range(int(floor(x0 * 10.0)), int(ceil(x1 * 10.0)), int(step * 10.0)):
-		_add_fence_post(float(x) / 10.0, z0, fence_mat)
-		_add_fence_post(float(x) / 10.0, z1, fence_mat)
+		var post_x = float(x) / 10.0
+		_add_fence_post(dog_park_root, post_x, z0, fence_mat)
+		if absf(post_x - gate_center) > gate_half_width + 0.18:
+			_add_fence_post(dog_park_root, post_x, z1, fence_mat)
 
 	for z in range(int(floor(z0 * 10.0)), int(ceil(z1 * 10.0)), int(step * 10.0)):
-		_add_fence_post(x0, float(z) / 10.0, fence_mat)
-		_add_fence_post(x1, float(z) / 10.0, fence_mat)
+		var post_z = float(z) / 10.0
+		_add_fence_post(dog_park_root, x0, post_z, fence_mat)
+		_add_fence_post(dog_park_root, x1, post_z, fence_mat)
+	for corner in [Vector2(x0, z0), Vector2(x1, z0), Vector2(x0, z1), Vector2(x1, z1), Vector2(gate_center - gate_half_width, z1), Vector2(gate_center + gate_half_width, z1)]:
+		_add_fence_post(dog_park_root, corner.x, corner.y, gate_mat if absf(corner.x - gate_center) <= gate_half_width + 0.01 and absf(corner.y - z1) < 0.01 else fence_mat)
 
-	_add_fence_rail(Vector3((x0 + x1) * 0.5, 0.95, z0), Vector3(x1 - 0.6, 0.95, z0), fence_mat)
-	_add_fence_rail(Vector3(x0 + 0.6, 0.95, z0), Vector3((x0 + x1) * 0.5 - 1.8, 0.95, z0), fence_mat)
-	_add_fence_rail(Vector3(x0, 0.95, (z0 + z1) * 0.5), Vector3(x0, 0.95, z1), fence_mat)
-	_add_fence_rail(Vector3(x1, 0.95, z0), Vector3(x1, 0.95, z1), fence_mat)
-	_add_fence_rail(Vector3(x0, 0.95, z0), Vector3(x1, 0.95, z0), fence_mat)
+	var perimeter_spans = [
+		[Vector3(x0, 0.0, z0), Vector3(x1, 0.0, z0)],
+		[Vector3(x0, 0.0, z0), Vector3(x0, 0.0, z1)],
+		[Vector3(x1, 0.0, z0), Vector3(x1, 0.0, z1)],
+		[Vector3(x0, 0.0, z1), Vector3(gate_center - gate_half_width, 0.0, z1)],
+		[Vector3(gate_center + gate_half_width, 0.0, z1), Vector3(x1, 0.0, z1)]
+	]
+	for span in perimeter_spans:
+		var span_start: Vector3 = span[0]
+		var span_finish: Vector3 = span[1]
+		var blocker_start = Vector2(minf(span_start.x, span_finish.x), minf(span_start.z, span_finish.z))
+		var blocker_size = Vector2(maxf(0.08, absf(span_finish.x - span_start.x)), maxf(0.08, absf(span_finish.z - span_start.z)))
+		dog_park_fence_blockers.append(Rect2(blocker_start - Vector2(0.04, 0.04), blocker_size + Vector2(0.08, 0.08)))
+		for rail_height in [0.47, 0.94]:
+			var start: Vector3 = span[0] + Vector3.UP * rail_height
+			var finish: Vector3 = span[1] + Vector3.UP * rail_height
+			_add_fence_rail(dog_park_root, "PerimeterRail", start, finish, fence_mat)
 
-func _add_fence_post(x: float, z: float, material: Material) -> void:
+	# The south-side gate is visibly swung inward, keeping the park enterable
+	# without making its perimeter read as unfinished.
+	var gate_hinge = Vector3(gate_center - gate_half_width, 0.0, z1)
+	var gate_tip = gate_hinge + Vector3(0.42, 0.0, -1.72)
+	for rail_height in [0.47, 0.94]:
+		_add_fence_rail(dog_park_root, "OpenGateRail", gate_hinge + Vector3.UP * rail_height, gate_tip + Vector3.UP * rail_height, gate_mat)
+	_add_fence_rail(dog_park_root, "OpenGateBrace", gate_hinge + Vector3.UP * 0.36, gate_tip + Vector3.UP * 1.03, gate_mat)
+
+	_build_dog_park_equipment()
+	dog_park_root.set_meta("fence_segment_count", dog_park_fence_segment_count)
+	dog_park_root.set_meta("equipment_types", dog_park_equipment_types.duplicate())
+
+func _add_fence_post(parent: Node3D, x: float, z: float, material: Material) -> void:
 	var post = MeshInstance3D.new()
+	post.name = "FencePost"
 	var mesh = BoxMesh.new()
 	mesh.size = Vector3(0.08, 1.1, 0.08)
 	post.mesh = mesh
 	post.position = Vector3(x, 0.55, z)
 	post.material_override = material
-	static_root.add_child(post)
+	post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(post)
+	dog_park_fence_post_count += 1
 
-func _add_fence_rail(a: Vector3, b: Vector3, material: Material) -> void:
+func _add_fence_rail(parent: Node3D, node_name: String, a: Vector3, b: Vector3, material: Material) -> void:
+	if a.distance_squared_to(b) < 0.0001:
+		return
 	var rail = MeshInstance3D.new()
+	rail.name = node_name
 	var mesh = BoxMesh.new()
 	var len = a.distance_to(b)
 	mesh.size = Vector3(0.06, 0.06, len)
 	rail.mesh = mesh
-	rail.position = (a + b) * 0.5
-	static_root.add_child(rail)
-	rail.look_at(b, Vector3.UP, true)
-	rail.rotation_degrees.x = 90.0
 	rail.material_override = material
+	rail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var direction = (b - a).normalized()
+	var x_axis = Vector3.UP.cross(direction)
+	if x_axis.length_squared() < 0.0001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var y_axis = direction.cross(x_axis).normalized()
+	rail.global_transform = Transform3D(Basis(x_axis, y_axis, direction).orthonormalized(), (a + b) * 0.5)
+	parent.add_child(rail)
+	dog_park_fence_segment_count += 1
+
+func _build_dog_park_equipment() -> void:
+	if dog_park_root == null:
+		return
+	var center = Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y)
+	var blue = _home_material(Color8(64, 144, 190), 0.72)
+	var yellow = _home_material(Color8(242, 188, 48), 0.72)
+	var coral = _home_material(Color8(224, 92, 82), 0.76)
+	var teal = _home_material(Color8(61, 158, 143), 0.78)
+	var white = _home_material(Color8(238, 236, 218), 0.82)
+
+	# Six weave poles.
+	var weave_root = Node3D.new()
+	weave_root.name = "WeavePoles"
+	dog_park_root.add_child(weave_root, true)
+	for pole_index in range(6):
+		var pole_pos = center + Vector3(-3.0 + float(pole_index) * 0.55, 0.48, -2.15 + sin(float(pole_index) * PI) * 0.18)
+		_add_yard_cylinder(weave_root, "WeavePole", pole_pos, 0.055, 0.96, blue if pole_index % 2 == 0 else yellow)
+	dog_park_equipment_types.append("weave_poles")
+	dog_park_obstacles.append({"pos": Vector2(center.x - 1.62, center.z - 2.15), "radius": 1.65})
+
+	# A colorful jump hurdle.
+	var jump_root = Node3D.new()
+	jump_root.name = "JumpHurdle"
+	dog_park_root.add_child(jump_root, true)
+	var jump_center = center + Vector3(-2.55, 0.0, 1.55)
+	for side in [-1.0, 1.0]:
+		_add_yard_cylinder(jump_root, "JumpPost", jump_center + Vector3(side * 0.68, 0.5, 0.0), 0.065, 1.0, coral)
+	_add_home_box(jump_root, "JumpBar", Vector3(1.46, 0.08, 0.08), jump_center + Vector3(0.0, 0.54, 0.0), white)
+	dog_park_equipment_types.append("jump_hurdle")
+	dog_park_obstacles.append({"pos": Vector2(jump_center.x, jump_center.z), "radius": 0.82})
+
+	# Two sloped planks form a readable A-frame obstacle.
+	var a_frame_root = Node3D.new()
+	a_frame_root.name = "AFrameRamp"
+	dog_park_root.add_child(a_frame_root, true)
+	var a_center = center + Vector3(1.65, 0.0, 1.45)
+	for side in [-1.0, 1.0]:
+		var plank = _add_home_box(a_frame_root, "AFramePlank", Vector3(1.75, 0.13, 1.0), a_center + Vector3(side * 0.68, 0.54, 0.0), teal if side < 0.0 else yellow)
+		plank.rotation.z = side * deg_to_rad(37.0)
+	_add_home_box(a_frame_root, "AFrameRidge", Vector3(0.18, 0.15, 1.06), a_center + Vector3(0.0, 1.04, 0.0), coral)
+	dog_park_equipment_types.append("a_frame")
+	dog_park_obstacles.append({"pos": Vector2(a_center.x, a_center.z), "radius": 1.55})
+
+	# Ringed crawl tunnel; open ends keep it visually distinct from a solid pipe.
+	var tunnel_root = Node3D.new()
+	tunnel_root.name = "CrawlTunnel"
+	dog_park_root.add_child(tunnel_root, true)
+	var tunnel_center = center + Vector3(2.35, 0.0, -2.05)
+	for hoop_index in range(5):
+		var hoop = MeshInstance3D.new()
+		hoop.name = "TunnelHoop"
+		var hoop_mesh = TorusMesh.new()
+		hoop_mesh.inner_radius = 0.43
+		hoop_mesh.outer_radius = 0.53
+		hoop_mesh.rings = 18
+		hoop_mesh.ring_segments = 7
+		hoop.mesh = hoop_mesh
+		hoop.position = tunnel_center + Vector3(-0.72 + float(hoop_index) * 0.36, 0.53, 0.0)
+		hoop.rotation.z = PI * 0.5
+		hoop.material_override = coral if hoop_index % 2 == 0 else blue
+		hoop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		tunnel_root.add_child(hoop)
+	_add_home_box(tunnel_root, "TunnelShade", Vector3(1.62, 0.08, 0.66), tunnel_center + Vector3(0.0, 0.96, 0.0), yellow)
+	dog_park_equipment_types.append("crawl_tunnel")
+	dog_park_obstacles.append({"pos": Vector2(tunnel_center.x, tunnel_center.z), "radius": 1.05})
 
 func _build_city_buildings() -> void:
 	buildings.clear()
@@ -3358,6 +3735,8 @@ func _begin_family_intro(view_id: String = "", force_static: bool = false) -> vo
 	var freya_preferred = stage_2d + Vector2(0.0, family_front_sign * 2.1)
 	var freya_start = _family_find_walkable_point(freya_preferred, interior_rect, home)
 	freya.global_position = Vector3(freya_start.x, 0.0, freya_start.y)
+	family_freya_stage_position = freya.global_position
+	family_freya_stage_scale = freya.scale
 	_family_face_freya_toward_cast(1.0)
 	ryah_diane_node.global_position = family_focus_point + Vector3(0.0, 0.03, family_front_sign * 0.54)
 	ryah_diane_node.rotation.y = PI if family_front_sign > 0.0 else 0.0
@@ -3388,6 +3767,15 @@ func _begin_family_intro(view_id: String = "", force_static: bool = false) -> vo
 	family_pill_reveal.position = FAMILY_PILL_REVEAL_POSITION
 	family_gene.add_child(family_pill_reveal, true)
 	family_pill_reveal.visible = false
+	family_dropped_pills = FamilyVisualFactory.create_dropped_pills()
+	family_intro_root.add_child(family_dropped_pills, true)
+	family_dropped_pills_start = family_gene.to_global(FAMILY_PILL_REVEAL_POSITION)
+	family_dropped_pills_landing = family_dropped_pills_start + Vector3(0.34, -family_dropped_pills_start.y + 0.025, family_front_sign * 0.48)
+	family_dropped_pills.global_position = family_dropped_pills_start
+	family_dropped_pills.visible = false
+	family_pill_convulsion_effect = FamilyVisualFactory.create_pill_convulsion_effect()
+	family_intro_root.add_child(family_pill_convulsion_effect, true)
+	family_pill_convulsion_effect.visible = false
 	family_gene_beam = FamilyVisualFactory.create_abduction_effect("GeneAbduction", Color(0.31, 0.92, 1.0))
 	family_zoe_beam = FamilyVisualFactory.create_abduction_effect("ZoeAbduction", Color(0.67, 0.45, 1.0))
 	family_ryah_beam = FamilyVisualFactory.create_abduction_effect("RyahAbduction", Color(0.95, 0.57, 1.0))
@@ -3693,8 +4081,11 @@ func _update_family_intro(delta: float) -> void:
 		_fire_family_intro_events(previous_time, family_intro_time)
 	_apply_family_intro_time(family_intro_time)
 	if freya != null:
-		freya.update_motion(maxf(delta, 0.0001), Vector3.ZERO, false, false)
-		_family_face_freya_toward_cast(maxf(delta, 0.0001))
+		var pill_eating = family_intro_time >= FamilyIntroTimeline.PILL_EAT_START and family_intro_time < FamilyIntroTimeline.PILL_EAT_END
+		freya.update_motion(maxf(delta, 0.0001), Vector3.ZERO, false, false, pill_eating)
+		if family_intro_time < FamilyIntroTimeline.PILL_APPROACH_START:
+			_family_face_freya_toward_cast(maxf(delta, 0.0001))
+		_apply_family_freya_pill_sequence_pose(family_intro_time)
 	if not family_intro_static and family_intro_time >= FamilyIntroTimeline.TOTAL_DURATION:
 		_finish_family_intro()
 
@@ -3745,7 +4136,7 @@ func _apply_family_intro_time(time_seconds: float) -> void:
 	var loud_bark_start = 50.0
 	var ryah_effect_end = 51.2
 	if family_pill_reveal != null:
-		family_pill_reveal.visible = time_seconds >= pills_start and time_seconds < parent_vanish_time
+		family_pill_reveal.visible = time_seconds >= pills_start and time_seconds < FamilyIntroTimeline.PILL_DROP_START
 		family_pill_reveal.rotation.y = sin(time_seconds * 1.8) * 0.08
 		# The bundle sits just above and behind Gene's palms. Keeping the two
 		# volumes separate prevents the transparent bottles from making his hands
@@ -3755,9 +4146,10 @@ func _apply_family_intro_time(time_seconds: float) -> void:
 		family_gene.visible = time_seconds < parent_vanish_time
 		var gene_base: Vector3 = family_gene.get_meta("stage_position", family_gene.position)
 		family_gene.position = gene_base + Vector3(0.0, absf(sin(time_seconds * 2.1)) * 0.012, 0.0)
-	var pill_hold_amount = clampf(inverse_lerp(pills_start - 0.5, pills_start, time_seconds), 0.0, 1.0) if time_seconds < parent_vanish_time else 0.0
+	var pill_hold_amount = clampf(inverse_lerp(pills_start - 0.5, pills_start, time_seconds), 0.0, 1.0) if time_seconds < FamilyIntroTimeline.PILL_DROP_START else 0.0
 	_apply_gene_pill_hold_pose(family_gene_left_arm, -1.0, pill_hold_amount)
 	_apply_gene_pill_hold_pose(family_gene_right_arm, 1.0, pill_hold_amount)
+	_apply_family_dropped_pills(time_seconds)
 	if family_zoe != null:
 		family_zoe.visible = time_seconds < parent_vanish_time
 		var zoe_base: Vector3 = family_zoe.get_meta("stage_position", family_zoe.position)
@@ -3774,6 +4166,7 @@ func _apply_family_intro_time(time_seconds: float) -> void:
 			family_ryah_beam.rotation.y = time_seconds * 2.8
 	_apply_family_bark_wave(family_bark_wave, time_seconds, 41.7, 42.7, false)
 	_apply_family_bark_wave(family_loud_bark_wave, time_seconds, 50.0, 51.2, true)
+	_apply_family_freya_pill_sequence_pose(time_seconds)
 	_apply_family_intro_camera(time_seconds, scene)
 
 
@@ -3790,6 +4183,103 @@ func _apply_gene_pill_hold_pose(arm: Node3D, side: float, amount: float) -> void
 	)
 
 
+func _apply_family_dropped_pills(time_seconds: float) -> void:
+	if family_dropped_pills == null:
+		return
+	family_dropped_pills.visible = time_seconds >= FamilyIntroTimeline.PILL_DROP_START and time_seconds < FamilyIntroTimeline.PILL_EAT_END
+	if not family_dropped_pills.visible:
+		return
+	family_dropped_pills.scale = Vector3.ONE
+	var drop_progress = clampf(inverse_lerp(FamilyIntroTimeline.PILL_DROP_START, FamilyIntroTimeline.PILL_DROP_END, time_seconds), 0.0, 1.0)
+	var eased = drop_progress * drop_progress * (3.0 - 2.0 * drop_progress)
+	var position = family_dropped_pills_start.lerp(family_dropped_pills_landing, eased)
+	position.y += sin(drop_progress * PI) * 0.24
+	family_dropped_pills.global_position = position
+	family_dropped_pills.rotation = Vector3(
+		lerpf(0.0, -0.08, eased),
+		lerpf(0.0, 1.7, eased),
+		lerpf(0.0, 0.16, eased)
+	)
+	if drop_progress >= 1.0:
+		var settle = clampf(inverse_lerp(FamilyIntroTimeline.PILL_DROP_END, FamilyIntroTimeline.PILL_DROP_END + 0.7, time_seconds), 0.0, 1.0)
+		family_dropped_pills.global_position.y = family_dropped_pills_landing.y + absf(sin((time_seconds - FamilyIntroTimeline.PILL_DROP_END) * 16.0)) * 0.035 * (1.0 - settle)
+	if time_seconds >= FamilyIntroTimeline.PILL_EAT_START:
+		var eaten = clampf(inverse_lerp(FamilyIntroTimeline.PILL_EAT_START, FamilyIntroTimeline.PILL_EAT_END, time_seconds), 0.0, 1.0)
+		family_dropped_pills.scale = Vector3.ONE * lerpf(1.0, 0.16, eaten)
+
+
+func _apply_family_freya_pill_sequence_pose(time_seconds: float) -> void:
+	if freya == null:
+		return
+	if time_seconds < FamilyIntroTimeline.PILL_APPROACH_START:
+		freya.global_position = family_freya_stage_position
+		freya.scale = family_freya_stage_scale
+		freya.rotation.x = 0.0
+		freya.rotation.z = 0.0
+		if family_pill_convulsion_effect != null:
+			family_pill_convulsion_effect.visible = false
+		return
+
+	var to_pills = family_dropped_pills_landing - family_freya_stage_position
+	to_pills.y = 0.0
+	if to_pills.length_squared() < 0.001:
+		to_pills = Vector3(0.0, 0.0, family_front_sign)
+	var approach_direction = to_pills.normalized()
+	var eat_position = family_dropped_pills_landing - approach_direction * 0.72
+	eat_position.y = family_freya_stage_position.y
+	if time_seconds < FamilyIntroTimeline.PILL_EAT_START:
+		var approach = clampf(inverse_lerp(FamilyIntroTimeline.PILL_APPROACH_START, FamilyIntroTimeline.PILL_EAT_START, time_seconds), 0.0, 1.0)
+		var eased = approach * approach * (3.0 - 2.0 * approach)
+		freya.global_position = family_freya_stage_position.lerp(eat_position, eased)
+		freya.scale = family_freya_stage_scale
+		freya.rotation.x = 0.0
+		freya.rotation.z = sin(approach * PI * 3.0) * 0.035
+		if freya.has_method("force_face_direction"):
+			freya.call("force_face_direction", approach_direction, 1.0)
+	elif time_seconds < FamilyIntroTimeline.PILL_EAT_END:
+		var chew_time = time_seconds - FamilyIntroTimeline.PILL_EAT_START
+		freya.global_position = eat_position + Vector3(0.0, absf(sin(chew_time * 9.0)) * 0.018, 0.0)
+		freya.scale = family_freya_stage_scale
+		freya.rotation.x = -0.17 - absf(sin(chew_time * 8.0)) * 0.08
+		freya.rotation.z = sin(chew_time * 11.0) * 0.025
+		if freya.has_method("force_face_direction"):
+			freya.call("force_face_direction", approach_direction, 1.0)
+	else:
+		freya.global_position = eat_position
+		freya.scale = family_freya_stage_scale
+		freya.rotation.x = 0.0
+		freya.rotation.z = 0.0
+		if freya.has_method("force_face_direction"):
+			freya.call("force_face_direction", approach_direction, 1.0)
+
+	var convulsing = time_seconds >= FamilyIntroTimeline.CONVULSION_START and time_seconds < FamilyIntroTimeline.CONVULSION_END
+	if family_pill_convulsion_effect != null:
+		family_pill_convulsion_effect.visible = convulsing
+		if convulsing:
+			var reaction_time = time_seconds - FamilyIntroTimeline.CONVULSION_START
+			family_pill_convulsion_effect.global_position = freya.global_position + Vector3(0.0, 0.05, 0.0)
+			family_pill_convulsion_effect.rotation.y = reaction_time * 2.7
+			for child in family_pill_convulsion_effect.get_children():
+				var phase = float(child.get_meta("reaction_phase", 0.0))
+				if child.name.begins_with("ComicStar"):
+					var orbit = reaction_time * 4.8 + phase
+					child.position = Vector3(cos(orbit) * 0.92, 0.72 + sin(reaction_time * 7.0 + phase) * 0.28, sin(orbit) * 0.7)
+					child.rotation = Vector3(reaction_time * 5.0 + phase, reaction_time * 4.0, reaction_time * 6.0 - phase)
+				elif child is MeshInstance3D:
+					child.rotation.y = reaction_time * (3.2 + phase)
+	if convulsing:
+		var reaction_time = time_seconds - FamilyIntroTimeline.CONVULSION_START
+		var snap = sin(reaction_time * 30.0)
+		var squash = snap * 0.11
+		freya.scale = family_freya_stage_scale * Vector3(1.0 + squash, 1.0 - squash * 0.82, 1.0 + squash * 0.36)
+		freya.rotation.z = sin(reaction_time * 25.0) * 0.18
+		freya.global_position = eat_position + Vector3(
+			sin(reaction_time * 19.0) * 0.075,
+			absf(sin(reaction_time * 15.0)) * 0.13,
+			cos(reaction_time * 17.0) * 0.055
+		)
+
+
 func _family_speaker_color(speaker: String) -> Color:
 	match speaker:
 		"GENE":
@@ -3798,6 +4288,8 @@ func _family_speaker_color(speaker: String) -> Color:
 			return Color(1.0, 0.72, 0.82)
 		"FREYA":
 			return Color(1.0, 0.86, 0.4)
+		"FREYA'S THOUGHTS":
+			return Color(0.5, 1.0, 0.88)
 		_:
 			return Color(0.84, 0.94, 0.9)
 
@@ -3844,11 +4336,21 @@ func _apply_family_intro_camera(time_seconds: float, scene: Dictionary) -> void:
 		target = target.lerp(family_zoe.global_position + Vector3(0.0, 1.15, 0.0), 0.28)
 	elif str(scene.get("event", "")) in ["ryah_targeted", "loud_bark", "ryah_saved"]:
 		target = target.lerp(ryah_diane_node.global_position + Vector3(0.0, 0.65, 0.0), 0.38)
+	elif str(scene.get("event", "")) in ["pill_approach", "pill_eat"]:
+		target = target.lerp(family_dropped_pills_landing + Vector3(0.0, 0.42, 0.0), 0.5)
+	elif str(scene.get("event", "")) in ["pill_convulsion", "internal_monologue"]:
+		target = target.lerp(freya.global_position + Vector3(0.0, 0.72, 0.0), 0.58)
 	var drift = Vector3(sin(time_seconds * 0.18) * 0.12, sin(time_seconds * 0.13) * 0.06, 0.0)
-	# Preserve the original left-side composition. The house's restored physical
-	# right wall is the unobstructive wall visible at screen-left from this angle.
-	camera_node.global_position = family_focus_point + Vector3(-4.9, 4.7, family_front_sign * 6.1) + drift
-	camera_node.fov = 39.0
+	# Preserve the original left-side composition through Ryah's rescue, then cut
+	# lower and farther to camera-left so Freya's mouth and the shrinking floor
+	# spill read in profile instead of hiding behind her body.
+	var event = str(scene.get("event", ""))
+	if event in ["pill_approach", "pill_eat", "pill_convulsion", "internal_monologue"]:
+		camera_node.global_position = family_focus_point + Vector3(-4.65, 3.15, family_front_sign * 0.95) + drift
+		camera_node.fov = 36.0
+	else:
+		camera_node.global_position = family_focus_point + Vector3(-4.9, 4.7, family_front_sign * 6.1) + drift
+		camera_node.fov = 39.0
 	camera_node.look_at(target, Vector3.UP)
 
 
@@ -3857,6 +4359,11 @@ func _finish_family_intro() -> void:
 		return
 	family_intro_active = false
 	family_intro_requested = false
+	if freya != null:
+		freya.scale = family_freya_stage_scale
+		freya.rotation.x = 0.0
+		freya.rotation.z = 0.0
+		freya.global_position.y = family_freya_stage_position.y
 	if family_bark_player != null:
 		family_bark_player.stop()
 	if family_loud_bark_player != null:
@@ -3884,29 +4391,413 @@ func _finish_family_intro() -> void:
 	_update_camera(0.0)
 	_update_roof_occlusion(0.0)
 	_update_ui()
-	_show_status("Freya protected Ryah Diane. Keep her safe!", 2.2)
+	_start_post_intro_meal_tutorial(true)
+	if not post_intro_meal_tutorial_active:
+		_show_status("Freya protected Ryah Diane. Keep her safe!", 2.2)
+
+func _start_post_intro_meal_tutorial(play_barks: bool = true) -> void:
+	if post_intro_meal_tutorial_completed or post_intro_meal_tutorial_active:
+		return
+	if freya == null or not is_instance_valid(freya) or freya_home_bowl_node == null or not is_instance_valid(freya_home_bowl_node):
+		push_warning("Post-intro meal tutorial could not start because Freya or her bowl is unavailable.")
+		return
+	if not _is_inside_freya_home(Vector2(freya.global_position.x, freya.global_position.z)):
+		push_warning("Post-intro meal tutorial could not start because Freya is not inside her home.")
+		return
+	if post_intro_meal_panel == null or post_intro_meal_label == null:
+		push_warning("Post-intro meal tutorial could not start because its guidance UI is unavailable.")
+		return
+	if post_intro_meal_bowl_pointer == null or not is_instance_valid(post_intro_meal_bowl_pointer):
+		_create_post_intro_meal_bowl_pointer()
+	if post_intro_meal_bowl_pointer == null or not is_instance_valid(post_intro_meal_bowl_pointer):
+		push_warning("Post-intro meal tutorial could not start because its bowl pointer is unavailable.")
+		return
+
+	freya_hunger = 100.0
+	post_intro_meal_tutorial_active = true
+	post_intro_meal_reminder_timer = 0.0
+	post_intro_meal_reminder_cooldown = 0.0
+	post_intro_meal_turnaround_timer = 0.0
+	post_intro_meal_turnaround_direction = Vector3.ZERO
+	post_intro_meal_bowl_highlight_suppressed = false
+	post_intro_meal_label.text = POST_INTRO_MEAL_GUIDANCE_TEXT
+	post_intro_meal_panel.visible = true
+	post_intro_meal_bowl_pointer.visible = true
+	interact_highlight_update_timer = 0.0
+	_update_interactable_highlights(0.0)
+	_update_post_intro_meal_tutorial(0.0)
+	if play_barks:
+		_queue_post_intro_meal_barks(2)
+
+func _complete_post_intro_meal_tutorial() -> void:
+	if not post_intro_meal_tutorial_active:
+		return
+	post_intro_meal_tutorial_active = false
+	post_intro_meal_tutorial_completed = true
+	post_intro_meal_reminder_timer = 0.0
+	post_intro_meal_reminder_cooldown = 0.0
+	post_intro_meal_turnaround_timer = 0.0
+	post_intro_meal_turnaround_direction = Vector3.ZERO
+	post_intro_meal_bowl_highlight_suppressed = true
+	post_intro_meal_barks_remaining = 0
+	post_intro_meal_bark_gap_timer = 0.0
+	if post_intro_meal_bark_player != null and is_instance_valid(post_intro_meal_bark_player):
+		post_intro_meal_bark_player.stop()
+	if post_intro_meal_panel != null:
+		post_intro_meal_panel.visible = false
+	if post_intro_meal_label != null:
+		post_intro_meal_label.text = POST_INTRO_MEAL_GUIDANCE_TEXT
+	if post_intro_meal_bowl_pointer != null and is_instance_valid(post_intro_meal_bowl_pointer):
+		post_intro_meal_bowl_pointer.visible = false
+	var bowl_highlight: Dictionary = interact_highlights.get("home_dog_bowl", {})
+	var bowl_marker: MeshInstance3D = bowl_highlight.get("node", null)
+	if bowl_marker != null and is_instance_valid(bowl_marker):
+		bowl_marker.visible = false
+
+func _update_post_intro_meal_tutorial(delta: float) -> void:
+	_update_post_intro_meal_barks(delta)
+	if not post_intro_meal_tutorial_active:
+		return
+	post_intro_meal_reminder_cooldown = maxf(0.0, post_intro_meal_reminder_cooldown - delta)
+	var reminder_was_active = post_intro_meal_reminder_timer > 0.0
+	post_intro_meal_reminder_timer = maxf(0.0, post_intro_meal_reminder_timer - delta)
+	if reminder_was_active and post_intro_meal_reminder_timer <= 0.0 and post_intro_meal_label != null:
+		post_intro_meal_label.text = POST_INTRO_MEAL_GUIDANCE_TEXT
+	if post_intro_meal_panel != null:
+		post_intro_meal_panel.visible = true
+	if post_intro_meal_bowl_pointer != null and is_instance_valid(post_intro_meal_bowl_pointer):
+		var bob = sin(world_time * POST_INTRO_MEAL_POINTER_BOB_SPEED) * POST_INTRO_MEAL_POINTER_BOB_HEIGHT
+		var pulse = 1.0 + sin(world_time * 3.1) * 0.055
+		post_intro_meal_bowl_pointer.position = post_intro_meal_bowl_pointer_base + Vector3(0.0, bob, 0.0)
+		post_intro_meal_bowl_pointer.scale = Vector3.ONE * pulse
+		post_intro_meal_bowl_pointer.visible = true
+
+
+func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = false) -> void:
+	if first_exit_abduction_active or first_exit_abduction_completed or freya == null or dynamic_root == null:
+		return
+	var stage_layout = _first_exit_dog_walker_layout()
+	if stage_layout.size() < FIRST_EXIT_DOG_WALKER_COUNT:
+		push_warning("The first-exit dog-walker abduction could not find enough sidewalk staging space.")
+		return
+	var available_dog_indices: Array[int] = []
+	for dog_index in range(dogs.size()):
+		if bool(dogs[dog_index].get("park", false)):
+			continue
+		var dog: Node3D = dogs[dog_index].get("node", null)
+		if dog != null and is_instance_valid(dog):
+			available_dog_indices.append(dog_index)
+			if available_dog_indices.size() >= FIRST_EXIT_DOG_WALKER_COUNT:
+				break
+	if available_dog_indices.size() < FIRST_EXIT_DOG_WALKER_COUNT:
+		push_warning("The first-exit dog-walker abduction could not find enough city dogs.")
+		return
+
+	first_exit_abduction_root = Node3D.new()
+	first_exit_abduction_root.name = "FirstExitDogWalkerAbduction"
+	first_exit_abduction_root.set_meta("visual_signature", "friendly_freya_first_exit_abduction_v1")
+	dynamic_root.add_child(first_exit_abduction_root, true)
+	first_exit_abduction_pairs.clear()
+	first_exit_abduction_center = Vector3.ZERO
+	var leash_colors = [Color8(225, 75, 72), Color8(71, 151, 211), Color8(235, 178, 53)]
+	for pair_index in range(FIRST_EXIT_DOG_WALKER_COUNT):
+		var layout: Dictionary = stage_layout[pair_index]
+		var dog_index = available_dog_indices[pair_index]
+		var state: Dictionary = dogs[dog_index]
+		var dog: Node3D = state.get("node", null)
+		var owner = FamilyVisualFactory.create_pedestrian(pair_index)
+		first_exit_abduction_root.add_child(owner, true)
+		var owner_position: Vector3 = layout.get("owner", Vector3.ZERO)
+		var dog_position: Vector3 = layout.get("dog", owner_position + Vector3(0.8, 0.0, 0.0))
+		var walk_direction: Vector3 = layout.get("direction", Vector3.RIGHT)
+		owner.global_position = owner_position
+		owner.rotation.y = atan2(-walk_direction.x, -walk_direction.z)
+		dog.global_position = dog_position
+		if dog.has_method("force_face_direction"):
+			dog.call("force_face_direction", walk_direction, 1.0)
+		state["first_exit_leashed"] = true
+		state["first_exit_saved_speed"] = float(state.get("speed", 2.0))
+		state["first_exit_saved_dir"] = state.get("dir", walk_direction)
+		state["speed"] = 0.0
+		state["dir"] = Vector3.ZERO
+		state["wander"] = 999.0
+		dogs[dog_index] = state
+		var beam = FamilyVisualFactory.create_abduction_effect("DogWalkerAbduction%02d" % pair_index, Color(0.31 + float(pair_index) * 0.2, 0.9 - float(pair_index) * 0.12, 1.0))
+		first_exit_abduction_root.add_child(beam, true)
+		beam.global_position = owner_position
+		var leash = _create_first_exit_leash(leash_colors[pair_index % leash_colors.size()])
+		first_exit_abduction_root.add_child(leash, true)
+		first_exit_abduction_pairs.append({
+			"dog_index": dog_index,
+			"owner": owner,
+			"owner_base": owner_position,
+			"owner_yaw": owner.rotation.y,
+			"dog_base": dog_position,
+			"walk_direction": walk_direction,
+			"beam": beam,
+			"leash": leash
+		})
+		first_exit_abduction_center += (owner_position + dog_position) * 0.5
+	first_exit_abduction_center /= float(FIRST_EXIT_DOG_WALKER_COUNT)
+	_create_first_exit_abduction_ui()
+	if ui_layer != null:
+		ui_layer.visible = false
+	if pause_menu_layer != null:
+		pause_menu_layer.visible = false
+	first_exit_abduction_active = true
+	first_exit_abduction_static = force_static
+	first_exit_abduction_time = clampf(start_time, 0.0, FIRST_EXIT_TOTAL_DURATION - 0.001)
+	_apply_first_exit_abduction_time(first_exit_abduction_time)
+
+
+func _first_exit_dog_walker_layout() -> Array:
+	var result: Array = []
+	if freya_home_index < 0 or freya_home_index >= buildings.size() or sidewalks.is_empty():
+		return result
+	var home: Dictionary = buildings[freya_home_index]
+	var home_layout: Dictionary = home.get("home_layout", {})
+	var home_fp: Rect2 = home.get("footprint", Rect2())
+	var entry_outside: Vector2 = home_layout.get("entry_outside_pos", home_fp.get_center())
+	var best_sidewalk = Rect2()
+	var best_distance = INF
+	for sidewalk in sidewalks:
+		# Use only municipal sidewalk bands beside a street. Building-perimeter
+		# patches sit directly against the porch and would clip the walkers through
+		# Freya's house instead of presenting them out in the neighborhood.
+		if sidewalk.intersects(home_fp.grow(0.42)):
+			continue
+		var borders_road = false
+		for road in roads:
+			if sidewalk.grow(0.04).intersects(road):
+				borders_road = true
+				break
+		if not borders_road:
+			continue
+		var inner = sidewalk.grow(-0.12)
+		if inner.size.x <= 0.15 or inner.size.y <= 0.15:
+			continue
+		var closest = Vector2(
+			clampf(entry_outside.x, inner.position.x, inner.end.x),
+			clampf(entry_outside.y, inner.position.y, inner.end.y)
+		)
+		var distance = entry_outside.distance_squared_to(closest)
+		if distance < best_distance:
+			best_distance = distance
+			best_sidewalk = inner
+	if best_sidewalk.size.x <= 0.15 or best_sidewalk.size.y <= 0.15:
+		return result
+	var along_x = best_sidewalk.size.x >= best_sidewalk.size.y
+	var long_start = best_sidewalk.position.x if along_x else best_sidewalk.position.y
+	var long_end = best_sidewalk.end.x if along_x else best_sidewalk.end.y
+	var desired_center = entry_outside.x if along_x else entry_outside.y
+	var spacing = minf(2.35, maxf(1.45, (long_end - long_start - 1.2) / float(FIRST_EXIT_DOG_WALKER_COUNT)))
+	var half_span = spacing * float(FIRST_EXIT_DOG_WALKER_COUNT - 1) * 0.5
+	var long_center = clampf(desired_center, long_start + half_span + 0.35, long_end - half_span - 0.35)
+	var short_center = best_sidewalk.get_center().y if along_x else best_sidewalk.get_center().x
+	for pair_index in range(FIRST_EXIT_DOG_WALKER_COUNT):
+		var long_position = long_center + (float(pair_index) - float(FIRST_EXIT_DOG_WALKER_COUNT - 1) * 0.5) * spacing
+		var owner_2d = Vector2(long_position, short_center) if along_x else Vector2(short_center, long_position)
+		var walk_direction_2d = Vector2.RIGHT if along_x else Vector2.DOWN
+		if pair_index % 2 == 1:
+			walk_direction_2d = -walk_direction_2d
+		var dog_2d = owner_2d + walk_direction_2d * 0.82
+		result.append({
+			"owner": Vector3(owner_2d.x, 0.0, owner_2d.y),
+			"dog": Vector3(dog_2d.x, 0.0, dog_2d.y),
+			"direction": Vector3(walk_direction_2d.x, 0.0, walk_direction_2d.y)
+		})
+	return result
+
+
+func _create_first_exit_leash(color: Color) -> MeshInstance3D:
+	var leash = MeshInstance3D.new()
+	leash.name = "VisibleDogLeash"
+	leash.set_meta("connects_owner_to_dog", true)
+	var mesh = CylinderMesh.new()
+	mesh.top_radius = 0.018
+	mesh.bottom_radius = 0.022
+	mesh.height = 1.0
+	mesh.radial_segments = 7
+	leash.mesh = mesh
+	var material = _home_material(color, 0.68)
+	leash.material_override = material
+	leash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return leash
+
+
+func _update_first_exit_leash(leash: MeshInstance3D, start: Vector3, finish: Vector3) -> void:
+	if leash == null or not is_instance_valid(leash):
+		return
+	var segment = finish - start
+	var length = segment.length()
+	if length < 0.01:
+		leash.visible = false
+		return
+	var direction = segment / length
+	var x_axis = Vector3.UP.cross(direction)
+	if x_axis.length_squared() < 0.0001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var z_axis = direction.cross(x_axis).normalized()
+	leash.global_transform = Transform3D(Basis(x_axis, direction, z_axis).orthonormalized(), (start + finish) * 0.5)
+	var mesh := leash.mesh as CylinderMesh
+	if mesh != null:
+		mesh.height = length
+	leash.visible = true
+
+
+func _create_first_exit_abduction_ui() -> void:
+	first_exit_abduction_layer = CanvasLayer.new()
+	first_exit_abduction_layer.name = "FirstExitAbductionUI"
+	first_exit_abduction_layer.layer = 20
+	add_child(first_exit_abduction_layer)
+	var overlay = Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	first_exit_abduction_layer.add_child(overlay)
+	for is_top in [true, false]:
+		var bar = ColorRect.new()
+		bar.name = "TopLetterbox" if is_top else "BottomLetterbox"
+		bar.color = Color(0.0, 0.0, 0.0, 0.92)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.anchor_right = 1.0
+		bar.anchor_top = 0.0 if is_top else 1.0
+		bar.anchor_bottom = 0.0 if is_top else 1.0
+		bar.offset_top = 0.0 if is_top else -46.0
+		bar.offset_bottom = 46.0 if is_top else 0.0
+		overlay.add_child(bar)
+	first_exit_abduction_scene_label = Label.new()
+	first_exit_abduction_scene_label.position = Vector2(22.0, 11.0)
+	first_exit_abduction_scene_label.size = Vector2(520.0, 28.0)
+	first_exit_abduction_scene_label.add_theme_font_size_override("font_size", 15)
+	first_exit_abduction_scene_label.add_theme_color_override("font_color", Color(0.74, 0.88, 0.92, 0.9))
+	first_exit_abduction_scene_label.visible = OS.get_environment("FREYA_INTRO_SHOW_SCENE_ID") == "1"
+	overlay.add_child(first_exit_abduction_scene_label)
+
+
+func _update_first_exit_abduction(delta: float) -> void:
+	if not first_exit_abduction_active:
+		return
+	if not first_exit_abduction_static:
+		first_exit_abduction_time = minf(FIRST_EXIT_TOTAL_DURATION, first_exit_abduction_time + delta)
+	_apply_first_exit_abduction_time(first_exit_abduction_time)
+	if freya != null:
+		freya.update_motion(maxf(delta, 0.0001), Vector3.ZERO, false, false)
+	if not first_exit_abduction_static and first_exit_abduction_time >= FIRST_EXIT_TOTAL_DURATION:
+		_finish_first_exit_abduction()
+
+
+func _apply_first_exit_abduction_time(time_seconds: float) -> void:
+	if not first_exit_abduction_active:
+		return
+	if first_exit_abduction_scene_label != null:
+		first_exit_abduction_scene_label.text = "first_exit_01_leashed_walkers" if time_seconds < FIRST_EXIT_BEAM_START else ("first_exit_02_owner_abduction" if time_seconds < FIRST_EXIT_OWNER_VANISH_TIME else "first_exit_03_dogs_released")
+	for pair_index in range(first_exit_abduction_pairs.size()):
+		var pair: Dictionary = first_exit_abduction_pairs[pair_index]
+		var owner: Node3D = pair.get("owner", null)
+		var beam: Node3D = pair.get("beam", null)
+		var leash: MeshInstance3D = pair.get("leash", null)
+		var dog_index = int(pair.get("dog_index", -1))
+		if dog_index < 0 or dog_index >= dogs.size():
+			continue
+		var dog: Node3D = dogs[dog_index].get("node", null)
+		if owner == null or dog == null:
+			continue
+		var owner_base: Vector3 = pair.get("owner_base", owner.global_position)
+		var dog_base: Vector3 = pair.get("dog_base", dog.global_position)
+		var walk_direction: Vector3 = pair.get("walk_direction", Vector3.RIGHT)
+		dog.global_position = dog_base
+		owner.visible = time_seconds < FIRST_EXIT_OWNER_VANISH_TIME
+		if time_seconds >= FIRST_EXIT_BEAM_START and owner.visible:
+			var lift = clampf(inverse_lerp(FIRST_EXIT_BEAM_START, FIRST_EXIT_OWNER_VANISH_TIME, time_seconds), 0.0, 1.0)
+			owner.global_position = owner_base + Vector3(0.0, lift * 0.72, 0.0)
+			owner.rotation.y = float(pair.get("owner_yaw", 0.0)) + sin(time_seconds * 9.0 + float(pair_index)) * 0.16 * lift
+		else:
+			owner.global_position = owner_base
+			owner.rotation.y = float(pair.get("owner_yaw", 0.0))
+		_apply_parent_abduction_effect(beam, time_seconds, FIRST_EXIT_BEAM_START, FIRST_EXIT_BEAM_END, float(pair_index) * 0.55)
+		if beam != null:
+			beam.global_position = owner_base
+		if leash != null:
+			leash.visible = owner.visible
+			if leash.visible:
+				var leash_arm = owner.get_node_or_null("LeashArm")
+				var hand_position = leash_arm.to_global(Vector3(0.0, -0.66, 0.0)) if leash_arm != null else owner.global_position + Vector3(0.25, 0.75, 0.0)
+				var collar_position = dog.head_world_position() + Vector3(0.0, -0.18, 0.0) if dog.has_method("head_world_position") else dog.global_position + Vector3(0.0, 0.5, 0.0)
+				_update_first_exit_leash(leash, hand_position, collar_position)
+		if time_seconds >= FIRST_EXIT_OWNER_VANISH_TIME and dog.has_method("force_face_direction"):
+			var confused_direction = walk_direction.rotated(Vector3.UP, sin((time_seconds - FIRST_EXIT_OWNER_VANISH_TIME) * 8.0 + float(pair_index)) * 0.85)
+			dog.call("force_face_direction", confused_direction, 1.0)
+
+	var home_fp = Rect2()
+	if freya_home_index >= 0 and freya_home_index < buildings.size():
+		home_fp = buildings[freya_home_index].get("footprint", Rect2())
+	var home_center = Vector3(home_fp.get_center().x, 0.0, home_fp.get_center().y)
+	var outward = first_exit_abduction_center - home_center
+	outward.y = 0.0
+	if outward.length_squared() < 0.001:
+		outward = Vector3.FORWARD
+	outward = outward.normalized()
+	var lateral = Vector3(-outward.z, 0.0, outward.x)
+	var camera_settle = clampf(time_seconds / 0.55, 0.0, 1.0)
+	var desired_camera = first_exit_abduction_center + outward * 5.7 + lateral * 3.6 + Vector3.UP * 4.35
+	camera_node.global_position = camera_node.global_position.lerp(desired_camera, camera_settle)
+	camera_node.fov = 43.0
+	camera_node.look_at(first_exit_abduction_center + Vector3(0.0, 0.78, 0.0), Vector3.UP)
+
+
+func _finish_first_exit_abduction() -> void:
+	if not first_exit_abduction_active:
+		return
+	first_exit_abduction_active = false
+	first_exit_abduction_completed = true
+	first_exit_abduction_static = false
+	for pair in first_exit_abduction_pairs:
+		if not (pair is Dictionary):
+			continue
+		var dog_index = int((pair as Dictionary).get("dog_index", -1))
+		if dog_index < 0 or dog_index >= dogs.size():
+			continue
+		var state: Dictionary = dogs[dog_index]
+		state["speed"] = float(state.get("first_exit_saved_speed", 2.0))
+		state["dir"] = state.get("first_exit_saved_dir", _random_dir())
+		state["wander"] = 0.0
+		state["first_exit_leashed"] = false
+		dogs[dog_index] = state
+	if first_exit_abduction_root != null and is_instance_valid(first_exit_abduction_root):
+		first_exit_abduction_root.queue_free()
+	if first_exit_abduction_layer != null and is_instance_valid(first_exit_abduction_layer):
+		first_exit_abduction_layer.queue_free()
+	first_exit_abduction_pairs.clear()
+	if ui_layer != null:
+		ui_layer.visible = true
+	if pause_menu_layer != null:
+		pause_menu_layer.visible = true
+	camera_focus = freya.global_position + Vector3(0.0, 0.95, 0.0)
+	_update_camera(0.0)
+	_update_roof_occlusion(0.0)
 
 
 func _run_family_intro_validation() -> bool:
 	var failures: Array[String] = []
 	if FAMILY_INTRO_TREE_META != "friendly_freya_family_intro_pending":
 		failures.append("family_handoff_key_bad")
-	var expected_speakers = ["ZOE", "GENE", "ZOE", "GENE", "GENE & ZOE", "ZOE", "GENE", "ZOE", "GENE", "FREYA", "ZOE", "FREYA"]
+	var expected_speakers = ["ZOE", "GENE", "ZOE", "GENE", "GENE & ZOE", "ZOE", "GENE", "ZOE", "GENE", "FREYA", "ZOE", "FREYA", "FREYA'S THOUGHTS"]
 	var expected_text = [
 		"Congrats on your last day! I'm so glad you'll be able to work from home now.",
 		"Who knew that Elon Musk would need a licensed pharmacist for his new company that lets guys suck their own dicks?",
 		"I mean, it's incredible. The drug loosens your joints, eliminates pain, AND makes you really want to suck your own dick!",
 		"Didn't know Elon needed that last part",
 		"Ha, ha, ha",
-		"Anyways, did you get our parting gift?",
+		"Did you get any 'celebration materials'?",
 		"Yes! I was able to swipe these from the pharmacy when my manager wasn't looking. She'll get blamed for it, so it's all good.",
 		"But who will look after Ryah when we're celebrating?",
 		"Freya will!",
 		"BARK!",
 		"Okay, ope---",
-		"BARK!"
+		"BARK!",
+		"Oh wow. I have an internal monologue now! This is weird. I'm hungry!"
 	]
-	if FamilyIntroTimeline.SCENES.size() != 16:
+	if FamilyIntroTimeline.SCENES.size() != 20:
 		failures.append("family_scene_count_%d" % FamilyIntroTimeline.SCENES.size())
 	var previous_end = 0.0
 	for scene_index in range(FamilyIntroTimeline.SCENES.size()):
@@ -3949,6 +4840,10 @@ func _run_family_intro_validation() -> bool:
 		failures.append("zoe_reference_traits_bad")
 	if family_pill_reveal == null or family_pill_reveal.get_child_count() != 9:
 		failures.append("pill_bottle_count_bad")
+	if family_dropped_pills == null or str(family_dropped_pills.get_meta("visual_signature", "")) != "friendly_freya_dropped_pills_v1" or int(family_dropped_pills.get_meta("bottle_count", 0)) != 9:
+		failures.append("dropped_pill_bottles_missing")
+	if family_pill_convulsion_effect == null or str(family_pill_convulsion_effect.get_meta("visual_signature", "")) != "friendly_freya_pill_convulsion_v1":
+		failures.append("pill_convulsion_effect_missing")
 	if family_gene_beam == null or family_zoe_beam == null or family_ryah_beam == null:
 		failures.append("family_abduction_effect_missing")
 	elif family_gene_beam.find_children("AbductionRing*", "MeshInstance3D", true, false).size() != 2 or family_zoe_beam.find_children("AbductionRing*", "MeshInstance3D", true, false).size() != 2:
@@ -3963,6 +4858,11 @@ func _run_family_intro_validation() -> bool:
 		failures.append("family_gene_hands_too_far_inside_pills")
 	if family_pill_reveal.position.y < 1.07 or family_pill_reveal.position.z < -0.42:
 		failures.append("family_pills_overlap_hands")
+	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_pills_dropped"))
+	if family_pill_reveal.visible or not family_dropped_pills.visible:
+		failures.append("gene_did_not_drop_pills_during_abduction")
+	elif family_dropped_pills.global_position.y > 0.09:
+		failures.append("dropped_pills_not_on_floor")
 	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_abduction"))
 	if not family_gene_beam.visible or not family_zoe_beam.visible or not family_gene.visible or not family_zoe.visible:
 		failures.append("parent_abduction_checkpoint_bad")
@@ -3978,6 +4878,15 @@ func _run_family_intro_validation() -> bool:
 	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_ryah_saved"))
 	if family_ryah_beam.visible or not ryah_diane_node.visible:
 		failures.append("ryah_not_saved")
+	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_pill_eat"))
+	if not family_dropped_pills.visible or freya.global_position.distance_to(family_dropped_pills_landing) > 1.05:
+		failures.append("freya_did_not_eat_dropped_pills")
+	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_convulsion"))
+	if not family_pill_convulsion_effect.visible or family_pill_convulsion_effect.find_children("ComicStar*", "Node3D", true, false).size() < 8:
+		failures.append("freya_pill_convulsion_not_entertaining")
+	_apply_family_intro_time(FamilyIntroTimeline.time_for_view("family_monologue"))
+	if family_pill_convulsion_effect.visible or family_dialogue_panel == null or not family_dialogue_panel.visible or family_speaker_label.text != "FREYA'S THOUGHTS" or family_dialogue_label.text != "Oh wow. I have an internal monologue now! This is weird. I'm hungry!":
+		failures.append("freya_internal_monologue_missing")
 	var home_rect: Rect2 = buildings[freya_home_index].get("home_interior_rect", Rect2())
 	if not home_rect.grow(0.1).has_point(Vector2(freya.global_position.x, freya.global_position.z)):
 		failures.append("family_freya_not_inside_live_home")
@@ -4002,11 +4911,117 @@ func _run_family_intro_validation() -> bool:
 	var final_ryah_label = ryah_diane_node.get_node_or_null("RyahDianeLabel") if ryah_diane_node != null else null
 	if final_ryah_label == null or not final_ryah_label.visible:
 		failures.append("family_ryah_gameplay_label_not_restored")
+	if not post_intro_meal_tutorial_active or post_intro_meal_tutorial_completed:
+		failures.append("post_intro_meal_tutorial_not_started")
+	if absf(freya_hunger - 100.0) > 0.001:
+		failures.append("post_intro_freya_not_fully_hungry")
+	if post_intro_meal_panel == null or not post_intro_meal_panel.visible or post_intro_meal_label == null or post_intro_meal_label.text != POST_INTRO_MEAL_GUIDANCE_TEXT:
+		failures.append("post_intro_meal_guidance_missing")
+	if post_intro_meal_bowl_pointer == null or not is_instance_valid(post_intro_meal_bowl_pointer) or not post_intro_meal_bowl_pointer.visible or not bool(post_intro_meal_bowl_pointer.get_meta("points_to_home_bowl", false)):
+		failures.append("post_intro_bowl_pointer_missing")
+	if post_intro_meal_bark_request_count != 2:
+		failures.append("post_intro_initial_barks_bad_%d" % post_intro_meal_bark_request_count)
+
+	var home: Dictionary = buildings[freya_home_index]
+	var home_layout: Dictionary = home.get("home_layout", {})
+	var entry_inside: Vector2 = home_layout.get("entry_inside_pos", home_rect.get_center())
+	var entry_outside: Vector2 = home_layout.get("entry_outside_pos", entry_inside)
+	var outward_2d = entry_outside - entry_inside
+	var outward_3d = Vector3(outward_2d.x, 0.0, outward_2d.y).normalized()
+	freya.global_position = Vector3(entry_inside.x, freya.global_position.y, entry_inside.y)
+	post_intro_meal_reminder_cooldown = 0.0
+	var bark_requests_before_exit = post_intro_meal_bark_request_count
+	if not _try_block_post_intro_home_exit(entry_outside, outward_3d):
+		failures.append("post_intro_home_exit_not_blocked")
+	if post_intro_meal_turnaround_timer <= 0.0 or post_intro_meal_turnaround_direction.dot(-outward_3d) < 0.98:
+		failures.append("post_intro_home_turnaround_missing")
+	if post_intro_meal_label == null or post_intro_meal_label.text != POST_INTRO_MEAL_REMINDER_TEXT:
+		failures.append("post_intro_exit_reminder_missing")
+	if post_intro_meal_bark_request_count != bark_requests_before_exit + 1:
+		failures.append("post_intro_exit_bark_missing")
+	if not _is_inside_freya_home(Vector2(freya.global_position.x, freya.global_position.z)):
+		failures.append("post_intro_exit_gate_moved_freya_outside")
+
+	freya.global_position = Vector3(freya_home_bowl_position.x, freya.global_position.y, freya_home_bowl_position.y)
+	if not _try_eat_home_bowl(false):
+		failures.append("post_intro_required_meal_failed")
+	if absf(freya_hunger) > 0.001 or post_intro_meal_tutorial_active or not post_intro_meal_tutorial_completed:
+		failures.append("post_intro_meal_did_not_complete_tutorial")
+	if (post_intro_meal_panel != null and post_intro_meal_panel.visible) or (post_intro_meal_bowl_pointer != null and is_instance_valid(post_intro_meal_bowl_pointer) and post_intro_meal_bowl_pointer.visible):
+		failures.append("post_intro_meal_guidance_not_cleared")
+	interact_highlight_update_timer = 0.0
+	_update_interactable_highlights(0.0)
+	var completed_bowl_highlight: Dictionary = interact_highlights.get("home_dog_bowl", {})
+	var completed_bowl_marker: MeshInstance3D = completed_bowl_highlight.get("node", null)
+	if completed_bowl_marker != null and is_instance_valid(completed_bowl_marker) and completed_bowl_marker.visible:
+		failures.append("post_intro_bowl_highlight_returned_immediately")
+	_append_first_exit_abduction_validation_failures(failures)
 	if failures.is_empty():
-		print("FAMILY_INTRO_OK: live home, exact dialogue, Gene/Zoe likeness cues, 9 pill bottles, parent abduction, Ryah rescue, authored barks, and gameplay handoff validated")
+		print("FAMILY_INTRO_OK: live home, exact dialogue, dropped pills, Ryah rescue, Freya pill-eating convulsion and internal monologue, eat-first guidance, and first-exit leashed-owner abduction validated")
 		return true
 	push_error("FAMILY_INTRO_FAIL: " + ", ".join(failures))
 	return false
+
+
+func _append_first_exit_abduction_validation_failures(failures: Array[String]) -> void:
+	var home: Dictionary = buildings[freya_home_index] if freya_home_index >= 0 and freya_home_index < buildings.size() else {}
+	var home_layout: Dictionary = home.get("home_layout", {})
+	var home_fp: Rect2 = home.get("footprint", Rect2())
+	var entry_outside: Vector2 = home_layout.get("entry_outside_pos", home_fp.get_center())
+	freya_inside_home = true
+	freya.global_position = Vector3(entry_outside.x, 0.0, entry_outside.y)
+	store_focus_timer = 0.0
+	_update_store_focus(1.0)
+	first_exit_abduction_static = true
+	first_exit_abduction_time = 0.35
+	_apply_first_exit_abduction_time(first_exit_abduction_time)
+	if not first_exit_abduction_active or first_exit_abduction_root == null or str(first_exit_abduction_root.get_meta("visual_signature", "")) != "friendly_freya_first_exit_abduction_v1":
+		failures.append("first_exit_abduction_did_not_trigger_on_home_exit")
+		return
+	if first_exit_abduction_pairs.size() != FIRST_EXIT_DOG_WALKER_COUNT:
+		failures.append("first_exit_dog_walker_count_%d" % first_exit_abduction_pairs.size())
+	for pair in first_exit_abduction_pairs:
+		var data: Dictionary = pair
+		var dog_index = int(data.get("dog_index", -1))
+		if dog_index < 0 or dog_index >= dogs.size() or not bool(dogs[dog_index].get("first_exit_leashed", false)):
+			failures.append("first_exit_dog_not_held_on_leash")
+		var owner: Node3D = data.get("owner", null)
+		var leash: MeshInstance3D = data.get("leash", null)
+		if owner == null or not owner.visible or leash == null or not leash.visible or not bool(leash.get_meta("connects_owner_to_dog", false)):
+			failures.append("first_exit_owner_or_leash_missing")
+	_apply_first_exit_abduction_time(2.15)
+	for pair in first_exit_abduction_pairs:
+		var data: Dictionary = pair
+		var owner: Node3D = data.get("owner", null)
+		var beam: Node3D = data.get("beam", null)
+		var owner_base: Vector3 = data.get("owner_base", Vector3.ZERO)
+		if owner == null or not owner.visible or owner.global_position.y <= owner_base.y + 0.05 or beam == null or not beam.visible:
+			failures.append("first_exit_owner_abduction_effect_missing")
+	_apply_first_exit_abduction_time(3.6)
+	for pair in first_exit_abduction_pairs:
+		var data: Dictionary = pair
+		var owner: Node3D = data.get("owner", null)
+		var leash: MeshInstance3D = data.get("leash", null)
+		var dog_index = int(data.get("dog_index", -1))
+		if owner == null or owner.visible or (leash != null and leash.visible):
+			failures.append("first_exit_owner_or_leash_did_not_vanish")
+		if dog_index < 0 or dog_index >= dogs.size() or not bool(dogs[dog_index].get("first_exit_leashed", false)):
+			failures.append("first_exit_dog_released_before_owner_abduction_finished")
+	var event_root = first_exit_abduction_root
+	var event_layer = first_exit_abduction_layer
+	var released_indices: Array[int] = []
+	for pair in first_exit_abduction_pairs:
+		released_indices.append(int((pair as Dictionary).get("dog_index", -1)))
+	_finish_first_exit_abduction()
+	if first_exit_abduction_active or not first_exit_abduction_completed:
+		failures.append("first_exit_abduction_did_not_finish")
+	if event_root == null or not event_root.is_queued_for_deletion() or event_layer == null or not event_layer.is_queued_for_deletion():
+		failures.append("first_exit_temporary_visuals_not_cleared")
+	for dog_index in released_indices:
+		if dog_index >= 0 and dog_index < dogs.size():
+			var state: Dictionary = dogs[dog_index]
+			if bool(state.get("first_exit_leashed", true)) or float(state.get("speed", 0.0)) <= 0.0:
+				failures.append("first_exit_dog_default_behavior_not_released")
 
 func _update_ryah_diane(delta: float) -> void:
 	if ryah_diane_node == null or not is_instance_valid(ryah_diane_node) or ryah_diane_waypoints.is_empty():
@@ -5699,6 +6714,7 @@ func _rebuild_walkability_cache() -> void:
 
 func _rebuild_static_obstacle_grid() -> void:
 	static_obstacle_grid.clear()
+	_append_static_obstacles_to_grid(dog_park_obstacles, 0.42, "park_equipment")
 	_append_static_obstacles_to_grid(trees, TREE_COLLISION_SCALE, "tree")
 	_append_static_obstacles_to_grid(dumpsters, DUMPSTER_COLLISION_RADIUS, "dumpster")
 	_append_static_obstacles_to_grid(street_poles, STREET_POLE_COLLISION_RADIUS, "pole")
@@ -7264,7 +8280,9 @@ func _choose_dog_direction(origin: Vector3, preferred_surface: String, in_park: 
 			score += 2.35 if surf == "grass" else 0.68
 
 		if in_park:
-			score += 1.2 if dog_park.grow(0.2).has_point(probe2) else -1.3
+			if not dog_park.grow(-0.18).has_point(probe2):
+				continue
+			score += 1.2
 		else:
 			if dog_park.grow(0.35).has_point(probe2):
 				score -= 1.3
@@ -7410,7 +8428,7 @@ func _freya_spawn_point_near_dog_park() -> Vector3:
 		if visual_view == "dog_park_friendly":
 			return Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y + 1.4)
 		var target_index = -1
-		if visual_view == "home_inside" or visual_view == "home_outside":
+		if visual_view == "home_inside" or visual_view == "home_outside" or visual_view == "post_intro_food_tutorial":
 			target_index = freya_home_index
 		elif visual_view == "storefront":
 			for store_index in store_building_indices:
@@ -7446,7 +8464,7 @@ func _freya_spawn_point_near_dog_park() -> Vector3:
 			camera_orbit_angle = 0.0 if target_front_south else PI
 			var target_layout: Dictionary = target_building.get("home_layout", {}) if bool(target_building.get("is_freya_home", false)) else target_building.get("store_layout", {})
 			var target_point = Vector2(target_fp.get_center().x, target_fp.position.y + (target_fp.size.y if target_front_south else 0.0) + target_front_sign * 2.0)
-			if visual_view == "home_inside":
+			if visual_view == "home_inside" or visual_view == "post_intro_food_tutorial":
 				target_point = target_building.get("home_interior_rect", target_fp).get_center()
 			elif visual_view == "home_outside" or visual_view == "storefront":
 				target_point = target_layout.get("entry_outside_pos", target_point)
@@ -7507,6 +8525,8 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 	if x < radius or z < radius or x > MAP_W - radius or z > MAP_H - radius:
 		return false
 	var p = Vector2(x, z)
+	if _point_in_dog_park_fence(p, radius):
+		return false
 	if _point_in_occupied_store(p, radius):
 		return false
 	if _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
@@ -7516,6 +8536,12 @@ func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
 	if _point_in_static_obstacle(p, radius):
 		return false
 	return true
+
+func _point_in_dog_park_fence(p: Vector2, pad: float) -> bool:
+	for blocker in dog_park_fence_blockers:
+		if blocker.grow(maxf(0.02, pad * 0.72)).has_point(p):
+			return true
+	return false
 
 func _point_in_occupied_store(p: Vector2, pad: float = 0.0) -> bool:
 	for store_index in store_building_indices:
@@ -7695,6 +8721,9 @@ func _update_freya(delta: float) -> void:
 		freya.update_motion(delta, Vector3.ZERO, false, false, true)
 		return
 
+	if _update_post_intro_meal_turnaround(delta):
+		return
+
 	var input_x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
 	var input_y = Input.get_action_strength("move_up") - Input.get_action_strength("move_down")
 	var moving = Vector2(input_x, input_y)
@@ -7726,6 +8755,9 @@ func _update_freya(delta: float) -> void:
 	var speed = _compute_freya_move_speed(running)
 
 	var next: Vector3 = freya.global_position + move_dir * speed * delta
+	if _try_block_post_intro_home_exit(Vector2(next.x, next.z), move_dir):
+		freya.update_motion(delta, post_intro_meal_turnaround_direction, false, false)
+		return
 	if _is_walkable(next.x, freya.global_position.z, FREYA_COLLISION_RADIUS):
 		freya.global_position.x = next.x
 	if _is_walkable(freya.global_position.x, next.z, FREYA_COLLISION_RADIUS):
@@ -7749,6 +8781,71 @@ func _compute_freya_move_speed(running: bool) -> float:
 		if freya_has_stick and carried_stick != null and is_instance_valid(carried_stick):
 			speed *= FREYA_STICK_RUN_MULT
 	return maxf(1.7, speed)
+
+func _update_post_intro_meal_turnaround(delta: float) -> bool:
+	if not post_intro_meal_tutorial_active or post_intro_meal_turnaround_timer <= 0.0:
+		return false
+	post_intro_meal_turnaround_timer = maxf(0.0, post_intro_meal_turnaround_timer - delta)
+	var turn_direction = post_intro_meal_turnaround_direction
+	turn_direction.y = 0.0
+	if turn_direction.length_squared() < 0.0001:
+		post_intro_meal_turnaround_timer = 0.0
+		return false
+	turn_direction = turn_direction.normalized()
+	post_intro_meal_turnaround_direction = turn_direction
+	freya_move_dir = turn_direction
+	_increase_freya_hunger(delta, HUNGER_IDLE_PER_SEC)
+
+	var next = freya.global_position + turn_direction * POST_INTRO_MEAL_TURNAROUND_SPEED * delta
+	var home: Dictionary = buildings[freya_home_index] if freya_home_index >= 0 and freya_home_index < buildings.size() else {}
+	var interior_rect: Rect2 = home.get("home_interior_rect", Rect2())
+	var next_2d = Vector2(next.x, next.z)
+	if interior_rect.grow(-0.02).has_point(next_2d) and _is_walkable(next.x, next.z, FREYA_COLLISION_RADIUS):
+		freya.global_position.x = next.x
+		freya.global_position.z = next.z
+	freya.update_motion(delta, turn_direction, false, false)
+	return true
+
+func _try_block_post_intro_home_exit(candidate: Vector2, attempted_direction: Vector3) -> bool:
+	if not post_intro_meal_tutorial_active or freya == null or not is_instance_valid(freya):
+		return false
+	if freya_home_index < 0 or freya_home_index >= buildings.size():
+		return false
+	var home: Dictionary = buildings[freya_home_index]
+	var interior_rect: Rect2 = home.get("home_interior_rect", Rect2())
+	if interior_rect.size.x <= 0.0 or interior_rect.size.y <= 0.0:
+		return false
+	var current = Vector2(freya.global_position.x, freya.global_position.z)
+	if not interior_rect.grow(0.12).has_point(current):
+		return false
+	if interior_rect.grow(0.02).has_point(candidate):
+		return false
+	# Solid walls already reject movement. Only the home's genuinely walkable
+	# doorway can trigger this gate, so ordinary wall bumps do not nag the player.
+	if not _is_walkable(candidate.x, candidate.y, FREYA_COLLISION_RADIUS):
+		return false
+
+	var inward = -attempted_direction
+	inward.y = 0.0
+	if inward.length_squared() < 0.0001:
+		var center = interior_rect.get_center()
+		inward = Vector3(center.x - current.x, 0.0, center.y - current.y)
+	if inward.length_squared() < 0.0001:
+		return false
+	inward = inward.normalized()
+	post_intro_meal_turnaround_direction = inward
+	post_intro_meal_turnaround_timer = POST_INTRO_MEAL_TURNAROUND_DURATION
+	freya_move_dir = inward
+	if freya.has_method("force_face_direction"):
+		freya.call("force_face_direction", inward, 1.0)
+
+	if post_intro_meal_reminder_cooldown <= 0.0:
+		post_intro_meal_reminder_timer = POST_INTRO_MEAL_REMINDER_DURATION
+		post_intro_meal_reminder_cooldown = POST_INTRO_MEAL_REMINDER_COOLDOWN
+		if post_intro_meal_label != null:
+			post_intro_meal_label.text = POST_INTRO_MEAL_REMINDER_TEXT
+		_queue_post_intro_meal_barks(1)
+	return true
 
 func _update_dogs(delta: float) -> void:
 	var friendly_requested = Input.is_action_pressed("friendly_social")
@@ -7810,16 +8907,19 @@ func _update_dogs(delta: float) -> void:
 		var speed = float(state["speed"]) * (DOG_FLEE_SPEED_MULT if is_fleeing else 1.0)
 		var next: Vector3 = dog.global_position + dir * speed * delta
 		var next_surface = _surface_at(Vector2(next.x, next.z))
-		if _is_walkable(next.x, next.z, DOG_COLLISION_RADIUS) and next_surface != "road":
+		var next_inside_park = (not in_park) or dog_park.grow(-0.18).has_point(Vector2(next.x, next.z))
+		if next_inside_park and _is_walkable(next.x, next.z, DOG_COLLISION_RADIUS) and next_surface != "road":
 			dog.global_position = Vector3(next.x, 0.0, next.z)
 		else:
 			var moved = false
 			var step_x = Vector3(next.x, dog.global_position.y, dog.global_position.z)
 			var step_z = Vector3(dog.global_position.x, dog.global_position.y, next.z)
-			if _is_walkable(step_x.x, step_x.z, DOG_COLLISION_RADIUS) and _surface_at(Vector2(step_x.x, step_x.z)) != "road":
+			var step_x_inside_park = (not in_park) or dog_park.grow(-0.18).has_point(Vector2(step_x.x, step_x.z))
+			var step_z_inside_park = (not in_park) or dog_park.grow(-0.18).has_point(Vector2(step_z.x, step_z.z))
+			if step_x_inside_park and _is_walkable(step_x.x, step_x.z, DOG_COLLISION_RADIUS) and _surface_at(Vector2(step_x.x, step_x.z)) != "road":
 				dog.global_position.x = step_x.x
 				moved = true
-			if _is_walkable(step_z.x, step_z.z, DOG_COLLISION_RADIUS) and _surface_at(Vector2(step_z.x, step_z.z)) != "road":
+			if step_z_inside_park and _is_walkable(step_z.x, step_z.z, DOG_COLLISION_RADIUS) and _surface_at(Vector2(step_z.x, step_z.z)) != "road":
 				dog.global_position.z = step_z.z
 				moved = true
 			if not moved:
@@ -7865,15 +8965,17 @@ func _update_dogs(delta: float) -> void:
 				var bark_burst = rng.randi_range(2, 3)
 				if pack >= 5 and rng.randf() < 0.5:
 					bark_burst += 1
-				_queue_bark_sequence(false, bark_burst, true)
-				_queue_bark_sequence(true, bark_burst, true)
+				_queue_bark_sequence(false, bark_burst, _social_bark_category(false, true))
+				_queue_bark_sequence(true, bark_burst, _social_bark_category(true, true))
 				var cooldown_scale = clampf(1.0 - (float(pack - 1) * 0.07), 0.45, 1.0)
 				state["bark"] = rng.randf_range(0.21, 0.43) * cooldown_scale
 			else:
 				_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 1.0, 1.0, 0.82))
 				_spawn_bark_pulse(freya.head_world_position(), Color(1.0, 0.9, 0.65, 0.84))
-				_queue_bark_sequence(false, rng.randi_range(1, 2), false)
-				_queue_bark_sequence(true, rng.randi_range(1, 2), false)
+				# The approached dog answers conversationally; Freya's active
+				# friendly-social input gets the more animated excited pool.
+				_queue_bark_sequence(false, rng.randi_range(1, 2), _social_bark_category(false, false))
+				_queue_bark_sequence(true, rng.randi_range(1, 2), _social_bark_category(true, false))
 				state["bark"] = rng.randf_range(0.52, 0.96)
 
 		state = _update_exorcism_for_dog(state, i, delta, aggressive_social, in_social_range)
@@ -7884,6 +8986,8 @@ func _update_dogs(delta: float) -> void:
 				state["army_aligned"] = true
 				if dog.has_method("set_army_aligned"):
 					dog.call("set_army_aligned", true)
+				_queue_bark_sequence(false, rng.randi_range(2, 3), BARK_CATEGORY_EXCITED_SOCIAL)
+				_queue_bark_sequence(true, rng.randi_range(2, 3), BARK_CATEGORY_EXCITED_SOCIAL)
 				_show_status("A real dog joined Freya's army.", 1.25)
 		dogs[i] = state
 
@@ -8908,8 +10012,16 @@ func _update_interactable_highlights(delta: float) -> void:
 	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
 	if freya_home_bowl_node != null and is_instance_valid(freya_home_bowl_node) and _is_inside_freya_home(freya_pos):
 		var bowl_range = HOME_DOG_BOWL_EAT_RANGE + 0.15
-		if freya_pos.distance_squared_to(freya_home_bowl_position) <= bowl_range * bowl_range:
-			_mark_interactable_highlight(seen, "home_dog_bowl", freya_home_bowl_node.global_position, 0.82)
+		var bowl_is_near = freya_pos.distance_squared_to(freya_home_bowl_position) <= bowl_range * bowl_range
+		if post_intro_meal_bowl_highlight_suppressed and not bowl_is_near:
+			post_intro_meal_bowl_highlight_suppressed = false
+		if post_intro_meal_tutorial_active or (bowl_is_near and not post_intro_meal_bowl_highlight_suppressed):
+			_mark_interactable_highlight(
+				seen,
+				"home_dog_bowl",
+				freya_home_bowl_node.global_position,
+				1.38 if post_intro_meal_tutorial_active else 0.82
+			)
 
 	if not freya_has_stick and carried_stick == null:
 		var stick_range_sq = (STICK_PICKUP_RANGE + 0.15) * (STICK_PICKUP_RANGE + 0.15)
@@ -9972,6 +11084,7 @@ func _try_eat_home_bowl(show_fail_status: bool = false) -> bool:
 		return false
 
 	freya_hunger = 0.0
+	_complete_post_intro_meal_tutorial()
 	_trigger_freya_eat_feedback("food")
 	_show_status("Ate dinner from Freya's bowl — Hunger 0%", 1.15)
 	return true
@@ -10484,9 +11597,12 @@ func _update_store_focus(delta: float) -> void:
 		store_idx = _store_index_for_visual_focus(p)
 		var inside_home_now = _is_inside_freya_home(p)
 		if inside_home_now != freya_inside_home:
+			var was_inside_home = freya_inside_home
 			_apply_freya_home_focus_visuals()
 			if inside_home_now:
 				_show_status("Freya's home — Ryah Diane is inside", 1.35)
+			elif was_inside_home and post_intro_meal_tutorial_completed and not first_exit_abduction_completed:
+				_begin_first_exit_abduction()
 	if store_idx == active_store_index:
 		return
 	active_store_index = store_idx
@@ -11535,6 +12651,7 @@ func _run_targeted_validation_checks() -> bool:
 	var saved_timer = store_focus_timer
 	var saved_hunger = freya_hunger
 	var saved_eat_timer = freya_eat_timer
+	_append_bark_library_validation_failures(failures)
 	_append_alien_validation_failures(failures)
 	_append_army_collar_validation_failures(failures)
 	_append_mailbox_claim_validation_failures(failures)
@@ -11886,7 +13003,7 @@ func _run_targeted_validation_checks() -> bool:
 	_apply_freya_home_focus_visuals()
 
 	if failures.is_empty():
-		print("TARGET_OK: smaller-imp+readable-army-collars+mailbox-claim+alien-collision+possession+home-bowl+store-lock+visual validations passed")
+		print("TARGET_OK: bark-library+smaller-imp+readable-army-collars+mailbox-claim+alien-collision+possession+home-bowl+store-lock+visual validations passed")
 		return true
 	else:
 		push_error("TARGET_FAIL: " + ", ".join(failures))
@@ -11896,6 +13013,8 @@ func _run_headless_smoke_checks() -> bool:
 	var failures: Array[String] = []
 	var park_center = dog_park.position + dog_park.size * 0.5
 	var initial_spawn_distance = Vector2(freya.global_position.x, freya.global_position.z).distance_to(park_center)
+	if absf(freya_hunger - 100.0) > 0.001:
+		failures.append("freya_initial_hunger_not_full_%.2f" % freya_hunger)
 	var expected_blocks = CITY_BLOCK_COLUMNS * CITY_BLOCK_ROWS
 	if city_blocks.size() != expected_blocks:
 		failures.append("city_block_count_%d_expected_%d" % [city_blocks.size(), expected_blocks])
@@ -12202,6 +13321,8 @@ func _run_headless_smoke_checks() -> bool:
 	var non_voxel_style_dogs = 0
 	var nonpark_sidewalk_pref = 0
 	var nonpark_total = 0
+	if dogs.size() != NPC_DOG_COUNT:
+		failures.append("npc_dog_population_%d_expected_%d" % [dogs.size(), NPC_DOG_COUNT])
 	for d in dogs:
 		if bool(d.get("park", false)):
 			park_count += 1
@@ -12216,8 +13337,25 @@ func _run_headless_smoke_checks() -> bool:
 				nonpark_sidewalk_pref += 1
 		if str(d.get("visual_style", "unknown")) != "freya_voxel_rig":
 			non_voxel_style_dogs += 1
-	if park_count < DOG_PARK_NPC_COUNT:
-		failures.append("dog_park_population_low_%d" % park_count)
+	if park_count != DOG_PARK_NPC_COUNT:
+		failures.append("dog_park_population_%d_expected_%d" % [park_count, DOG_PARK_NPC_COUNT])
+	if dog_park_root == null or not bool(dog_park_root.get_meta("fully_fenced", false)) or not bool(dog_park_root.get_meta("has_walkthrough_gate", false)):
+		failures.append("dog_park_enclosure_missing")
+	elif dog_park_fence_segment_count < 13 or dog_park_fence_post_count < 20:
+		failures.append("dog_park_fence_incomplete")
+	var park_x0 = dog_park.position.x
+	var park_z1 = dog_park.end.y
+	var park_gate_x = dog_park.get_center().x
+	if dog_park_fence_blockers.size() != 5 or not _point_in_dog_park_fence(Vector2(park_x0, dog_park.get_center().y), 0.05):
+		failures.append("dog_park_fence_collision_missing")
+	if _point_in_dog_park_fence(Vector2(park_gate_x, park_z1), 0.05):
+		failures.append("dog_park_gate_blocked")
+	var expected_park_equipment = ["weave_poles", "jump_hurdle", "a_frame", "crawl_tunnel"]
+	for equipment_type in expected_park_equipment:
+		if not dog_park_equipment_types.has(equipment_type):
+			failures.append("dog_park_equipment_missing_%s" % equipment_type)
+	if dog_park_obstacles.size() < expected_park_equipment.size():
+		failures.append("dog_park_obstacle_collision_missing")
 	if park_breeds.size() < 5:
 		failures.append("dog_park_breed_variety_low_%d" % park_breeds.size())
 	if park_models.size() != 1 or not park_models.has(FREYA_PRIMARY_MODEL):
@@ -12878,9 +14016,100 @@ func _create_ui() -> void:
 	minimap_panel.add_child(minimap)
 	minimap.set_zoom(minimap_zoom_slider.value)
 
+	_create_post_intro_meal_tutorial_ui()
 	_create_objectives_overlay()
 	_create_stats_overlay()
 	_create_pause_menu()
+
+func _create_post_intro_meal_tutorial_ui() -> void:
+	post_intro_meal_panel = Panel.new()
+	post_intro_meal_panel.name = "PostIntroMealGuide"
+	post_intro_meal_panel.anchor_left = 0.5
+	post_intro_meal_panel.anchor_top = 0.0
+	post_intro_meal_panel.anchor_right = 0.5
+	post_intro_meal_panel.anchor_bottom = 0.0
+	post_intro_meal_panel.offset_left = -250.0
+	post_intro_meal_panel.offset_top = 18.0
+	post_intro_meal_panel.offset_right = 250.0
+	post_intro_meal_panel.offset_bottom = 112.0
+	post_intro_meal_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	post_intro_meal_panel.z_index = 20
+	var guide_style = StyleBoxFlat.new()
+	guide_style.bg_color = Color(0.025, 0.055, 0.075, 0.94)
+	guide_style.border_color = Color(1.0, 0.86, 0.38, 0.94)
+	guide_style.border_width_left = 3
+	guide_style.border_width_top = 3
+	guide_style.border_width_right = 3
+	guide_style.border_width_bottom = 3
+	guide_style.corner_radius_top_left = 12
+	guide_style.corner_radius_top_right = 12
+	guide_style.corner_radius_bottom_left = 12
+	guide_style.corner_radius_bottom_right = 12
+	post_intro_meal_panel.add_theme_stylebox_override("panel", guide_style)
+	post_intro_meal_panel.visible = false
+	ui_layer.add_child(post_intro_meal_panel)
+
+	post_intro_meal_label = Label.new()
+	post_intro_meal_label.name = "FreyaThought"
+	post_intro_meal_label.anchor_right = 1.0
+	post_intro_meal_label.anchor_bottom = 1.0
+	post_intro_meal_label.offset_left = 20.0
+	post_intro_meal_label.offset_top = 10.0
+	post_intro_meal_label.offset_right = -20.0
+	post_intro_meal_label.offset_bottom = -10.0
+	post_intro_meal_label.text = POST_INTRO_MEAL_GUIDANCE_TEXT
+	post_intro_meal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	post_intro_meal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	post_intro_meal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	post_intro_meal_label.add_theme_font_size_override("font_size", 22)
+	post_intro_meal_label.add_theme_color_override("font_color", Color(1.0, 0.97, 0.86, 1.0))
+	post_intro_meal_label.add_theme_constant_override("outline_size", 4)
+	post_intro_meal_label.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.04, 0.95))
+	post_intro_meal_panel.add_child(post_intro_meal_label)
+
+	_create_post_intro_meal_bowl_pointer()
+
+func _create_post_intro_meal_bowl_pointer() -> void:
+	if post_intro_meal_bowl_pointer != null and is_instance_valid(post_intro_meal_bowl_pointer):
+		post_intro_meal_bowl_pointer.queue_free()
+	post_intro_meal_bowl_pointer = null
+	if freya_home_interior_root == null or not is_instance_valid(freya_home_interior_root) or freya_home_bowl_node == null or not is_instance_valid(freya_home_bowl_node):
+		return
+
+	post_intro_meal_bowl_pointer = Node3D.new()
+	post_intro_meal_bowl_pointer.name = "PostIntroBowlPointer"
+	post_intro_meal_bowl_pointer.set_meta("points_to_home_bowl", true)
+	freya_home_interior_root.add_child(post_intro_meal_bowl_pointer, true)
+	post_intro_meal_bowl_pointer_base = freya_home_interior_root.to_local(freya_home_bowl_node.global_position)
+	post_intro_meal_bowl_pointer.position = post_intro_meal_bowl_pointer_base
+
+	var ring = MeshInstance3D.new()
+	ring.name = "BowlGuideRing"
+	var ring_mesh = TorusMesh.new()
+	ring_mesh.inner_radius = 0.31
+	ring_mesh.outer_radius = 0.43
+	ring_mesh.rings = 24
+	ring_mesh.ring_segments = 8
+	ring.mesh = ring_mesh
+	ring.position.y = 0.16
+	ring.rotation_degrees.x = 90.0
+	ring.material_override = interact_highlight_material
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	post_intro_meal_bowl_pointer.add_child(ring, true)
+
+	var arrow = Label3D.new()
+	arrow.name = "BowlGuideArrow"
+	arrow.text = "▼"
+	arrow.position.y = 1.02
+	arrow.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	arrow.no_depth_test = true
+	arrow.font_size = 96
+	arrow.outline_size = 18
+	arrow.modulate = Color(1.0, 0.9, 0.28, 1.0)
+	arrow.outline_modulate = Color(0.17, 0.11, 0.015, 0.96)
+	post_intro_meal_bowl_pointer.add_child(arrow, true)
+
+	post_intro_meal_bowl_pointer.visible = false
 
 func _create_objectives_overlay() -> void:
 	objectives_panel = Panel.new()

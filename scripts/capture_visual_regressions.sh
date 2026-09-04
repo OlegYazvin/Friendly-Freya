@@ -22,6 +22,10 @@ for spec in \
 	FREYA_VISUAL_VIEW:storefront \
 	FREYA_VISUAL_VIEW:home_outside \
 	FREYA_VISUAL_VIEW:home_inside \
+	FREYA_VISUAL_VIEW:post_intro_food_tutorial \
+	FREYA_VISUAL_VIEW:first_exit_leashed \
+	FREYA_VISUAL_VIEW:first_exit_abduction \
+	FREYA_VISUAL_VIEW:first_exit_owners_gone \
 	FREYA_VISUAL_VIEW:dog_park_friendly \
 	FREYA_VISUAL_VIEW:army_collars \
 	FREYA_VISUAL_VIEW:pause_menu \

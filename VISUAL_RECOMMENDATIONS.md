@@ -34,7 +34,7 @@ visual relationships. Their regeneration workflow is documented in the
 
 ## Priority 2 — Suburban Neighborhood Character
 
-- [x] Give individual homes small yard identities using hedges, flower beds, porch planters, claimable mailboxes, house numbers, and short front paths. Mailboxes use the same owner-colored claim-ring and minimap feedback as other scent targets. Avoid cars and human NPCs as required.
+- [x] Give individual homes small yard identities using hedges, flower beds, porch planters, claimable mailboxes, house numbers, and short front paths. Mailboxes use the same owner-colored claim-ring and minimap feedback as other scent targets. Keep the neighborhood free of ambient crowds and cars; the three temporary dog walkers exist only for the authored first-exit abduction.
 - [x] Add restrained driveway or garage-pad variation even when no vehicle is present. This is common visual structure in a Northbrook-style neighborhood and helps break up continuous grass.
 - [x] Vary porch shapes between stoops, small covered porches, and low decks while preserving collision clearance.
 - [x] Add a few backyard details that do not imply extra people: grills, garden beds, sheds, hose reels, and children’s outdoor toys near Freya’s home.

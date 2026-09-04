@@ -102,8 +102,8 @@ validate_exported_pack() {
 }
 
 # Load the exported PCK itself, not the source project. The embedded startup
-# validator requires the active CC0 dog and rejects every inactive model with
-# unresolved provenance.
+# validator requires the active CC0 dog and the complete 24-bark runtime
+# library, and rejects every inactive model with unresolved provenance.
 content_validation_log="$stage_root/release-content-validation.log"
 if ! validate_exported_pack >"$content_validation_log" 2>&1; then
 	cat "$content_validation_log" >&2

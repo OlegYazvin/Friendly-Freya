@@ -35,10 +35,11 @@ archive. They are provenance records, not files distributed in this repository:
 
 ### Sources
 
-- OpenGameArt, ["dog barking"](https://opengameart.org/content/dog-barking),
-  uploaded by user `qubodup`
+- OpenGameArt,
+  ["Dog barking mono"](https://opengameart.org/content/dog-barking-mono),
+  authored by Brandon Morris and submitted by `HaelDB`
 - OpenGameArt, ["Dog sounds"](https://opengameart.org/content/dog-sounds),
-  uploaded by user `justink`
+  authored by `pauliuw`
 
 ### License
 
@@ -46,6 +47,10 @@ archive. They are provenance records, not files distributed in this repository:
 
 ### Derived files
 
+- `barks/conversational_bark_01.wav` through
+  `barks/conversational_bark_04.wav`
+- `barks/excited_social_bark_01.wav` through
+  `barks/excited_social_bark_06.wav`
 - `barks/bark_01.wav`
 - `barks/bark_02.wav`
 - `barks/bark_03.wav`
@@ -67,12 +72,31 @@ archive. They are provenance records, not files distributed in this repository:
 - `barks/aggressive_bark_05.wav`
 - `barks/aggressive_bark_06.wav`
 
-`barks/bark_01.wav` through `barks/bark_06.wav` were trimmed from
-`dog_barking.wav`. `barks/bark_real_01.wav` through `barks/bark_real_08.wav`
-and `barks/aggressive_bark_01.wav` through `barks/aggressive_bark_06.wav` were
+The four `conversational_bark` clips are fixed, unmodified-timebase trims of
+the four naturally separated barks in `dog_barking_mono.wav`. Their source
+ranges are `0.000–0.285`, `0.485–0.785`, `1.075–1.425`, and
+`1.645–2.039` seconds.
+
+The six `excited_social_bark` clips are fixed trims of energetic moments in
+`dog_barking.wav`. Their source ranges are `1.020–1.360`, `1.380–1.820`,
+`1.820–2.140`, `2.700–3.010`, `4.150–4.930`, and `6.200–6.510` seconds.
+The reproducible extraction is [build_bark_library.sh](../../../scripts/build_bark_library.sh),
+which verifies both source hashes and never synthesizes, pitch-shifts,
+normalizes, or substitutes sound.
+
+The legacy `barks/bark_01.wav` through `barks/bark_06.wav` were also trimmed
+from `dog_barking.wav`, but are no longer in an active runtime pool.
+`barks/bark_real_01.wav` through `barks/bark_real_08.wav` and
+`barks/aggressive_bark_01.wav` through `barks/aggressive_bark_06.wav` were
 trimmed and processed from the OpenGameArt `dog.7z` archive.
 
-The current candidate arrays and exact family-intro bark mappings are defined
+Runtime uses four conversational clips for ordinary NPC replies, fourteen
+excited-social clips (the six new field trims plus eight `bark_real` clips),
+and six aggressive clips. Each category has an independent shuffle bag: all
+recordings in that category play before any is reused, and cycle boundaries
+cannot repeat the immediately previous recording. Missing clips stay silent;
+another category is never used as a fallback. Exact family-intro and
+post-intro tutorial mappings remain separate and are defined with the pools
 near the top of [main.gd](../../scripts/main.gd).
 
 ## Urination

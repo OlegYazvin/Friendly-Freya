@@ -159,10 +159,10 @@ Main thresholds, and the relevant reviewed captures.
 - Edit points: ship positions/scales in `_create_fleet_shot`; exterior geometry
   in `ufo_visual_factory.gd`; camera endpoints in `_apply_fleet_camera`.
 
-## Scenes 06–21 — Family Prologue in the Live Map Home
+## Scenes 06–25 — Family Prologue in the Live Map Home
 
 - Runtime scene: `Main.tscn`; this is not a duplicate cutscene house.
-- Timeline: `0.0–53.0s` relative to the start of the family segment.
+- Timeline: `0.0–64.0s` relative to the start of the family segment.
 - Stable data: `family_intro_timeline.gd`.
 - Set rule: Main first generates its normal randomized map, selects Freya's real
   home, builds the shell/interior/furniture, and creates the persistent Freya
@@ -172,13 +172,28 @@ Main thresholds, and the relevant reviewed captures.
   curtains, and trim. The right wall appears at screen-left in this composition.
 - Roof rule: only the roof surface behind the restored back wall is drawn. It
   uses the generated home's real style, pitch, footprint, and shingle material.
-- Camera rule: the family sequence retains its original left-side perspective;
-  the restored physical right wall remains behind the action and unobstructive.
+- Camera rule: the family sequence retains its original left-side perspective
+  through Ryah's rescue; the added pill-eating/reaction beats cut to a lower
+  profile angle so the floor spill and Freya's mouth remain visible.
 - Freya staging: Freya remains at least `1.4m` from Ryah and faces inward toward
-  Ryah, Gene, and Zoe throughout the sequence.
+  Ryah, Gene, and Zoe through the abduction. After saving Ryah she turns toward
+  the dropped bottles, approaches them, and eats them.
 - Gameplay rule: movement, Hunger, dogs, aliens, Ryah wandering, and actions are
   locked during the sequence. Completion or an in-family skip removes the
   temporary cinematic objects and unlocks control without reloading the map.
+  Gene drops the nine-bottle bundle during his beam, leaving a scattered floor
+  spill. After Ryah is safe, Freya eats the spill, squash-stretches and hops
+  through a colorful comic convulsion, and discovers her internal monologue:
+  `Oh wow. I have an internal monologue now! This is weird. I'm hungry!` Freya
+  then begins the first controllable moment at `100%` Hunger. Two exact authored
+  barks introduce her first-person instruction to eat and investigate outside,
+  while a pulsing arrow/ring identifies her permanent bowl. Until she eats,
+  crossing the home boundary triggers one exact reminder bark, displays `I have
+  to eat first,`, and automatically turns her back into the house. Eating resets
+  Hunger to zero and removes both the guidance and exit gate. Her first exit
+  frames three people walking city dogs on visible leashes; separate beams
+  abduct the people, the leashes disappear, and only then do those dogs resume
+  their ordinary autonomous behavior.
 - Character references: Gene uses dark hair, a full beard/mustache, rectangular
   glasses, a dark gray shirt, gray pants, and brown shoes. Zoe uses layered
   light-brown curls, a black top, dark pants, and dark shoes. Both are stylized
@@ -192,23 +207,29 @@ Main thresholds, and the relevant reviewed captures.
 | `family_03_zoe_drug` | 13.0–20.0 | Zoe describes the drug's three effects. |
 | `family_04_gene_last_part` | 20.0–23.0 | Gene questions the last effect. |
 | `family_05_laugh` | 23.0–25.0 | Gene and Zoe: `Ha, ha, ha`. |
-| `family_06_zoe_gift` | 25.0–28.4 | Zoe asks about the parting gift. |
+| `family_06_zoe_gift` | 25.0–28.4 | Zoe asks about "celebration materials." |
 | `family_07_gene_pills` | 28.4–35.8 | Gene raises both hands and holds up nine pharmacy pill bottles. |
 | `family_08_zoe_ryah` | 35.8–39.8 | Zoe asks who will watch Ryah. |
 | `family_09_gene_freya` | 39.8–41.7 | Gene: `Freya will!` |
 | `family_10_freya_bark` | 41.7–43.0 | Freya barks once. |
 | `family_11_zoe_interrupted` | 43.0–45.0 | Zoe begins `Okay, ope---`. |
-| `family_12_parents_abducted` | 45.0–48.0 | Two-ring beams surround Gene and Zoe; both disappear. |
+| `family_12_parents_abducted` | 45.0–48.0 | Two-ring beams surround Gene and Zoe; Gene drops the bottles to the floor and both parents disappear. |
 | `family_13_ryah_targeted` | 48.0–50.0 | The same transfer effect begins around Ryah. |
 | `family_14_freya_loud_bark` | 50.0–51.2 | Freya's super-loud bark collapses Ryah's effect. |
-| `family_15_ryah_saved` | 51.2–53.0 | Ryah remains; temporary UI/effects clear and gameplay begins inside the home. |
+| `family_15_ryah_saved` | 51.2–52.4 | Ryah remains and her collapsed transfer effect clears. |
+| `family_16_freya_approaches_pills` | 52.4–54.0 | Freya turns toward and approaches the dropped bottles. |
+| `family_17_freya_eats_pills` | 54.0–55.2 | Freya eats the shrinking bottle-and-capsule spill. |
+| `family_18_freya_convulses` | 55.2–59.0 | Freya hops, squashes, wobbles, and spins through colorful comic reaction rings and stars. |
+| `family_19_internal_monologue` | 59.0–64.0 | Freya discovers her exact internal-monologue line; the cinematic then clears and fully hungry bowl guidance begins. |
 
 ## Speech-Bubble Audio Policy
 
 The UFO half has six deterministic authored sound events: rune reveal and
 translation resolve for each alien line. The family half maps the normal and
-super-loud Freya beats to two exact existing recorded bark files. Dialogue
-remains text-only.
+super-loud Freya beats to two exact existing recorded bark files. The
+post-intro eat-first prompt and boundary reminder map only to the same exact
+normal Freya recording; a missing file produces silence. Dialogue remains
+text-only.
 
 - No sound is synthesized or generated at runtime.
 - There is no candidate list and no replacement clip.
@@ -248,7 +269,8 @@ output names.
 
 The validators check the UFO scene IDs/times, exact alien cast and dialogue,
 audio schedules, Earth, fleet, and natural handoff. They also seek the live-home
-timeline to check all exact family lines, Gene/Zoe likeness signatures, nine
-pill bottles, two rings around each parent, both disappearance checkpoints,
-Ryah's interrupted transfer, both exact bark schedules, and Freya's final
-position inside the same gameplay home.
+timeline to check all exact family lines, Gene/Zoe likeness signatures, held
+and dropped pill bottles, two rings around each parent, both disappearance
+checkpoints, Ryah's interrupted transfer, Freya's pill-eating, convulsion, and
+monologue beats, both exact bark schedules, the eat-first handoff, and the
+first-exit leashed-owner abduction and dog release.

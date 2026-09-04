@@ -68,8 +68,9 @@ It runs:
 
 1. startup-choice route, focus, loadability, and selection-lock validation;
 2. UFO intro scene/cast/dialogue/audio/Earth/fleet validation;
-3. gameplay smoke and targeted validation plus family-intro staging, dialogue,
-   effects, audio mapping, and handoff checks.
+3. gameplay smoke and targeted validation, including the three bark pools and
+   their no-repeat shuffle behavior, plus family-intro staging, dialogue,
+   effects, exact audio mapping, and handoff checks.
 
 Successful output includes `STARTUP_OK`, `INTRO_OK`, `SMOKE_OK`, `TARGET_OK`,
 and `FAMILY_INTRO_OK`, followed by `Predeploy checks passed.`
@@ -125,9 +126,9 @@ To build locally after installing matching export templates:
 ```
 
 The build script verifies the executable and PCK, confirms the active CC0 dog
-resource is present, proves inactive model references are absent, adds the
-player instructions and legal notices, creates a ZIP, and writes its SHA-256
-manifest under `dist/`.
+resource and all 24 runtime bark recordings are present, proves inactive model
+references are absent, adds the player instructions and legal notices, creates
+a ZIP, and writes its SHA-256 manifest under `dist/`.
 
 Pushing a `v*` tag runs `.github/workflows/windows-release.yml`. That workflow
 downloads checksum-pinned official Godot files, repeats the full project
@@ -158,6 +159,8 @@ headless-only environment.
 Check the exact file mapping and license record in
 [godot/assets/audio/ATTRIBUTION.md](godot/assets/audio/ATTRIBUTION.md). Missing or
 invalid audio must remain silent; never synthesize or select substitute audio.
+The recorded conversational and excited-social trims can be reproduced from
+their hash-checked source WAVs with `./scripts/build_bark_library.sh`.
 
 ### Documentation and runtime disagree
 

@@ -12,7 +12,7 @@ relationships called out by the visual audit.
 
 ## Intro and Startup References
 
-- [startup_menu.png](startup_menu.png) — the first-launch choice with `Watch Intro` focused and `Skip To Game` available.
+- [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, now under a brighter, welcoming early-evening sky; `Watch Intro` remains focused and `Skip To Game` remains available in the dark menu panel.
 - [intro_01_establishing.png](intro_01_establishing.png) — Earth through the hero UFO bridge with exactly Aliens A, B, and silent C.
 - [intro_02_a_question_runes.png](intro_02_a_question_runes.png) — Alien A's speech bubble during the initial rune reveal.
 - [intro_02_a_question_morph.png](intro_02_a_question_morph.png) — the same bubble midway through visible rune-to-English transformation.
@@ -24,10 +24,13 @@ relationships called out by the visual audit.
 - [intro_07_family_gene.png](intro_07_family_gene.png) — Gene's longest job line wrapped inside the wide human-dialogue panel.
 - [intro_08_family_zoe.png](intro_08_family_zoe.png) — Zoe's long drug-description line and curly-haired native-style character.
 - [intro_09_family_pills.png](intro_09_family_pills.png) — Gene raising both hands to hold up nine readable pharmacy pill bottles.
-- [intro_10_family_abduction.png](intro_10_family_abduction.png) — separate two-ring transfer columns surrounding Gene and Zoe.
+- [intro_10_family_abduction.png](intro_10_family_abduction.png) — separate two-ring transfer columns surrounding Gene and Zoe, with Gene's bottle bundle dropped as a scattered floor spill.
 - [intro_11_family_ryah_targeted.png](intro_11_family_ryah_targeted.png) — the parents gone and Ryah surrounded by the same transfer effect.
 - [intro_12_family_loud_bark.png](intro_12_family_loud_bark.png) — Freya's super-loud bark wave collapsing Ryah's transfer.
-- [intro_13_family_ryah_saved.png](intro_13_family_ryah_saved.png) — Ryah and Freya remain in the live home immediately before player control.
+- [intro_13_family_ryah_saved.png](intro_13_family_ryah_saved.png) — Ryah and Freya remain in the live home after the interrupted transfer, with the dropped pills still present.
+- [intro_14_family_pill_eat.png](intro_14_family_pill_eat.png) — the lower profile angle shows Freya dipping toward and consuming the shrinking bottle-and-capsule spill.
+- [intro_15_family_convulsion.png](intro_15_family_convulsion.png) — Freya's comic squash, hop, wobble, orbiting rings, and colorful star reaction.
+- [intro_16_family_monologue.png](intro_16_family_monologue.png) — the exact new internal-monologue line before the eat-first gameplay tutorial begins.
 
 ## Gameplay and World References
 
@@ -37,7 +40,11 @@ relationships called out by the visual audit.
 - [storefront.png](storefront.png) — transparent storefront openings with the furnished store visible outside.
 - [home_outside.png](home_outside.png) — Freya's home exterior, transparent windows, yard identity with a claimable mailbox, and roof connection.
 - [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane.
-- [dog_park_friendly.png](dog_park_friendly.png) — the varied shared-rig dog cast with broad, high-contrast neck-mounted camouflage army collars on recruited dogs.
+- [post_intro_food_tutorial.png](post_intro_food_tutorial.png) — the first controllable home moment with Freya fully hungry, her first-person eat-first guidance, and the pulsing arrow/ring identifying her bowl.
+- [first_exit_leashed.png](first_exit_leashed.png) — Freya's first post-meal exit frames three temporary people and their city dogs connected by clearly visible leashes on the street-side sidewalk.
+- [first_exit_abduction.png](first_exit_abduction.png) — separate two-ring beams lift the three people while every dog remains leashed and held out of its normal AI.
+- [first_exit_owners_gone.png](first_exit_owners_gone.png) — the people and leashes are gone, leaving the three dogs at the release beat immediately before their default behavior resumes.
+- [dog_park_friendly.png](dog_park_friendly.png) — the reduced six-dog shared-rig cast inside a complete two-rail gated fence, with weave poles, hurdle, A-frame, crawl tunnel, and readable camouflage collars on recruited dogs.
 - [army_collars.png](army_collars.png) — a dedicated multi-breed lineup showing the readable camouflage plates, edge bands, top panels, and buckles at normal presentation scale.
 - [alien_model.png](alien_model.png) — the canonical grounded voxel-imp view: a slightly smaller imp in a deterministic mid-stride three-quarter close-up beside Freya for scale.
 - [alien_occupied.png](alien_occupied.png) — an occupied house, rooftop crown, façade mutation, minimap state, ordinary-looking possessed dog, and Freya's unease clue.

@@ -1,9 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/startup.gd" id="1_startup"]
+[ext_resource type="Texture2D" path="res://assets/images/startup_freya_hero_v2.png" id="2_hero"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_menu"]
-bg_color = Color(0.035, 0.047, 0.105, 0.96)
+bg_color = Color(0.025, 0.039, 0.083, 0.9)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
@@ -35,10 +36,21 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.008, 0.014, 0.045, 1)
 
-[node name="MenuCenter" type="CenterContainer" parent="."]
+[node name="HeroBackground" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_hero")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="MenuCenter" type="CenterContainer" parent="."]
+layout_mode = 1
+anchor_right = 0.48
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2

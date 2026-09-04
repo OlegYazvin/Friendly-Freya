@@ -2,9 +2,35 @@ extends Control
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
+const STARTUP_HERO_BACKGROUND_PATH = "res://assets/images/startup_freya_hero_v2.png"
 const RELEASE_REQUIRED_RESOURCES = [
 	"res://assets/models/freya_portuguese_water_dog.glb",
-	"res://assets/models/freya_portuguese_water_dog_Atlas.png"
+	"res://assets/models/freya_portuguese_water_dog_Atlas.png",
+	STARTUP_HERO_BACKGROUND_PATH,
+	"res://assets/audio/barks/conversational_bark_01.wav",
+	"res://assets/audio/barks/conversational_bark_02.wav",
+	"res://assets/audio/barks/conversational_bark_03.wav",
+	"res://assets/audio/barks/conversational_bark_04.wav",
+	"res://assets/audio/barks/excited_social_bark_01.wav",
+	"res://assets/audio/barks/excited_social_bark_02.wav",
+	"res://assets/audio/barks/excited_social_bark_03.wav",
+	"res://assets/audio/barks/excited_social_bark_04.wav",
+	"res://assets/audio/barks/excited_social_bark_05.wav",
+	"res://assets/audio/barks/excited_social_bark_06.wav",
+	"res://assets/audio/barks/bark_real_01.wav",
+	"res://assets/audio/barks/bark_real_02.wav",
+	"res://assets/audio/barks/bark_real_03.wav",
+	"res://assets/audio/barks/bark_real_04.wav",
+	"res://assets/audio/barks/bark_real_05.wav",
+	"res://assets/audio/barks/bark_real_06.wav",
+	"res://assets/audio/barks/bark_real_07.wav",
+	"res://assets/audio/barks/bark_real_08.wav",
+	"res://assets/audio/barks/aggressive_bark_01.wav",
+	"res://assets/audio/barks/aggressive_bark_02.wav",
+	"res://assets/audio/barks/aggressive_bark_03.wav",
+	"res://assets/audio/barks/aggressive_bark_04.wav",
+	"res://assets/audio/barks/aggressive_bark_05.wav",
+	"res://assets/audio/barks/aggressive_bark_06.wav"
 ]
 const RELEASE_EXCLUDED_RESOURCES = [
 	"res://assets/models/dog_golden.glb",
@@ -26,6 +52,8 @@ const RELEASE_EXCLUDED_RESOURCES = [
 
 @onready var watch_intro_button: Button = %WatchIntroButton
 @onready var skip_to_game_button: Button = %SkipToGameButton
+@onready var hero_background: TextureRect = $HeroBackground
+@onready var menu_center: CenterContainer = $MenuCenter
 
 var selection_locked := false
 
@@ -73,6 +101,14 @@ func _run_startup_validation() -> void:
 
 	if visible_buttons.size() != 2:
 		failures.append("visible_button_count_%d" % visible_buttons.size())
+	if not ResourceLoader.exists(STARTUP_HERO_BACKGROUND_PATH):
+		failures.append("startup_hero_background_resource_missing")
+	if hero_background == null or hero_background.texture == null:
+		failures.append("startup_hero_background_not_displayed")
+	elif hero_background.stretch_mode != TextureRect.STRETCH_KEEP_ASPECT_COVERED:
+		failures.append("startup_hero_background_not_aspect_covered")
+	if menu_center == null or menu_center.anchor_right > 0.5:
+		failures.append("startup_menu_not_in_left_safe_area")
 	if watch_intro_button == null:
 		failures.append("watch_intro_button_missing")
 	elif watch_intro_button.text != "Watch Intro":
@@ -107,7 +143,7 @@ func _run_startup_validation() -> void:
 		failures.append("selection_did_not_lock_both_buttons")
 
 	if failures.is_empty():
-		print("STARTUP_OK: two choices, default focus, signals, loadable routes, and selection lock validated")
+		print("STARTUP_OK: heroic Freya background, two choices, default focus, signals, loadable routes, and selection lock validated")
 		get_tree().quit()
 	else:
 		push_error("STARTUP_FAIL: " + ", ".join(failures))
@@ -136,7 +172,7 @@ func _run_release_content_validation() -> void:
 			failures.append("unexpected_building_reference_%s" % packed_file)
 
 	if failures.is_empty():
-		print("RELEASE_CONTENT_OK: active CC0 model and imports present; inactive reference models and imports excluded")
+		print("RELEASE_CONTENT_OK: heroic startup art, active CC0 model, and 24-bark library imports present; inactive reference models and imports excluded")
 		get_tree().quit()
 	else:
 		push_error("RELEASE_CONTENT_FAIL: " + ", ".join(failures))
