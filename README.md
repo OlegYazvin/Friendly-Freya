@@ -27,6 +27,8 @@ buildings, and deterministic visual regression views.
 | [Godot overview](godot/README_GODOT.md) | Controls and implemented gameplay at a glance | Current product reference |
 | [Gameplay audit and direction](GAMEPLAY_AUDIT.md) | Canonical gameplay rules, implementation status, and explicitly future work | Living design document |
 | [Intro cut-scene guide](INTRO_CUTSCENE.md) | Exact UFO/family timelines, edit surfaces, handoff rules, and intro checks | Current subsystem reference |
+| [Dog kennel concept](KENNEL_CONCEPT.md) | Placement-ready but unplaced kennel visuals, entry promise, collision contract, and finite possessed-dog spawning | Prepared future archetype |
+| [Building program](BUILDING_PROGRAM.md) | Enterable residences, pharmacy/grocery/police/clinic roles, occupation locks, and service rules | Current subsystem reference |
 | [Dog breed definitions](godot/BREEDS.md) | Breed schema, shared-rig policy, and army-collar rules | Current subsystem reference |
 | [Visual implementation record](VISUAL_RECOMMENDATIONS.md) | Completed visual audit recommendations and their validation expectations | Completed implementation record |
 | [Visual regression catalog](visual_regressions/README.md) | What each deterministic PNG documents and how to regenerate it | Current capture reference |

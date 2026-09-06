@@ -42,8 +42,9 @@ three-legged Freya in a Northbrook-inspired brick town-center streetscape.
 - Intro: `Space`, `Esc`, or the on-screen button skips to gameplay.
 - `WASD` or Arrow keys: move Freya; `Shift`: run.
 - `Q` / `E`: rotate the camera; mouse wheel: zoom.
-- `F`: eat nearby food or bones, use Freya's permanent home bowl, or pick up a
-  stick; `V`: drop a carried stick.
+- `F`: eat nearby food or bones, use a dog-food bowl, pick up a stick, collect
+  pharmacy medicine or police armor, and give carried supplies to a freed dog;
+  `V`: drop a carried stick.
 - Hold `C` near a dog: socialize at a Hunger cost. A possessed dog also raises
   Vomit; sustained socializing recruits a real dog into Freya's army.
 - Hold `X` near a dog: expel an alien or scare a real dog away.
@@ -66,19 +67,23 @@ bindings are configured in `main.gd` under `_configure_input` and
   internal monologue. Freya then starts fully hungry, and an authored-bark
   thought prompt plus a pulsing bowl pointer keeps her inside until she eats.
 - On Freya's first exit, three temporary dog walkers appear with leashed city
-  dogs. Alien beams abduct the people, then the leashes clear and the dogs
-  resume their normal autonomous behavior.
+  dogs. Alien beams abduct the people, visible possession energy enters the
+  dogs, and the same energy targets Freya but bounces away. Freya recognizes
+  her immunity in an internal-monologue panel before the dogs resume their
+  normal autonomous behavior.
 - An isometric procedural suburban neighborhood surrounds a center-block dog
-  park with six dogs, a complete gated fence, and varied agility equipment,
-  plus furnished enterable buildings, storefronts, and Freya's persistent home.
+  park with six dogs, a complete gated fence, and varied agility equipment.
+  Every clean building is enterable: scattered ranch, two-story, and three-story
+  residences expose their furnished bottom floor, alongside a pharmacy,
+  grocery, police station, clinic, and Freya's persistent home.
 - Freya is a black, three-legged Portuguese Water Dog rendered with the shared
   voxel dog rig. NPC breeds use that rig with distinct proportions, scale,
   coats, and ordinary accessories.
 - Hunger starts at `100%`, rises very slowly at rest after eating, and rises
   faster while walking, running, or taking sustained actions. Home-bowl food
   resets Hunger to zero.
-- Exactly 75% of NPC dogs begin secretly possessed. Possession never changes
-  their appearance; Freya's unease supplies the indirect clue.
+- Every NPC dog begins secretly possessed. Possession never changes their
+  appearance; the first-exit event and Freya's unease supply the clues.
 - Socialization costs Hunger and raises Vomit around a possessed dog. Recruited
   dogs wear a broad camouflage neck collar with no overhead indicator.
 - Dog exchanges draw from independent recorded conversational, excited-social,
@@ -86,9 +91,14 @@ bindings are configured in `main.gd` under `_configure_input` and
   and prevents the same recording at a cycle boundary.
 - Grounded voxel imp aliens use collision-aware movement. Expelled/free aliens
   travel to reachable exterior points before occupying buildings.
-- Occupied storefronts lock their services, reinforce nearby alien buildings,
-  and exclusively generate a map-wide maximum of eight free aliens. Approaching
+- Any occupied building locks its entrance and interior service. Occupied
+  retail storefronts additionally reinforce nearby alien buildings and
+  exclusively generate a map-wide maximum of eight free aliens. Approaching
   Freya sends a free alien toward the nearest building.
+- The grocery has an infinite reusable dog-food bowl; the pharmacy supplies
+  possession-immunity medicine for freed dogs; the police station supplies
+  visible doggy armor. The medical clinic is furnished and enterable but its
+  gameplay function is intentionally undecided.
 - Buildings track alien occupant counts. Alien architecture and minimap states
   are static, while holding `R` by an occupied wall weakens its integrity.
 - Scent claims cover trees, light poles, hydrants, and residential mailboxes.
@@ -97,6 +107,17 @@ bindings are configured in `main.gd` under `_configure_input` and
 For exact current/future distinctions, use
 [GAMEPLAY_AUDIT.md](../GAMEPLAY_AUDIT.md). For breed details, use
 [BREEDS.md](BREEDS.md).
+
+## Prepared but Not Placed
+
+The standalone [dog kennel concept](../KENNEL_CONCEPT.md) is complete as a
+reusable archetype and deterministic preview, but normal map generation does
+not instantiate it. Its clean state contains six visibly caged dogs and emits
+Freya's exact one-time promise on entry. Its possessed state locks entry and
+can request at most six accepted possessed-dog spawns over its lifetime.
+Cleansing it forfeits any unspawned dogs for that level. Its caged and spawned
+dogs all use the canonical shared voxel rig, begin secretly possessed, and can
+be de-possessed through the normal dog interaction once integrated into Main.
 
 ## Architecture and Assets
 

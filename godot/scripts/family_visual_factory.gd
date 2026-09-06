@@ -198,6 +198,33 @@ static func create_abduction_effect(effect_name: String, color: Color) -> Node3D
 	return root
 
 
+static func create_possession_energy(effect_name: String) -> Node3D:
+	var root = Node3D.new()
+	root.name = effect_name
+	root.set_meta("visual_signature", "friendly_freya_possession_energy_v1")
+	var violet = _emissive_transparent_material(Color(0.62, 0.22, 1.0, 0.92), Color(0.62, 0.22, 1.0), 4.0)
+	var cyan = _emissive_transparent_material(Color(0.18, 0.92, 1.0, 0.9), Color(0.18, 0.92, 1.0), 3.7)
+	var magenta = _emissive_transparent_material(Color(1.0, 0.18, 0.72, 0.86), Color(1.0, 0.18, 0.72), 3.7)
+	_sphere(root, "PossessionCore", 0.19, Vector3.ZERO, violet, Vector3(0.86, 1.2, 0.86))
+	for ring_index in range(2):
+		var ring = _torus(root, "PossessionRing%d" % ring_index, 0.25 + float(ring_index) * 0.08, 0.29 + float(ring_index) * 0.08, Vector3.ZERO, cyan if ring_index == 0 else magenta)
+		ring.rotation = Vector3(0.55 + float(ring_index) * 0.7, float(ring_index) * 0.65, 0.35 - float(ring_index) * 0.5)
+		ring.set_meta("ring_index", ring_index)
+	for spark_index in range(5):
+		var angle = TAU * float(spark_index) / 5.0
+		var spark = _sphere(
+			root,
+			"PossessionSpark%d" % spark_index,
+			0.055,
+			Vector3(cos(angle) * 0.38, sin(angle * 2.0) * 0.12, sin(angle) * 0.38),
+			cyan if spark_index % 2 == 0 else magenta,
+			Vector3.ONE
+		)
+		spark.set_meta("spark_phase", angle)
+	root.visible = false
+	return root
+
+
 static func create_bark_wave(wave_name: String, color: Color) -> Node3D:
 	var root = Node3D.new()
 	root.name = wave_name

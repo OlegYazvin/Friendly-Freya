@@ -41,8 +41,11 @@ var _cosmetic_color_index = -1
 var _breed_shape_signature = "voxel_default"
 var _cosmetic_root: Node3D
 var _army_collar_root: Node3D
+var _dog_armor_root: Node3D
 var _discomfort_strength = 0.0
 var _discomfort_phase = 0.0
+var _training_pose_active = false
+var _training_node_base_scale = Vector3.ONE
 
 func configure(config: Dictionary) -> void:
 	is_freya = bool(config.get("is_freya", false))
@@ -60,6 +63,8 @@ func configure(config: Dictionary) -> void:
 	_build_visual()
 
 func _build_visual() -> void:
+	_training_pose_active = false
+	_training_node_base_scale = scale
 	if not _try_build_custom_model():
 		_build_model()
 	_add_npc_cosmetic_variation()
@@ -318,6 +323,65 @@ func set_army_aligned(aligned: bool) -> void:
 	buckle_inset.material_override = _cosmetic_material(Color8(62, 67, 38), 0.58)
 	buckle_inset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	root.add_child(buckle_inset)
+
+func set_dog_armor(equipped: bool) -> void:
+	if is_freya:
+		return
+	if _dog_armor_root != null and is_instance_valid(_dog_armor_root):
+		if equipped:
+			return
+		_dog_armor_root.free()
+		_dog_armor_root = null
+		return
+	if not equipped:
+		return
+
+	var bounds = _compute_model_bounds(self)
+	var body_center = bounds.get_center()
+	var dog_forward = Vector3(sin(_model_forward_yaw_offset), 0.0, cos(_model_forward_yaw_offset))
+	if dog_forward.length_squared() < 0.001:
+		dog_forward = Vector3.FORWARD
+	dog_forward = dog_forward.normalized()
+	var forward_extent = absf(dog_forward.x) * bounds.size.x + absf(dog_forward.z) * bounds.size.z
+	var dog_right = Vector3(-dog_forward.z, 0.0, dog_forward.x)
+	var width = clampf(absf(dog_right.x) * bounds.size.x + absf(dog_right.z) * bounds.size.z, 0.35, 0.86)
+	var length = clampf(forward_extent * 0.48, 0.46, 1.0)
+	var root = Node3D.new()
+	root.name = "DoggyArmor"
+	root.position = Vector3(body_center.x, bounds.position.y + bounds.size.y * 0.63, body_center.z)
+	root.quaternion = Quaternion(Vector3.FORWARD, dog_forward)
+	add_child(root)
+	_dog_armor_root = root
+
+	var plate_material = _cosmetic_material(Color8(48, 56, 65), 0.62)
+	plate_material.roughness = 0.34
+	var trim_material = _cosmetic_material(Color8(62, 104, 155), 0.48)
+	trim_material.roughness = 0.4
+	var back_plate = MeshInstance3D.new()
+	back_plate.name = "ArmorBackPlate"
+	var back_mesh = BoxMesh.new()
+	back_mesh.size = Vector3(width * 0.86, 0.12, length)
+	back_plate.mesh = back_mesh
+	back_plate.material_override = plate_material
+	root.add_child(back_plate)
+	for side in [-1.0, 1.0]:
+		var flank = MeshInstance3D.new()
+		flank.name = "ArmorFlank"
+		var flank_mesh = BoxMesh.new()
+		flank_mesh.size = Vector3(0.1, bounds.size.y * 0.28, length * 0.76)
+		flank.mesh = flank_mesh
+		flank.position = Vector3(side * width * 0.43, -bounds.size.y * 0.11, 0.0)
+		flank.material_override = plate_material
+		root.add_child(flank)
+	for band_z in [-0.32, 0.32]:
+		var band = MeshInstance3D.new()
+		band.name = "ArmorBlueBand"
+		var band_mesh = BoxMesh.new()
+		band_mesh.size = Vector3(width * 0.94, 0.04, 0.09)
+		band.mesh = band_mesh
+		band.position = Vector3(0.0, 0.08, band_z * length)
+		band.material_override = trim_material
+		root.add_child(band)
 
 func _update_neck_accessory_poses() -> void:
 	if (_cosmetic_root == null or not is_instance_valid(_cosmetic_root)) and (_army_collar_root == null or not is_instance_valid(_army_collar_root)):
@@ -1127,6 +1191,67 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 		else:
 			_visual_root.rotation.x = 0.0
 	_update_neck_accessory_poses()
+
+func update_training_motion(delta: float, move_dir: Vector3, training_kind: String, progress: float, vertical_slope: float = 0.0) -> void:
+	if not _training_pose_active:
+		_training_pose_active = true
+		_training_node_base_scale = scale
+	var phase = clampf(progress, 0.0, 1.0)
+	var running_pose = training_kind == "weave_poles" or training_kind == "jump_hurdle"
+	update_motion(delta, move_dir, running_pose, false)
+	scale = _training_node_base_scale
+
+	match training_kind:
+		"weave_poles":
+			if _visual_root != null and is_instance_valid(_visual_root):
+				_visual_root.rotation.z += sin(phase * TAU * 3.0) * 0.17
+				_visual_root.rotation.x += sin(phase * TAU * 6.0) * 0.035
+			if _head_pivot != null and is_instance_valid(_head_pivot):
+				_head_pivot.rotation.y = sin(phase * TAU * 3.0) * 0.18
+		"jump_hurdle":
+			var airborne = sin(phase * PI)
+			scale = _training_node_base_scale * Vector3(1.0 + airborne * 0.05, 1.0 - airborne * 0.12, 1.0 - airborne * 0.04)
+			if _visual_root != null and is_instance_valid(_visual_root):
+				_visual_root.rotation.x = -sin(phase * TAU) * 0.24
+				_visual_root.position.y = _base_visual_y + airborne * 0.035
+			for leg in _leg_pivots:
+				if leg != null and is_instance_valid(leg):
+					leg.rotation.x = lerpf(leg.rotation.x, 0.82, airborne)
+		"a_frame":
+			if _visual_root != null and is_instance_valid(_visual_root):
+				_visual_root.rotation.x = clampf(-vertical_slope * 0.34, -0.36, 0.36)
+				_visual_root.rotation.z += sin(phase * TAU * 2.0) * 0.025
+		"crawl_tunnel":
+			var crouch_blend = clampf(sin(phase * PI) * 1.45, 0.0, 1.0)
+			scale = _training_node_base_scale * Vector3(1.04, lerpf(1.0, 0.66, crouch_blend), 1.08)
+			if _visual_root != null and is_instance_valid(_visual_root):
+				_visual_root.position.y = _base_visual_y + 0.012 * sin(phase * TAU * 5.0)
+				_visual_root.rotation.x = 0.08 + 0.035 * sin(phase * TAU * 4.0)
+			if _head_pivot != null and is_instance_valid(_head_pivot):
+				_head_pivot.rotation.x = 0.22 * crouch_blend
+		_:
+			pass
+	_update_neck_accessory_poses()
+
+func clear_training_pose() -> void:
+	if not _training_pose_active:
+		return
+	scale = _training_node_base_scale
+	_training_pose_active = false
+	if _visual_root != null and is_instance_valid(_visual_root):
+		_visual_root.position = Vector3(0.0, _base_visual_y, 0.0)
+		_visual_root.rotation.x = 0.0
+		_visual_root.rotation.z = 0.0
+	if _head_pivot != null and is_instance_valid(_head_pivot):
+		_head_pivot.rotation.x = 0.0
+		_head_pivot.rotation.y = 0.0
+	for leg in _leg_pivots:
+		if leg != null and is_instance_valid(leg):
+			leg.rotation.x = 0.0
+	_update_neck_accessory_poses()
+
+func training_pose_active() -> bool:
+	return _training_pose_active
 
 func force_face_direction(direction: Vector3, delta: float) -> void:
 	if direction.length_squared() < 0.0001:

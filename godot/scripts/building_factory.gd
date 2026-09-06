@@ -117,11 +117,12 @@ static func _ensure_materials() -> void:
 	_contact_shadow_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_glass_material = StandardMaterial3D.new()
-	_glass_material.albedo_color = Color8(89, 114, 136)
-	_glass_material.roughness = 0.16
-	_glass_material.metallic = 0.22
+	_glass_material.albedo_color = Color(0.58, 0.78, 0.88, 0.24)
+	_glass_material.roughness = 0.09
+	_glass_material.metallic = 0.12
 	_glass_material.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	_glass_material.cull_mode = StandardMaterial3D.CULL_BACK
+	_glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_glass_material.cull_mode = StandardMaterial3D.CULL_DISABLED
 
 	_stone_material = StandardMaterial3D.new()
 	_stone_material.albedo_color = Color8(156, 154, 151)
@@ -184,14 +185,7 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 	var wall_mat: StandardMaterial3D = _wall_materials[rng.randi_range(0, _wall_materials.size() - 1)]
 	var roof_parts: Array = []
 
-	var base = MeshInstance3D.new()
-	base.name = "BuildingBody"
-	var base_mesh = BoxMesh.new()
-	base_mesh.size = Vector3(width, body_h, depth)
-	base.mesh = base_mesh
-	base.position = Vector3(0.0, body_h * 0.5, 0.0)
-	base.material_override = wall_mat
-	root.add_child(base)
+	var transparent_window_count = _add_enterable_residential_shell(root, width, depth, floors, floor_h, front_is_south, wall_mat)
 	_add_foundation_contact_shadow(root, width, depth)
 
 	var roof_rise = clampf(minf(width, depth) * rng.randf_range(0.2, 0.26), 0.88, 1.46)
@@ -211,26 +205,10 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 	var half_d = depth * 0.5
 	var front_z = half_d if front_is_south else -half_d
 	var front_sign = 1.0 if front_is_south else -1.0
-	var window_transforms: Array[Transform3D] = []
-	var window_size = Vector3(0.72, 1.08, 0.04)
-	for floor_index in range(floors):
-		var y_center = 1.48 + float(floor_index) * floor_h
-		var front_cols = clampi(int(floor((width - 0.9) / 1.7)), 2, 4)
-		for c in range(front_cols):
-			var tx = lerp(-half_w + 0.72, half_w - 0.72, float(c) / max(1.0, float(front_cols - 1)))
-			window_transforms.append(Transform3D(Basis.IDENTITY, Vector3(tx, y_center, front_z + front_sign * 0.025)))
-
-		var side_cols = clampi(int(floor((depth - 1.4) / 2.25)), 1, 3)
-		for c in range(side_cols):
-			var tz = lerp(-half_d + 0.82, half_d - 0.82, float(c) / max(1.0, float(side_cols - 1))) if side_cols > 1 else 0.0
-			window_transforms.append(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(half_w + 0.025, y_center, tz)))
-			window_transforms.append(Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-half_w - 0.025, y_center, tz)))
-	_add_box_multimesh(root, window_size, window_transforms, _glass_material, "Windows", false, 76.0)
-
 	var porch_style = _add_suburban_front_porch(root, width, front_z, front_sign, rng)
 
 	var brick_height = _chicago_brick_base_height(floors, body_h)
-	_add_chicago_brick_base(root, width, depth, brick_height, rng)
+	_add_chicago_brick_base(root, width, depth, brick_height, front_is_south, rng)
 
 	var resolved_h = max(body_h + roof_rise, _snap_building_to_ground(root))
 	return {
@@ -245,10 +223,110 @@ static func create_building(footprint: Rect2, floors: int, front_is_south: bool,
 		"roof_parts": roof_parts,
 		"roof_style": roof_style,
 		"porch_style": porch_style,
+		"transparent_window_count": transparent_window_count + 1,
+		"opaque_window_backing_count": 0,
+		"upper_floor_slab_count": maxi(0, floors - 1),
 		"front_is_south": front_is_south,
 		"model_source": "procedural",
 		"external_model_path": ""
 	}
+
+static func _add_shell_box(parent: Node3D, name: String, size: Vector3, position: Vector3, material: Material) -> void:
+	if size.x <= 0.015 or size.y <= 0.015 or size.z <= 0.015:
+		return
+	var part = MeshInstance3D.new()
+	part.name = name
+	var mesh = BoxMesh.new()
+	mesh.size = size
+	part.mesh = mesh
+	part.position = position
+	part.material_override = material
+	part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(part)
+
+static func _wall_spans_around_openings(axis_min: float, axis_max: float, openings: Array[Vector2]) -> Array[Vector2]:
+	var sorted = openings.duplicate()
+	sorted.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var spans: Array[Vector2] = []
+	var cursor = axis_min
+	for opening in sorted:
+		var start = clampf(opening.x, axis_min, axis_max)
+		var finish = clampf(opening.y, axis_min, axis_max)
+		if start > cursor + 0.015:
+			spans.append(Vector2(cursor, start))
+		cursor = maxf(cursor, finish)
+	if cursor < axis_max - 0.015:
+		spans.append(Vector2(cursor, axis_max))
+	return spans
+
+static func _add_enterable_residential_shell(
+	root: Node3D,
+	width: float,
+	depth: float,
+	floors: int,
+	floor_h: float,
+	front_is_south: bool,
+	wall_material: Material
+) -> int:
+	var half_w = width * 0.5
+	var half_d = depth * 0.5
+	var wall_t = 0.16
+	var window_w = 0.72
+	var window_h = 1.08
+	var window_bottom = 0.94
+	var window_top = window_bottom + window_h
+	var door_half = 0.64
+	var front_z = half_d if front_is_south else -half_d
+	var back_z = -front_z
+	var front_sign = 1.0 if front_is_south else -1.0
+	var front_cols = clampi(int(floor((width - 0.9) / 1.7)), 2, 4)
+	var side_cols = clampi(int(floor((depth - 1.4) / 2.25)), 1, 3)
+	var transparent_window_count = 0
+
+	for floor_index in range(floors):
+		var base_y = float(floor_index) * floor_h
+		var front_openings: Array[Vector2] = []
+		var front_window_centers: Array[float] = []
+		for c in range(front_cols):
+			var tx = lerpf(-half_w + 0.72, half_w - 0.72, float(c) / maxf(1.0, float(front_cols - 1)))
+			if floor_index == 0 and absf(tx) < door_half + window_w * 0.58:
+				continue
+			front_openings.append(Vector2(tx - window_w * 0.5, tx + window_w * 0.5))
+			front_window_centers.append(tx)
+		var middle_openings = front_openings.duplicate()
+		if floor_index == 0:
+			middle_openings.append(Vector2(-door_half, door_half))
+		var sill_openings: Array[Vector2] = []
+		if floor_index == 0:
+			sill_openings.append(Vector2(-door_half, door_half))
+		for span in _wall_spans_around_openings(-half_w, half_w, sill_openings):
+			_add_shell_box(root, "FrontWallSill", Vector3(span.y - span.x, window_bottom, wall_t), Vector3((span.x + span.y) * 0.5, base_y + window_bottom * 0.5, front_z), wall_material)
+		for span in _wall_spans_around_openings(-half_w, half_w, middle_openings):
+			_add_shell_box(root, "FrontWallPier", Vector3(span.y - span.x, window_top - window_bottom, wall_t), Vector3((span.x + span.y) * 0.5, base_y + (window_bottom + window_top) * 0.5, front_z), wall_material)
+		_add_shell_box(root, "FrontWallHeader", Vector3(width, floor_h - window_top, wall_t), Vector3(0.0, base_y + (window_top + floor_h) * 0.5, front_z), wall_material)
+		_add_shell_box(root, "BackWall", Vector3(width, floor_h, wall_t), Vector3(0.0, base_y + floor_h * 0.5, back_z), wall_material)
+
+		var side_openings: Array[Vector2] = []
+		var side_window_centers: Array[float] = []
+		for c in range(side_cols):
+			var tz = lerpf(-half_d + 0.82, half_d - 0.82, float(c) / maxf(1.0, float(side_cols - 1))) if side_cols > 1 else 0.0
+			side_openings.append(Vector2(tz - window_w * 0.5, tz + window_w * 0.5))
+			side_window_centers.append(tz)
+		for side in [-1.0, 1.0]:
+			_add_shell_box(root, "SideWallSill", Vector3(wall_t, window_bottom, depth), Vector3(side * half_w, base_y + window_bottom * 0.5, 0.0), wall_material)
+			for span in _wall_spans_around_openings(-half_d, half_d, side_openings):
+				_add_shell_box(root, "SideWallPier", Vector3(wall_t, window_top - window_bottom, span.y - span.x), Vector3(side * half_w, base_y + (window_bottom + window_top) * 0.5, (span.x + span.y) * 0.5), wall_material)
+			_add_shell_box(root, "SideWallHeader", Vector3(wall_t, floor_h - window_top, depth), Vector3(side * half_w, base_y + (window_top + floor_h) * 0.5, 0.0), wall_material)
+			for tz in side_window_centers:
+				_add_shell_box(root, "TransparentSideWindow", Vector3(0.045, window_h, window_w), Vector3(side * (half_w + 0.025), base_y + window_bottom + window_h * 0.5, tz), _glass_material)
+				transparent_window_count += 1
+		for tx in front_window_centers:
+			_add_shell_box(root, "TransparentFrontWindow", Vector3(window_w, window_h, 0.045), Vector3(tx, base_y + window_bottom + window_h * 0.5, front_z + front_sign * 0.025), _glass_material)
+			transparent_window_count += 1
+
+		if floor_index > 0:
+			_add_shell_box(root, "UpperFloorSlab", Vector3(width - wall_t * 2.0, 0.12, depth - wall_t * 2.0), Vector3(0.0, base_y + 0.06, 0.0), _trim_material)
+	return transparent_window_count
 
 static func _add_box_multimesh(
 	parent: Node3D,
@@ -547,7 +625,7 @@ static func _add_suburban_front_porch(root: Node3D, width: float, front_z: float
 	door_mesh.size = Vector3(0.82, 1.92, 0.055)
 	door.mesh = door_mesh
 	door.position = Vector3(0.0, 1.02, front_z + front_sign * 0.035)
-	door.material_override = _trim_material
+	door.material_override = _glass_material
 	door.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(door)
 	return porch_style
@@ -903,7 +981,7 @@ static func _chicago_brick_base_height(floors: int, total_height: float) -> floa
 	var desired = 0.72 + float(story_count - 1) * 0.08
 	return minf(desired, total_height * 0.3)
 
-static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, brick_height: float, rng: RandomNumberGenerator) -> void:
+static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, brick_height: float, front_is_south: bool, rng: RandomNumberGenerator) -> void:
 	if parent == null:
 		return
 	if width <= 1.3 or depth <= 1.3 or brick_height <= 0.2:
@@ -923,12 +1001,16 @@ static func _add_chicago_brick_base(parent: Node3D, width: float, depth: float, 
 	var ns_width = maxf(0.7, width - edge_inset * 2.0)
 	var ew_depth = maxf(0.7, depth - edge_inset * 2.0 - shell_t * 2.0)
 
-	var panel_transforms: Array[Transform3D] = [
-		Transform3D(Basis().scaled(Vector3(ns_width, brick_height, shell_t)), Vector3(0.0, brick_height * 0.5, -half_d + edge_inset + shell_t * 0.5)),
-		Transform3D(Basis().scaled(Vector3(ns_width, brick_height, shell_t)), Vector3(0.0, brick_height * 0.5, half_d - edge_inset - shell_t * 0.5)),
-		Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(-half_w + edge_inset + shell_t * 0.5, brick_height * 0.5, 0.0)),
-		Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(half_w - edge_inset - shell_t * 0.5, brick_height * 0.5, 0.0))
-	]
+	var panel_transforms: Array[Transform3D] = []
+	var front_z = half_d - edge_inset - shell_t * 0.5 if front_is_south else -half_d + edge_inset + shell_t * 0.5
+	var back_z = -half_d + edge_inset + shell_t * 0.5 if front_is_south else half_d - edge_inset - shell_t * 0.5
+	panel_transforms.append(Transform3D(Basis().scaled(Vector3(ns_width, brick_height, shell_t)), Vector3(0.0, brick_height * 0.5, back_z)))
+	var door_half = 0.7
+	var side_panel_w = maxf(0.2, (ns_width - door_half * 2.0) * 0.5)
+	for side in [-1.0, 1.0]:
+		panel_transforms.append(Transform3D(Basis().scaled(Vector3(side_panel_w, brick_height, shell_t)), Vector3(side * (door_half + side_panel_w * 0.5), brick_height * 0.5, front_z)))
+	panel_transforms.append(Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(-half_w + edge_inset + shell_t * 0.5, brick_height * 0.5, 0.0)))
+	panel_transforms.append(Transform3D(Basis().scaled(Vector3(shell_t, brick_height, ew_depth)), Vector3(half_w - edge_inset - shell_t * 0.5, brick_height * 0.5, 0.0)))
 	_add_box_multimesh(parent, Vector3.ONE, panel_transforms, brick_material, "BrickFoundation", false, 82.0)
 
 	var belt = MeshInstance3D.new()
@@ -1041,7 +1123,7 @@ static func _create_external_building(footprint: Rect2, floors: int, front_is_so
 		var brick_height = _chicago_brick_base_height(floors, top_y)
 		var brick_height_cap = clampf(top_y * 0.72, 3.35, maxf(3.35, top_y - 0.6))
 		brick_height = minf(brick_height, brick_height_cap)
-		_add_chicago_brick_base(root, width * 0.94, depth * 0.94, brick_height, rng)
+		_add_chicago_brick_base(root, width * 0.94, depth * 0.94, brick_height, front_is_south, rng)
 		var roof_cap = _make_external_roof_cap(width, depth, top_y)
 		root.add_child(roof_cap)
 

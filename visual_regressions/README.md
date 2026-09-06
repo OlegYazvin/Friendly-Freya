@@ -38,18 +38,37 @@ relationships called out by the visual audit.
 - [wide_gable.png](wide_gable.png) — long-axis gable ridge, shingles, soffit, fascia, and wall support.
 - [wide_hip.png](wide_hip.png) — long-axis hip ridge, shingles, soffit, fascia, and wall support.
 - [storefront.png](storefront.png) — transparent storefront openings with the furnished store visible outside.
+- [building_residence_outside.png](building_residence_outside.png) — hollow suburban residence shell with real entrance and transparent windows.
+- [building_residence_inside.png](building_residence_inside.png) — ground-floor-only residential cutaway and neighboring upper-story context.
+- [building_pharmacy_inside.png](building_pharmacy_inside.png) — prescription shelving, counter, and immunity-medicine dispenser.
+- [building_grocery_inside.png](building_grocery_inside.png) — produce/meat fixtures and permanent dog-food point.
+- [building_police_inside.png](building_police_inside.png) — police lockers and dog-armor rack.
+- [building_clinic_inside.png](building_clinic_inside.png) — furnished medical interior with intentionally unassigned gameplay role.
 - [home_outside.png](home_outside.png) — Freya's home exterior, transparent windows, yard identity with a claimable mailbox, and roof connection.
 - [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane.
 - [post_intro_food_tutorial.png](post_intro_food_tutorial.png) — the first controllable home moment with Freya fully hungry, her first-person eat-first guidance, and the pulsing arrow/ring identifying her bowl.
 - [first_exit_leashed.png](first_exit_leashed.png) — Freya's first post-meal exit frames three temporary people and their city dogs connected by clearly visible leashes on the street-side sidewalk.
 - [first_exit_abduction.png](first_exit_abduction.png) — separate two-ring beams lift the three people while every dog remains leashed and held out of its normal AI.
-- [first_exit_owners_gone.png](first_exit_owners_gone.png) — the people and leashes are gone, leaving the three dogs at the release beat immediately before their default behavior resumes.
+- [first_exit_owners_gone.png](first_exit_owners_gone.png) — the people, leashes, and beams are gone while the three dogs remain held for the next cinematic beat.
+- [first_exit_dog_possession.png](first_exit_dog_possession.png) — purple, cyan, and magenta energy visibly descends into the three ordinary-looking dogs.
+- [first_exit_freya_immunity.png](first_exit_freya_immunity.png) — the matching possession energy ricochets away from Freya while a mint immunity burst expands from her.
+- [first_exit_immunity_thought.png](first_exit_immunity_thought.png) — Freya's exact immunity conclusion appears before cinematic control releases.
 - [dog_park_friendly.png](dog_park_friendly.png) — the reduced six-dog shared-rig cast inside a complete two-rail gated fence, with weave poles, hurdle, A-frame, crawl tunnel, and readable camouflage collars on recruited dogs.
+- [dog_park_training_weave.png](dog_park_training_weave.png) — Freya following the alternating slalom path with a fast gait and side-to-side body lean.
+- [dog_park_training_hurdle.png](dog_park_training_hurdle.png) — Freya airborne over the bar at the apex of the contextual hurdle interaction.
+- [dog_park_training_aframe.png](dog_park_training_aframe.png) — Freya aligned to the A-frame slope during her climb-over animation.
+- [dog_park_training_tunnel.png](dog_park_training_tunnel.png) — Freya's lowered, compressed crawl pose inside the open-ended tunnel.
 - [army_collars.png](army_collars.png) — a dedicated multi-breed lineup showing the readable camouflage plates, edge bands, top panels, and buckles at normal presentation scale.
 - [alien_model.png](alien_model.png) — the canonical grounded voxel-imp view: a slightly smaller imp in a deterministic mid-stride three-quarter close-up beside Freya for scale.
 - [alien_occupied.png](alien_occupied.png) — an occupied house, rooftop crown, façade mutation, minimap state, ordinary-looking possessed dog, and Freya's unease clue.
 - [alien_store_stronghold.png](alien_store_stronghold.png) — an occupied storefront and its capped free-alien pressure in neighborhood context.
 - [ryah_defense.png](ryah_defense.png) — Freya's open home interior with Ryah Diane's tears and cry waves; the home remains unoccupied.
+
+## Unplaced Building Concept References
+
+- [kennel_clean.png](kennel_clean.png) — the placement-ready but unplaced Northbrook Dog Lodge exterior with complete roof/walls, transparent front glazing, public door, and recognizable kennel signage.
+- [kennel_interior.png](kennel_interior.png) — the roofless review cutaway showing six open-bar cages, six distinct shared-rig voxel dogs, reception/wash fixtures, and Freya's exact one-time promise.
+- [kennel_possessed.png](kennel_possessed.png) — the locked static infestation after three accepted spawn requests, with three ordinary-looking shared-rig voxel dogs and three of six lifetime capacity pods remaining.
 
 ## Legacy and Ad Hoc References
 

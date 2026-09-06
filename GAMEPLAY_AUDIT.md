@@ -18,6 +18,8 @@ There are no angel dogs or devil dogs. Every NPC is always a real dog, and a rea
 
 - **Possession:** `real` or `possessed`.
 - **Army alignment:** `independent` or `Freya's army`.
+- Every NPC dog begins a new game possessed; cleansing creates the real-dog
+  state the player can then befriend.
 - A cleansed dog becomes real; it does not become an angel dog.
 - An army dog remains a real dog and may eventually have a lower—but not necessarily zero—risk of re-possession.
 - Possession must remain visually secret. Breed, body, coat, animation, and ordinary cosmetics cannot reveal it.
@@ -83,7 +85,7 @@ The data model should still distinguish a storefront's base function from its cu
 
 ### Already Aligned
 
-- **Implemented:** Exactly 75% of NPC dogs begin possessed, chosen randomly and independently from appearance.
+- **Implemented:** Every NPC dog begins possessed, independently from appearance.
 - **Implemented:** Freya becomes uneasy near possessed dogs without directly identifying them.
 - **Implemented:** A short aggressive bark expels possession and creates a visible alien transfer.
 - **Implemented:** Expelled aliens choose among nearby available buildings.
@@ -101,10 +103,40 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** Freya's permanent food bowl inside Ryah Diane's house is reusable and resets Hunger to zero when Freya eats from it.
 - **Implemented:** Freya starts fully hungry after the family prologue; first-person text, exact authored barks, and a pulsing bowl pointer guide her to eat, while the home boundary turns her back with a reminder until the meal is complete.
 - **Implemented:** Gene drops his pill bottles during abduction; after saving Ryah, Freya eats the spill, performs a comic convulsion, discovers her internal monologue, and only then enters the eat-first tutorial.
-- **Implemented:** Freya's first post-meal exit stages three people with leashed city dogs, abducts the people in separate beams, removes the leashes, and releases those dogs into their default behavior afterward.
-- **Implemented:** The dog park population is six dogs and the park has a complete two-rail perimeter with a visible open gate, weave poles, a jump hurdle, an A-frame, and a crawl tunnel.
+- **Implemented:** Freya's first post-meal exit stages three people with leashed city dogs, abducts the people in separate beams, shows possession energy enter the dogs, then shows the same energy bounce away from Freya. Her exact internal thought identifies the immunity before the leashes clear and dog behavior resumes.
+- **Implemented:** The dog park population is six dogs and the park has a complete two-rail perimeter with a visible open gate, weave poles, a jump hurdle, an A-frame, and a crawl tunnel. Each training obstacle now has contextual `F` interaction points at both ends and its own brief, collision-safe Freya animation: slalom weaving, a parabolic hurdle leap, an A-frame climb, or a lowered tunnel crawl.
 - **Implemented:** Dog audio is separated into conversational, excited-social, and aggressive recorded-bark pools; friendly call-and-response routes by speaker, aggressive socializing stays in its own pool, and per-category shuffle bags exhaust every clip before reuse without immediate cycle-boundary repeats.
 - **Implemented:** Residential mailboxes use the same hold-`R` pee claim, owner/reclaim state, world-ring feedback, and Freya/enemy minimap markers as trees, light poles, and fire hydrants.
+- **Implemented:** Every non-possessed building is enterable. Residences are
+  scattered across ranch, two-story, and three-story flavors and expose only a
+  furnished bottom floor through hollow shells with transparent windows.
+- **Implemented:** The pharmacy provides medicine that freed dogs consume for
+  permanent possession immunity; the grocery provides an infinite reusable
+  dog-food bowl; and the police station provides visible doggy armor.
+- **Implemented:** The medical clinic is furnished and enterable, while its
+  gameplay function remains intentionally undefined.
+- **Implemented:** Any occupied building locks its full footprint and service;
+  only retail buildings marked `generates_free_aliens` produce free aliens.
+
+### Placement-Ready, Not Yet on the Map
+
+- **Prepared, not live:** The Northbrook Dog Lodge archetype has a complete
+  clean exterior/interior, six caged shared-rig dogs, transparent glazing,
+  entry and collision metadata, and deterministic references.
+- **Prepared, not live:** All six caged dogs begin secretly possessed and expose
+  the same de-possession outcome as other dogs; cage release remains future.
+- **Prepared, not live:** Its first clean entry emits Freya's exact one-time
+  thought, `I'll find a way to free you!`
+- **Prepared, not live:** Possession locks entry and requests one possessed dog
+  every eight seconds, with a hard lifetime maximum of six successfully
+  accepted spawns and explicit confirmation/retry hooks for safe NPC placement.
+  Cleansing the building permanently forfeits all unspawned dogs for that
+  level, so early cleansing produces a correspondingly smaller dog population.
+- **Prepared, not live:** Caged and spawned kennel dogs use the canonical shared
+  voxel rig and hidden possession state; spawned dogs join the normal dog
+  lifecycle and can be de-possessed normally.
+- Map placement, minimap registration, occupation routing, and the mechanics
+  that eventually fulfill Freya's rescue promise remain future integration.
 
 ### Pass 1 Implemented
 
@@ -143,19 +175,25 @@ are proposed conceptual fields. Each field is labeled by implementation status.
 - **Current:** `flee_timer`: temporary response after a wrong exorcism guess.
 - **Future:** `repossess_resistance`: protection gained from Freya's support actions.
 - **Current:** `socialization_progress`: recruitment progress, paused or blocked by full Hunger.
+- **Current:** `possession_immune`: permanent protection granted by pharmacy medicine after cleansing.
+- **Current:** `has_dog_armor`: whether the dog wears the police-station armor visual.
 
 Possession and army alignment must remain orthogonal. This avoids recreating angel/devil categories under different names.
 
 ### Building State
 
-- **Current:** `is_store` and `is_freya_home`: the building's special base roles.
+- **Current:** `building_type`, `is_store`, and `is_freya_home`: the building's base role independently from its controller.
+- **Current:** `enterable` and `bottom_floor_only`: clean-entry state and the residential floor limit.
+- **Current:** `generates_free_aliens`: explicit retail pressure flag, independent from whether a building has an interior.
 - **Current:** `alien_occupied`: whether the building is alien controlled.
 - **Current:** `alien_integrity`: persistent weakening from direct pee damage.
 - **Current:** `alien_occupant_count`: aliens currently held by that building.
 - **Current derived behavior:** nearby occupied storefronts contribute the provisional reinforcement effect; there is no persistent `reinforcement_strength` field.
 - **Future proposed field:** `fortification_level`: resource investment after Freya reclaims a building.
-- **Partial derived behavior:** alien storefront services are disabled; a persistent `service_enabled` field and restoration after reclaim are future work.
-- **Future proposed field:** `bonus_type`: building-specific benefit under Freya's control.
+- **Current derived behavior:** occupied-building services are disabled; the
+  clean building's base service remains available for future restoration.
+- **Current:** pharmacy immunity, grocery food, and police armor are distinct
+  building benefits; clinic behavior is intentionally unassigned.
 
 ### Level State
 
@@ -220,11 +258,13 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 
 ### Implemented Invariants
 
-Existing checks for the 75% hidden possession ratio, appearance independence, Freya's unease, exorcism transfer, Ryah's defense, alien-building visuals, and pee weakening should remain.
+Existing checks for all-dog initial possession, appearance independence, Freya's unease, exorcism transfer, Ryah's defense, alien-building visuals, and pee weakening should remain.
 
 The current automated guardrail suite should continue to prove:
 
 - no angel/devil/hostile dog relation state or wing visuals remain;
+- every NPC dog records possessed as its origin state without a possession-only cosmetic marker;
+- the first-exit cinematic visibly possesses the staged dogs, rejects the same effect from Freya, and presents her exact immunity thought before control resumes;
 - barking at a possessed dog cleanses it without creating an enemy state;
 - barking at a real dog starts a flee response without altering possession or army alignment;
 - socialization increases Hunger and cannot progress at full Hunger;

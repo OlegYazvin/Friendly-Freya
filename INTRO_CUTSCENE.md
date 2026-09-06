@@ -24,7 +24,7 @@ Both halves use absolute-time timelines and deterministic regression views.
 | UFO camera, bubble morph, Earth, lighting, audio, and validation | [intro_cutscene.gd](godot/scripts/intro_cutscene.gd) |
 | Family writing, timeline times, and capture checkpoints | [family_intro_timeline.gd](godot/scripts/family_intro_timeline.gd) |
 | Live-home staging, gameplay lock, effect/audio thresholds, validation, and handoff | [main.gd](godot/scripts/main.gd) |
-| Gene, Zoe, pill bottles, beams, and bark waves | [family_visual_factory.gd](godot/scripts/family_visual_factory.gd) |
+| Gene, Zoe, pill bottles, beams, bark waves, and possession energy | [family_visual_factory.gd](godot/scripts/family_visual_factory.gd) |
 | Shared alien geometry and idle/walk pose | [alien_visual_factory.gd](godot/scripts/alien_visual_factory.gd) |
 | UFO bridge and opaque fleet geometry | [ufo_visual_factory.gd](godot/scripts/ufo_visual_factory.gd) |
 | Runtime cut-scene entry | [IntroCutscene.tscn](godot/scenes/IntroCutscene.tscn) |
@@ -191,9 +191,13 @@ Main thresholds, and the relevant reviewed captures.
   crossing the home boundary triggers one exact reminder bark, displays `I have
   to eat first,`, and automatically turns her back into the house. Eating resets
   Hunger to zero and removes both the guidance and exit gate. Her first exit
-  frames three people walking city dogs on visible leashes; separate beams
-  abduct the people, the leashes disappear, and only then do those dogs resume
-  their ordinary autonomous behavior.
+  frames three people walking city dogs on visible leashes. Separate beams
+  abduct the people and the leashes disappear. Purple/cyan possession energy
+  then descends into the dogs. The same energy targets Freya, strikes her, and
+  visibly ricochets up and away while an immunity burst expands from her. Freya
+  concludes, `Whatever's happening to those other dogs seems like I'm immune
+  from it. Interesting.` Only after that exact thought clears do the dogs resume
+  their ordinary autonomous behavior and control return.
 - Character references: Gene uses dark hair, a full beard/mustache, rectangular
   glasses, a dark gray shirt, gray pants, and brown shoes. Zoe uses layered
   light-brown curls, a black top, dark pants, and dark shoes. Both are stylized
@@ -273,4 +277,5 @@ timeline to check all exact family lines, Gene/Zoe likeness signatures, held
 and dropped pill bottles, two rings around each parent, both disappearance
 checkpoints, Ryah's interrupted transfer, Freya's pill-eating, convulsion, and
 monologue beats, both exact bark schedules, the eat-first handoff, and the
-first-exit leashed-owner abduction and dog release.
+first-exit leashed-owner abduction, dog-possession effects, Freya's rejected
+possession effect, exact immunity thought, and delayed dog release.

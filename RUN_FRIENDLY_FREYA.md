@@ -3,7 +3,7 @@
 [Documentation hub](README.md) · [Codebase map](docs/CODEBASE_MAP.md) ·
 [Godot overview and controls](godot/README_GODOT.md)
 
-Last verified: September 1, 2026 with Godot `4.7.2.stable.flathub`.
+Last verified: September 5, 2026 with Godot `4.7.2.stable.flathub`.
 The project declares the Godot `4.6` feature target in
 [project.godot](godot/project.godot).
 
@@ -68,12 +68,18 @@ It runs:
 
 1. startup-choice route, focus, loadability, and selection-lock validation;
 2. UFO intro scene/cast/dialogue/audio/Earth/fleet validation;
-3. gameplay smoke and targeted validation, including the three bark pools and
-   their no-repeat shuffle behavior, plus family-intro staging, dialogue,
-   effects, exact audio mapping, and handoff checks.
+3. the placement-ready but unplaced kennel's six cages/dogs, exact first-entry
+   promise, canonical voxel dogs, caged-dog de-possession, clean/possessed
+   states, partial-cleanse forfeiture, integration metadata, and
+   six-possessed-dog cap;
+4. gameplay smoke and targeted validation, including the enterable building
+   roster and pharmacy/grocery/police services, all four bidirectional dog-park
+   training interactions and Freya poses, the three bark pools and their
+   no-repeat shuffle behavior, plus family-intro staging, dialogue, effects,
+   exact audio mapping, and handoff checks.
 
-Successful output includes `STARTUP_OK`, `INTRO_OK`, `SMOKE_OK`, `TARGET_OK`,
-and `FAMILY_INTRO_OK`, followed by `Predeploy checks passed.`
+Successful output includes `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
+`TARGET_OK`, and `FAMILY_INTRO_OK`, followed by `Predeploy checks passed.`
 
 A passing command is required evidence, but visual changes also require an
 inspected deterministic capture.

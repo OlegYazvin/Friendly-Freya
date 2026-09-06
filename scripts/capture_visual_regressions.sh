@@ -20,23 +20,39 @@ for spec in \
 	FREYA_VISUAL_VIEW:wide_gable \
 	FREYA_VISUAL_VIEW:wide_hip \
 	FREYA_VISUAL_VIEW:storefront \
+	FREYA_VISUAL_VIEW:building_residence_outside \
+	FREYA_VISUAL_VIEW:building_residence_inside \
+	FREYA_VISUAL_VIEW:building_pharmacy_inside \
+	FREYA_VISUAL_VIEW:building_grocery_inside \
+	FREYA_VISUAL_VIEW:building_police_inside \
+	FREYA_VISUAL_VIEW:building_clinic_inside \
 	FREYA_VISUAL_VIEW:home_outside \
 	FREYA_VISUAL_VIEW:home_inside \
 	FREYA_VISUAL_VIEW:post_intro_food_tutorial \
 	FREYA_VISUAL_VIEW:first_exit_leashed \
 	FREYA_VISUAL_VIEW:first_exit_abduction \
 	FREYA_VISUAL_VIEW:first_exit_owners_gone \
+	FREYA_VISUAL_VIEW:first_exit_dog_possession \
+	FREYA_VISUAL_VIEW:first_exit_freya_immunity \
+	FREYA_VISUAL_VIEW:first_exit_immunity_thought \
 	FREYA_VISUAL_VIEW:dog_park_friendly \
+	FREYA_VISUAL_VIEW:dog_park_training_weave \
+	FREYA_VISUAL_VIEW:dog_park_training_hurdle \
+	FREYA_VISUAL_VIEW:dog_park_training_aframe \
+	FREYA_VISUAL_VIEW:dog_park_training_tunnel \
 	FREYA_VISUAL_VIEW:army_collars \
 	FREYA_VISUAL_VIEW:pause_menu \
 	FREYA_ALIEN_VIEW:alien_model:model \
 	FREYA_ALIEN_VIEW:alien_occupied:occupied \
 	FREYA_ALIEN_VIEW:alien_store_stronghold:stronghold \
-	FREYA_ALIEN_VIEW:ryah_defense:ryah_defense
+	FREYA_ALIEN_VIEW:ryah_defense:ryah_defense \
+	FREYA_KENNEL_VIEW:kennel_clean:clean \
+	FREYA_KENNEL_VIEW:kennel_interior:interior \
+	FREYA_KENNEL_VIEW:kennel_possessed:possessed
 do
 	env_name=${spec%%:*}
 	remainder=${spec#*:}
-	if [ "$env_name" = "FREYA_ALIEN_VIEW" ]; then
+	if [ "$env_name" = "FREYA_ALIEN_VIEW" ] || [ "$env_name" = "FREYA_KENNEL_VIEW" ]; then
 		output_name=${remainder%%:*}
 		view=${remainder#*:}
 	else
@@ -47,7 +63,11 @@ do
 		continue
 	fi
 	log_file="$capture_tmp/$output_name.log"
-	host-spawn env "$env_name=$view" flatpak run org.godotengine.Godot --path "$godot_dir" res://scenes/Main.tscn >"$log_file" 2>&1 &
+	scene_path=res://scenes/Main.tscn
+	if [ "$env_name" = "FREYA_KENNEL_VIEW" ]; then
+		scene_path=res://scenes/KennelConcept.tscn
+	fi
+	host-spawn env "$env_name=$view" flatpak run org.godotengine.Godot --path "$godot_dir" "$scene_path" >"$log_file" 2>&1 &
 	runner_pid=$!
 	window_id=""
 	for attempt in $(seq 1 40); do

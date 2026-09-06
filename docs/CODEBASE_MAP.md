@@ -19,6 +19,9 @@ Main.tscn
 ├── generates the neighborhood and live Freya home
 ├── optionally runs the family prologue in that same home
 └── releases control to normal gameplay
+
+KennelConcept.tscn / kennel_concept.gd
+└── standalone placement-ready archetype preview; never entered by normal flow
 ```
 
 The project entry point is `res://scenes/Startup.tscn`, configured by
@@ -34,13 +37,14 @@ thin scene shells whose scripts construct most runtime content.
 | UFO intro timing/text | `godot/scripts/intro_timeline.gd` | Stable scene dictionaries and `time_for_view`; expected lines are also asserted by the renderer's validator |
 | UFO intro rendering | `godot/scripts/intro_cutscene.gd` | Camera, bubbles, Earth, fleet, audio events, and duplicated validation expectations |
 | UFO geometry | `godot/scripts/ufo_visual_factory.gd` | Bridge interior and opaque exterior factories |
-| Family intro timing/text | `godot/scripts/family_intro_timeline.gd`, `godot/scripts/main.gd` | Sixteen stable beats/view times; Main owns effect/audio thresholds and duplicated validation expectations |
+| Family intro timing/text | `godot/scripts/family_intro_timeline.gd`, `godot/scripts/main.gd` | Twenty stable beats/view times; Main owns effect/audio thresholds and duplicated validation expectations |
 | Family visuals | `godot/scripts/family_visual_factory.gd` | Gene, Zoe, pill bottles, transfer rings, bark waves |
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
-| Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, home/store interiors, interactions, AI, audio mappings, UI, and validation |
+| Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police services, interactions, AI, audio mappings, UI, and validation |
 | Dogs and animation | `godot/scripts/dog_agent.gd`, `godot/scripts/main.gd` | DogAgent owns visuals/animation; Main owns definitions, spawn, state, and AI |
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
-| Residential shells/roofs | `godot/scripts/building_factory.gd` | Procedural residential shell/material/roof/porch output and metrics; Main owns stores, interiors, yards, and alien mutations |
+| Residential shells/roofs | `godot/scripts/building_factory.gd` | Hollow procedural residential walls, transparent openings, ground/upper-floor separation, materials, roofs, porches, and metrics; Main owns interiors, yards, and alien mutations |
+| Unplaced dog kennel archetype | `godot/scripts/kennel_factory.gd`, `godot/scripts/kennel_building.gd`, `godot/scripts/kennel_concept.gd`, `godot/scenes/KennelConcept.tscn` | Reusable clean/possessed visuals, canonical voxel dogs, six initially possessed/de-possessable captives, entry-once dialogue, possessed-dog spawn handshake, partial-cleanse forfeiture, lifetime cap of six, and isolated preview/validation |
 | Claims | `godot/scripts/claim_utils.gd`, `godot/scripts/main.gd` | Ownership constants, hold-`R` state, rings, weakening |
 | Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data; Main owns state and synchronization |
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
@@ -92,15 +96,17 @@ Use the wrapper rather than invoking individual validation flags manually:
 ./scripts/predeploy_size_checks.sh
 ```
 
-It runs three Godot processes and covers:
+It runs four Godot processes and covers:
 
 1. startup route/focus/selection locking;
 2. UFO intro timeline, cast, audio mapping, Earth, and fleet;
-3. gameplay smoke checks, targeted gameplay/visual invariants, and the family
+3. the placement-ready, unplaced kennel contract and finite spawn cap;
+4. gameplay smoke checks, targeted gameplay/visual invariants, and the family
    intro timeline/handoff.
 
-Successful output contains `STARTUP_OK`, `INTRO_OK`, `SMOKE_OK`, `TARGET_OK`,
-and `FAMILY_INTRO_OK` before the wrapper reports `Predeploy checks passed.`
+Successful output contains `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
+`TARGET_OK`, and `FAMILY_INTRO_OK` before the wrapper reports
+`Predeploy checks passed.`
 
 Deterministic visual output is a separate form of evidence. See
 [visual_regressions/README.md](../visual_regressions/README.md) and inspect the
@@ -121,6 +127,8 @@ These are automation interfaces, not player settings.
 | `FREYA_FAMILY_INTRO_VIEW` | Seek a deterministic live-home family beat | `capture_intro_regressions.sh` |
 | `FREYA_VISUAL_VIEW` | Stage a deterministic world/gameplay view | `capture_visual_regressions.sh` |
 | `FREYA_ALIEN_VIEW` | Stage a deterministic alien-system view | `capture_visual_regressions.sh` |
+| `FREYA_KENNEL_VALIDATE` | Validate the unplaced kennel contract and finite spawn behavior | `predeploy_size_checks.sh` |
+| `FREYA_KENNEL_VIEW` | Stage the clean, interior, or possessed kennel concept | `capture_visual_regressions.sh` |
 | `FREYA_CAPTURE_ONLY` | Limit gameplay/world capture output | `capture_visual_regressions.sh` |
 | `FREYA_INTRO_CAPTURE_ONLY` | Limit startup/intro capture output | `capture_intro_regressions.sh` |
 | `FREYA_START_AT_HOME` | Development spawn override | Direct development launch |
@@ -141,7 +149,7 @@ graphical gameplay remains randomized.
 | Any GDScript, scene, timeline, or gameplay constant | `./scripts/predeploy_size_checks.sh` |
 | Startup or UFO intro visuals | Relevant `intro_01`–`intro_05` capture |
 | Family intro staging, characters, effects, dialogue UI | Relevant `intro_06`–`intro_13` capture |
-| Buildings, home, dogs, aliens, collars, or pause UI | Relevant gameplay/world capture |
+| Buildings, home, dogs, aliens, collars, kennel concept, or pause UI | Relevant gameplay/world/concept capture |
 | Audio file or mapping | Predeploy checks plus attribution update; missing audio must remain silent |
 | Model policy or breed schema | Predeploy checks plus model/breed documentation update |
 | Export preset, packaging, or release workflow | Full predeploy checks, local package inspection, and a successful Windows Actions smoke run |

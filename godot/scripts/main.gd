@@ -27,7 +27,16 @@ const FIRST_EXIT_DOG_WALKER_COUNT = 3
 const FIRST_EXIT_BEAM_START = 0.9
 const FIRST_EXIT_OWNER_VANISH_TIME = 3.35
 const FIRST_EXIT_BEAM_END = 3.85
-const FIRST_EXIT_TOTAL_DURATION = 4.9
+const FIRST_EXIT_DOG_POSSESSION_START = 4.05
+const FIRST_EXIT_DOG_POSSESSION_STAGGER = 0.3
+const FIRST_EXIT_DOG_POSSESSION_TRAVEL = 0.76
+const FIRST_EXIT_FREYA_TARGET_START = 5.95
+const FIRST_EXIT_FREYA_IMPACT_TIME = 6.85
+const FIRST_EXIT_FREYA_BOUNCE_END = 8.25
+const FIRST_EXIT_MONOLOGUE_START = 8.45
+const FIRST_EXIT_MONOLOGUE_TYPE_SPEED = 29.0
+const FIRST_EXIT_TOTAL_DURATION = 12.75
+const FIRST_EXIT_IMMUNITY_TEXT = "Whatever's happening to those other dogs seems like I'm immune from it. Interesting."
 
 const MAP_W = 144.0
 const MAP_H = 118.0
@@ -147,7 +156,6 @@ const SOCIALIZATION_HUNGER_PER_SEC = 6.5
 const POSSESSED_SOCIAL_VOMIT_PER_SEC = 12.0
 const DOG_WRONG_GUESS_FLEE_TIME = 3.2
 const DOG_FLEE_SPEED_MULT = 1.65
-const ALIEN_POSSESSION_CHANCE = 0.75
 const ALIEN_DISCOMFORT_RADIUS = 5.4
 const ALIEN_EXPEL_BARK_TIME = 0.68
 const ALIEN_TRAVEL_SPEED = 5.8
@@ -169,6 +177,14 @@ const ALIEN_POSSESSION_REACH = 0.38
 const ALIEN_MOVE_SUBSTEP = 0.14
 const INTERACT_HIGHLIGHT_BOB_SPEED = 5.5
 const INTERACT_HIGHLIGHT_BOB_AMPLITUDE = 0.03
+const DOG_PARK_TRAINING_INTERACT_RANGE = 1.75
+const DOG_PARK_TRAINING_APPROACH_SEC = 0.32
+const DOG_PARK_TRAINING_DURATIONS = {
+	"weave_poles": 2.8,
+	"jump_hurdle": 1.35,
+	"a_frame": 2.15,
+	"crawl_tunnel": 1.7
+}
 const OCCLUSION_UPDATE_INTERVAL = 0.1
 const OCCLUSION_MOVE_EPS = 0.12
 const MINIMAP_UPDATE_INTERVAL = 0.08
@@ -199,6 +215,14 @@ const STORE_DOOR_DEPTH = 0.86
 const STORE_INTERIOR_MARGIN = 0.34
 const STORE_INTERIOR_WALL_HEIGHT = 2.55
 const STORE_FOCUS_UPDATE_INTERVAL = 0.03
+const BUILDING_SERVICE_RANGE = 1.55
+const BUILDING_TYPE_RESIDENCE_RANCH = "residence_ranch"
+const BUILDING_TYPE_RESIDENCE_FAMILY = "residence_family"
+const BUILDING_TYPE_RESIDENCE_WALKUP = "residence_walkup"
+const BUILDING_TYPE_PHARMACY = "pharmacy"
+const BUILDING_TYPE_GROCERY = "grocery"
+const BUILDING_TYPE_POLICE = "police_station"
+const BUILDING_TYPE_CLINIC = "medical_clinic"
 const HOME_PREFERRED_MIN_AREA = 68.0
 const HOME_PREFERRED_MIN_SHORT_SIDE = 5.0
 const HOME_MIN_USABLE_AREA = 42.0
@@ -513,6 +537,10 @@ var store_entry_indicators: Array = []
 var store_interior_nodes: Array[Node3D] = []
 var store_shell_nodes: Array[Node3D] = []
 var store_building_indices: Array[int] = []
+var enterable_building_indices: Array[int] = []
+var building_services: Array = []
+var freya_carries_immunity_dose = false
+var freya_carries_dog_armor = false
 var freya_home_index = -1
 var freya_home_exterior_root: Node3D
 var freya_home_interior_root: Node3D
@@ -536,6 +564,12 @@ var first_exit_abduction_root: Node3D
 var first_exit_abduction_pairs: Array = []
 var first_exit_abduction_layer: CanvasLayer
 var first_exit_abduction_scene_label: Label
+var first_exit_thought_panel: Panel
+var first_exit_thought_speaker: Label
+var first_exit_thought_label: Label
+var first_exit_freya_possession_effect: Node3D
+var first_exit_immunity_burst: Node3D
+var first_exit_freya_immunity_confirmed = false
 var first_exit_abduction_center = Vector3.ZERO
 var suburban_yard_root: Node3D
 var facade_clearance_rects: Array[Rect2] = []
@@ -572,6 +606,9 @@ var dog_park_fence_post_count = 0
 var dog_park_equipment_types: Array[String] = []
 var dog_park_obstacles: Array = []
 var dog_park_fence_blockers: Array[Rect2] = []
+var dog_park_training_items: Array = []
+var active_dog_park_training: Dictionary = {}
+var dog_park_training_preview_kind = ""
 var freya
 var freya_hunger = 100.0
 var freya_vomit = 0.0
@@ -851,14 +888,105 @@ func _configure_alien_visual_view() -> void:
 		camera_planar_distance = camera_zoom_target
 		_start_post_intro_meal_tutorial(false)
 		return
-	if visual_view in ["first_exit_leashed", "first_exit_abduction", "first_exit_owners_gone"] and freya != null:
+	if visual_view.begins_with("dog_park_training_") and freya != null:
+		var training_view_kinds = {
+			"dog_park_training_weave": "weave_poles",
+			"dog_park_training_hurdle": "jump_hurdle",
+			"dog_park_training_aframe": "a_frame",
+			"dog_park_training_tunnel": "crawl_tunnel"
+		}
+		dog_park_training_preview_kind = str(training_view_kinds.get(visual_view, ""))
+		camera_orbit_angle = 0.38 if dog_park_training_preview_kind == "a_frame" else 0.18
+		camera_zoom_target = 8.8
+		camera_planar_distance = camera_zoom_target
+		var preview_dog_offsets = [
+			Vector3(-4.0, 0.0, -4.0),
+			Vector3(4.0, 0.0, -4.0),
+			Vector3(-4.0, 0.0, 4.0),
+			Vector3(4.0, 0.0, 4.0),
+			Vector3(-4.0, 0.0, 0.0),
+			Vector3(4.0, 0.0, 0.0)
+		]
+		var preview_dog_index = 0
+		for dog_index in range(dogs.size()):
+			var preview_state: Dictionary = dogs[dog_index]
+			if not bool(preview_state.get("park", false)):
+				continue
+			var preview_dog: Node3D = preview_state.get("node", null)
+			if preview_dog == null or not is_instance_valid(preview_dog):
+				continue
+			preview_dog.global_position = Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y) + preview_dog_offsets[preview_dog_index]
+			preview_state["speed"] = 0.0
+			preview_state["dir"] = Vector3.ZERO
+			preview_state["wander"] = 999.0
+			preview_state["alien_possessed"] = false
+			dogs[dog_index] = preview_state
+			preview_dog_index += 1
+			if preview_dog_index >= preview_dog_offsets.size():
+				break
+		_update_dog_park_training_preview(0.016)
+		return
+	if visual_view.begins_with("building_") and freya != null:
+		var requested_types = {
+			"building_residence_outside": BUILDING_TYPE_RESIDENCE_FAMILY,
+			"building_residence_inside": BUILDING_TYPE_RESIDENCE_FAMILY,
+			"building_pharmacy_inside": BUILDING_TYPE_PHARMACY,
+			"building_grocery_inside": BUILDING_TYPE_GROCERY,
+			"building_police_inside": BUILDING_TYPE_POLICE,
+			"building_clinic_inside": BUILDING_TYPE_CLINIC
+		}
+		var requested_type = str(requested_types.get(visual_view, ""))
+		var preview_index = -1
+		for building_index in range(buildings.size()):
+			if str(buildings[building_index].get("building_type", "")) == requested_type:
+				preview_index = building_index
+				break
+		if preview_index >= 0:
+			var preview_building: Dictionary = buildings[preview_index]
+			var preview_layout: Dictionary = preview_building.get("store_layout", {})
+			if visual_view.ends_with("_inside"):
+				var reachable: PackedVector2Array = preview_building.get("store_reachable_points", PackedVector2Array())
+				var preview_point: Vector2 = reachable[int(reachable.size() * 0.5)] if not reachable.is_empty() else preview_building.get("store_interior_rect", preview_building.get("footprint", Rect2())).get_center()
+				freya.global_position = Vector3(preview_point.x, 0.0, preview_point.y)
+				active_store_index = preview_index
+			else:
+				var outside: Vector2 = preview_layout.get("entry_outside_pos", preview_building.get("footprint", Rect2()).get_center())
+				freya.global_position = Vector3(outside.x, 0.0, outside.y)
+				active_store_index = -1
+		if visual_view.ends_with("_inside"):
+			_apply_store_focus_visuals()
+		if visual_view == "building_police_inside" and not dogs.is_empty():
+			var armor_state: Dictionary = dogs[0]
+			var armor_dog: Node3D = armor_state.get("node", null)
+			if armor_dog != null and is_instance_valid(armor_dog):
+				armor_dog.global_position = freya.global_position + Vector3(1.15, 0.0, 0.25)
+				armor_state["alien_possessed"] = false
+				armor_state["has_dog_armor"] = true
+				armor_state["speed"] = 0.0
+				armor_state["dir"] = Vector3.ZERO
+				armor_state["wander"] = 999.0
+				if armor_dog.has_method("set_dog_armor"):
+					armor_dog.call("set_dog_armor", true)
+				dogs[0] = armor_state
+		camera_zoom_target = 9.4 if visual_view.ends_with("_inside") else 11.2
+		camera_planar_distance = camera_zoom_target
+		return
+	if visual_view in ["first_exit_leashed", "first_exit_abduction", "first_exit_owners_gone", "first_exit_dog_possession", "first_exit_freya_immunity", "first_exit_immunity_thought"] and freya != null:
 		var home: Dictionary = buildings[freya_home_index] if freya_home_index >= 0 and freya_home_index < buildings.size() else {}
 		var layout: Dictionary = home.get("home_layout", {})
 		var outside: Vector2 = layout.get("entry_outside_pos", home.get("footprint", Rect2()).get_center())
 		freya.global_position = Vector3(outside.x, 0.0, outside.y)
 		post_intro_meal_tutorial_completed = true
 		_apply_freya_home_focus_visuals()
-		var view_time = 0.35 if visual_view == "first_exit_leashed" else (2.15 if visual_view == "first_exit_abduction" else 4.15)
+		var view_times = {
+			"first_exit_leashed": 0.35,
+			"first_exit_abduction": 2.15,
+			"first_exit_owners_gone": 3.95,
+			"first_exit_dog_possession": 5.08,
+			"first_exit_freya_immunity": 7.28,
+			"first_exit_immunity_thought": 12.1
+		}
+		var view_time = float(view_times.get(visual_view, 0.35))
 		_begin_first_exit_abduction(view_time, true)
 		return
 	if visual_view == "dog_park_friendly" and freya != null:
@@ -1056,10 +1184,15 @@ func _process(delta: float) -> void:
 	world_time += delta
 	status_timer = max(0.0, status_timer - delta)
 	if status_timer <= 0.0:
-		status_label.text = ""
+		status_label.text = _carried_supply_status()
 
 	_update_camera_orbit_input(delta)
-	_update_freya(delta)
+	if not dog_park_training_preview_kind.is_empty():
+		_update_dog_park_training_preview(delta)
+	elif _is_dog_park_training_active():
+		_update_dog_park_training(delta)
+	else:
+		_update_freya(delta)
 	_update_store_focus(delta)
 	_update_dogs(delta)
 	_update_freya_alien_discomfort(delta)
@@ -1094,7 +1227,12 @@ func _profile_gameplay_update(delta: float) -> void:
 	status_timer = max(0.0, status_timer - delta)
 	var started = Time.get_ticks_usec()
 	_update_camera_orbit_input(delta)
-	_update_freya(delta)
+	if not dog_park_training_preview_kind.is_empty():
+		_update_dog_park_training_preview(delta)
+	elif _is_dog_park_training_active():
+		_update_dog_park_training(delta)
+	else:
+		_update_freya(delta)
 	_update_store_focus(delta)
 	_update_dogs(delta)
 	_update_freya_alien_discomfort(delta)
@@ -2573,6 +2711,8 @@ func _build_dog_park() -> void:
 	dog_park_equipment_types.clear()
 	dog_park_obstacles.clear()
 	dog_park_fence_blockers.clear()
+	dog_park_training_items.clear()
+	active_dog_park_training.clear()
 
 	var fence_mat = StandardMaterial3D.new()
 	fence_mat.albedo_color = Color8(134, 141, 136)
@@ -2684,6 +2824,16 @@ func _build_dog_park_equipment() -> void:
 		_add_yard_cylinder(weave_root, "WeavePole", pole_pos, 0.055, 0.96, blue if pole_index % 2 == 0 else yellow)
 	dog_park_equipment_types.append("weave_poles")
 	dog_park_obstacles.append({"pos": Vector2(center.x - 1.62, center.z - 2.15), "radius": 1.65})
+	var weave_path = PackedVector3Array([
+		center + Vector3(-3.65, 0.0, -2.56),
+		center + Vector3(-2.72, 0.0, -1.76),
+		center + Vector3(-2.17, 0.0, -2.54),
+		center + Vector3(-1.62, 0.0, -1.76),
+		center + Vector3(-1.07, 0.0, -2.54),
+		center + Vector3(-0.52, 0.0, -1.76),
+		center + Vector3(0.38, 0.0, -2.54)
+	])
+	_register_dog_park_training_item("weave_poles", weave_root, center + Vector3(-1.62, 0.0, -2.15), weave_path)
 
 	# A colorful jump hurdle.
 	var jump_root = Node3D.new()
@@ -2695,6 +2845,15 @@ func _build_dog_park_equipment() -> void:
 	_add_home_box(jump_root, "JumpBar", Vector3(1.46, 0.08, 0.08), jump_center + Vector3(0.0, 0.54, 0.0), white)
 	dog_park_equipment_types.append("jump_hurdle")
 	dog_park_obstacles.append({"pos": Vector2(jump_center.x, jump_center.z), "radius": 0.82})
+	_register_dog_park_training_item(
+		"jump_hurdle",
+		jump_root,
+		jump_center,
+		PackedVector3Array([
+			jump_center + Vector3(0.0, 0.0, -1.45),
+			jump_center + Vector3(0.0, 0.0, 1.45)
+		])
+	)
 
 	# Two sloped planks form a readable A-frame obstacle.
 	var a_frame_root = Node3D.new()
@@ -2703,10 +2862,22 @@ func _build_dog_park_equipment() -> void:
 	var a_center = center + Vector3(1.65, 0.0, 1.45)
 	for side in [-1.0, 1.0]:
 		var plank = _add_home_box(a_frame_root, "AFramePlank", Vector3(1.75, 0.13, 1.0), a_center + Vector3(side * 0.68, 0.54, 0.0), teal if side < 0.0 else yellow)
-		plank.rotation.z = side * deg_to_rad(37.0)
+		plank.rotation.z = -side * deg_to_rad(37.0)
 	_add_home_box(a_frame_root, "AFrameRidge", Vector3(0.18, 0.15, 1.06), a_center + Vector3(0.0, 1.04, 0.0), coral)
 	dog_park_equipment_types.append("a_frame")
 	dog_park_obstacles.append({"pos": Vector2(a_center.x, a_center.z), "radius": 1.55})
+	_register_dog_park_training_item(
+		"a_frame",
+		a_frame_root,
+		a_center + Vector3(0.0, 0.52, 0.0),
+		PackedVector3Array([
+			a_center + Vector3(-2.05, 0.0, 0.0),
+			a_center + Vector3(-1.3, 0.1, 0.0),
+			a_center + Vector3(0.0, 1.12, 0.0),
+			a_center + Vector3(1.3, 0.1, 0.0),
+			a_center + Vector3(2.05, 0.0, 0.0)
+		])
+	)
 
 	# Ringed crawl tunnel; open ends keep it visually distinct from a solid pipe.
 	var tunnel_root = Node3D.new()
@@ -2730,6 +2901,28 @@ func _build_dog_park_equipment() -> void:
 	_add_home_box(tunnel_root, "TunnelShade", Vector3(1.62, 0.08, 0.66), tunnel_center + Vector3(0.0, 0.96, 0.0), yellow)
 	dog_park_equipment_types.append("crawl_tunnel")
 	dog_park_obstacles.append({"pos": Vector2(tunnel_center.x, tunnel_center.z), "radius": 1.05})
+	_register_dog_park_training_item(
+		"crawl_tunnel",
+		tunnel_root,
+		tunnel_center + Vector3(0.0, 0.34, 0.0),
+		PackedVector3Array([
+			tunnel_center + Vector3(-1.48, 0.0, 0.0),
+			tunnel_center + Vector3(1.48, 0.0, 0.0)
+		])
+	)
+
+func _register_dog_park_training_item(kind: String, node: Node3D, visual_position: Vector3, path: PackedVector3Array) -> void:
+	if kind.is_empty() or node == null or path.size() < 2:
+		return
+	node.set_meta("training_kind", kind)
+	node.set_meta("training_interactable", true)
+	dog_park_training_items.append({
+		"kind": kind,
+		"node": node,
+		"visual_position": visual_position,
+		"path": path,
+		"duration": float(DOG_PARK_TRAINING_DURATIONS.get(kind, 1.6))
+	})
 
 func _build_city_buildings() -> void:
 	buildings.clear()
@@ -2822,6 +3015,7 @@ func _mark_store_buildings() -> void:
 	_clear_store_shells()
 	_clear_store_interiors()
 	store_building_indices.clear()
+	enterable_building_indices.clear()
 	active_store_index = -1
 	if buildings.is_empty():
 		_rebuild_walkability_cache()
@@ -2831,7 +3025,10 @@ func _mark_store_buildings() -> void:
 		var b: Dictionary = buildings[i]
 		var is_freya_home = bool(b.get("is_freya_home", false))
 		b["is_store"] = false
-		b["enterable"] = is_freya_home
+		b["generates_free_aliens"] = false
+		b["enterable"] = true
+		b["building_type"] = "freya_home" if is_freya_home else ""
+		b["building_display_name"] = "Freya and Ryah Diane's Home" if is_freya_home else ""
 		b["store_food_slots"] = 0
 		b["entry_pos"] = Vector2(-1.0, -1.0)
 		b["store_walk_blockers"] = []
@@ -2845,7 +3042,7 @@ func _mark_store_buildings() -> void:
 			continue
 
 		var fp: Rect2 = b["footprint"]
-		if fp.size.x < 6.0 or fp.size.y < 4.4:
+		if fp.size.x < 5.2 or fp.size.y < 4.0:
 			continue
 		var center_x = fp.position.x + fp.size.x * 0.5
 		var front_is_south = bool(b.get("front_is_south", true))
@@ -2859,38 +3056,80 @@ func _mark_store_buildings() -> void:
 			continue
 		candidates.append(i)
 
-	# Fallback: if strict frontage checks fail on a generated block, still designate
-	# obvious larger buildings as stores so the feature is always present.
-	if candidates.is_empty():
+	# Retain enough viable lots for each named public building even if a generated
+	# street frontage misses the stricter commercial probe.
+	if candidates.size() < 4:
+		var known := {}
+		for candidate_index in candidates:
+			known[candidate_index] = true
 		for i in range(buildings.size()):
 			var b: Dictionary = buildings[i]
-			if bool(b.get("is_freya_home", false)):
+			if bool(b.get("is_freya_home", false)) or known.has(i):
 				continue
 			var fp: Rect2 = b["footprint"]
-			if fp.size.x >= 5.6 and fp.size.y >= 4.2:
+			if fp.size.x >= 5.0 and fp.size.y >= 3.9:
 				candidates.append(i)
+				known[i] = true
 
-	if candidates.is_empty():
-		_rebuild_walkability_cache()
-		_apply_store_focus_visuals()
-		return
+	var special_types = [BUILDING_TYPE_PHARMACY, BUILDING_TYPE_GROCERY, BUILDING_TYPE_POLICE, BUILDING_TYPE_CLINIC]
+	var selected_special := {}
+	var selected_centers: Array[Vector2] = []
+	var candidate_pool: Array[int] = candidates.duplicate()
+	for type_index in range(special_types.size()):
+		if candidate_pool.is_empty():
+			break
+		var pick_slot = rng.randi_range(0, candidate_pool.size() - 1) if selected_centers.is_empty() else 0
+		if not selected_centers.is_empty():
+			var best_spacing = -1.0
+			for slot in range(candidate_pool.size()):
+				var candidate_center: Vector2 = buildings[candidate_pool[slot]].get("footprint", Rect2()).get_center()
+				var nearest_selected = INF
+				for selected_center in selected_centers:
+					nearest_selected = minf(nearest_selected, candidate_center.distance_squared_to(selected_center))
+				if nearest_selected > best_spacing:
+					best_spacing = nearest_selected
+					pick_slot = slot
+		var chosen_index = candidate_pool[pick_slot]
+		candidate_pool.remove_at(pick_slot)
+		selected_special[chosen_index] = special_types[type_index]
+		selected_centers.append(buildings[chosen_index].get("footprint", Rect2()).get_center())
 
-	# A suburban village has a few neighborhood shops, not a storefront on every block.
-	var target_count = clampi(int(round(float(candidates.size()) * 0.06)), 4, 6)
-	target_count = mini(target_count, candidates.size())
-	for n in range(target_count):
-		var pick = rng.randi_range(0, candidates.size() - 1)
-		var idx = candidates[pick]
-		candidates.remove_at(pick)
-		var store: Dictionary = buildings[idx]
-		store["is_store"] = true
-		store["enterable"] = true
-		var fp_store: Rect2 = store.get("footprint", Rect2())
-		store["store_food_slots"] = clampi(int(round(fp_store.size.x * fp_store.size.y * 0.17)), 6, 14)
-		store = _decorate_storefront(store)
-		store = _create_store_entry_indicator(store)
-		buildings[idx] = store
-		store_building_indices.append(idx)
+	for idx in range(buildings.size()):
+		var building: Dictionary = buildings[idx]
+		if bool(building.get("is_freya_home", false)):
+			continue
+		var floors = int(building.get("floors", 1))
+		var building_type = str(selected_special.get(idx, ""))
+		if building_type.is_empty():
+			building_type = BUILDING_TYPE_RESIDENCE_RANCH if floors <= 1 else (BUILDING_TYPE_RESIDENCE_FAMILY if floors == 2 else BUILDING_TYPE_RESIDENCE_WALKUP)
+		building["building_type"] = building_type
+		building["bottom_floor_only"] = true
+		building["enterable"] = not bool(building.get("alien_occupied", false))
+		var display_names = {
+			BUILDING_TYPE_RESIDENCE_RANCH: "Ranch Residence",
+			BUILDING_TYPE_RESIDENCE_FAMILY: "Two-Story Residence",
+			BUILDING_TYPE_RESIDENCE_WALKUP: "Three-Story Residence",
+			BUILDING_TYPE_PHARMACY: "Northbrook Pharmacy",
+			BUILDING_TYPE_GROCERY: "Northbrook Grocery",
+			BUILDING_TYPE_POLICE: "Northbrook Police",
+			BUILDING_TYPE_CLINIC: "Northbrook Medical Clinic"
+		}
+		building["building_display_name"] = str(display_names.get(building_type, "Residence"))
+		var fp_building: Rect2 = building.get("footprint", Rect2())
+		var layout = _compute_store_layout(fp_building, bool(building.get("front_is_south", true)))
+		building["store_layout"] = layout
+		building["entry_pos"] = layout.get("entry_inside_pos", fp_building.get_center())
+		var is_storefront = building_type == BUILDING_TYPE_PHARMACY or building_type == BUILDING_TYPE_GROCERY
+		building["is_store"] = is_storefront
+		building["generates_free_aliens"] = is_storefront
+		building["store_food_slots"] = clampi(int(round(fp_building.size.x * fp_building.size.y * 0.08)), 3, 8) if building_type == BUILDING_TYPE_GROCERY else 0
+		if selected_special.has(idx):
+			building = _decorate_storefront(building)
+		building = _create_store_entry_indicator(building)
+		if is_storefront:
+			store_building_indices.append(idx)
+		enterable_building_indices.append(idx)
+		buildings[idx] = building
 	_build_store_interiors()
 	_rebuild_walkability_cache()
 	_apply_store_focus_visuals()
@@ -4495,9 +4734,10 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 
 	first_exit_abduction_root = Node3D.new()
 	first_exit_abduction_root.name = "FirstExitDogWalkerAbduction"
-	first_exit_abduction_root.set_meta("visual_signature", "friendly_freya_first_exit_abduction_v1")
+	first_exit_abduction_root.set_meta("visual_signature", "friendly_freya_first_exit_abduction_v2")
 	dynamic_root.add_child(first_exit_abduction_root, true)
 	first_exit_abduction_pairs.clear()
+	first_exit_freya_immunity_confirmed = false
 	first_exit_abduction_center = Vector3.ZERO
 	var leash_colors = [Color8(225, 75, 72), Color8(71, 151, 211), Color8(235, 178, 53)]
 	for pair_index in range(FIRST_EXIT_DOG_WALKER_COUNT):
@@ -4525,6 +4765,8 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 		var beam = FamilyVisualFactory.create_abduction_effect("DogWalkerAbduction%02d" % pair_index, Color(0.31 + float(pair_index) * 0.2, 0.9 - float(pair_index) * 0.12, 1.0))
 		first_exit_abduction_root.add_child(beam, true)
 		beam.global_position = owner_position
+		var possession = FamilyVisualFactory.create_possession_energy("DogPossessionEnergy%02d" % pair_index)
+		first_exit_abduction_root.add_child(possession, true)
 		var leash = _create_first_exit_leash(leash_colors[pair_index % leash_colors.size()])
 		first_exit_abduction_root.add_child(leash, true)
 		first_exit_abduction_pairs.append({
@@ -4535,10 +4777,16 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 			"dog_base": dog_position,
 			"walk_direction": walk_direction,
 			"beam": beam,
+			"possession": possession,
 			"leash": leash
 		})
 		first_exit_abduction_center += (owner_position + dog_position) * 0.5
 	first_exit_abduction_center /= float(FIRST_EXIT_DOG_WALKER_COUNT)
+	first_exit_freya_possession_effect = FamilyVisualFactory.create_possession_energy("FreyaRejectedPossessionEnergy")
+	first_exit_abduction_root.add_child(first_exit_freya_possession_effect, true)
+	first_exit_immunity_burst = FamilyVisualFactory.create_bark_wave("FreyaImmunityBurst", Color(0.46, 1.0, 0.83))
+	first_exit_immunity_burst.set_meta("visual_signature", "friendly_freya_immunity_burst_v1")
+	first_exit_abduction_root.add_child(first_exit_immunity_burst, true)
 	_create_first_exit_abduction_ui()
 	if ui_layer != null:
 		ui_layer.visible = false
@@ -4673,6 +4921,44 @@ func _create_first_exit_abduction_ui() -> void:
 	first_exit_abduction_scene_label.visible = OS.get_environment("FREYA_INTRO_SHOW_SCENE_ID") == "1"
 	overlay.add_child(first_exit_abduction_scene_label)
 
+	first_exit_thought_panel = Panel.new()
+	first_exit_thought_panel.name = "FirstExitThoughtPanel"
+	first_exit_thought_panel.anchor_left = 0.5
+	first_exit_thought_panel.anchor_top = 1.0
+	first_exit_thought_panel.anchor_right = 0.5
+	first_exit_thought_panel.anchor_bottom = 1.0
+	first_exit_thought_panel.offset_left = -485.0
+	first_exit_thought_panel.offset_top = -212.0
+	first_exit_thought_panel.offset_right = 485.0
+	first_exit_thought_panel.offset_bottom = -66.0
+	var thought_style = StyleBoxFlat.new()
+	thought_style.bg_color = Color(0.035, 0.055, 0.075, 0.96)
+	thought_style.border_color = Color(0.5, 1.0, 0.88, 0.92)
+	thought_style.set_border_width_all(3)
+	thought_style.set_corner_radius_all(14)
+	thought_style.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
+	thought_style.shadow_size = 8
+	first_exit_thought_panel.add_theme_stylebox_override("panel", thought_style)
+	overlay.add_child(first_exit_thought_panel)
+	first_exit_thought_speaker = Label.new()
+	first_exit_thought_speaker.name = "Speaker"
+	first_exit_thought_speaker.position = Vector2(22.0, 12.0)
+	first_exit_thought_speaker.size = Vector2(400.0, 28.0)
+	first_exit_thought_speaker.text = "FREYA'S THOUGHTS"
+	first_exit_thought_speaker.add_theme_font_size_override("font_size", 19)
+	first_exit_thought_speaker.add_theme_color_override("font_color", Color(0.5, 1.0, 0.88))
+	first_exit_thought_panel.add_child(first_exit_thought_speaker)
+	first_exit_thought_label = Label.new()
+	first_exit_thought_label.name = "Dialogue"
+	first_exit_thought_label.position = Vector2(22.0, 42.0)
+	first_exit_thought_label.size = Vector2(926.0, 90.0)
+	first_exit_thought_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	first_exit_thought_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	first_exit_thought_label.add_theme_font_size_override("font_size", 25)
+	first_exit_thought_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.96))
+	first_exit_thought_panel.add_child(first_exit_thought_label)
+	first_exit_thought_panel.visible = false
+
 
 func _update_first_exit_abduction(delta: float) -> void:
 	if not first_exit_abduction_active:
@@ -4690,11 +4976,28 @@ func _apply_first_exit_abduction_time(time_seconds: float) -> void:
 	if not first_exit_abduction_active:
 		return
 	if first_exit_abduction_scene_label != null:
-		first_exit_abduction_scene_label.text = "first_exit_01_leashed_walkers" if time_seconds < FIRST_EXIT_BEAM_START else ("first_exit_02_owner_abduction" if time_seconds < FIRST_EXIT_OWNER_VANISH_TIME else "first_exit_03_dogs_released")
+		if time_seconds < FIRST_EXIT_BEAM_START:
+			first_exit_abduction_scene_label.text = "first_exit_01_leashed_walkers"
+		elif time_seconds < FIRST_EXIT_OWNER_VANISH_TIME:
+			first_exit_abduction_scene_label.text = "first_exit_02_owner_abduction"
+		elif time_seconds < FIRST_EXIT_DOG_POSSESSION_START:
+			first_exit_abduction_scene_label.text = "first_exit_03_owners_gone"
+		elif time_seconds < FIRST_EXIT_FREYA_TARGET_START:
+			first_exit_abduction_scene_label.text = "first_exit_04_dogs_possessed"
+		elif time_seconds < FIRST_EXIT_MONOLOGUE_START:
+			first_exit_abduction_scene_label.text = "first_exit_05_freya_immune"
+		else:
+			first_exit_abduction_scene_label.text = "first_exit_06_immunity_thought"
+	if first_exit_thought_panel != null:
+		first_exit_thought_panel.visible = time_seconds >= FIRST_EXIT_MONOLOGUE_START
+	if first_exit_thought_label != null:
+		var thought_characters = clampi(int(floor(maxf(0.0, time_seconds - FIRST_EXIT_MONOLOGUE_START) * FIRST_EXIT_MONOLOGUE_TYPE_SPEED)), 0, FIRST_EXIT_IMMUNITY_TEXT.length())
+		first_exit_thought_label.text = FIRST_EXIT_IMMUNITY_TEXT.substr(0, thought_characters)
 	for pair_index in range(first_exit_abduction_pairs.size()):
 		var pair: Dictionary = first_exit_abduction_pairs[pair_index]
 		var owner: Node3D = pair.get("owner", null)
 		var beam: Node3D = pair.get("beam", null)
+		var possession: Node3D = pair.get("possession", null)
 		var leash: MeshInstance3D = pair.get("leash", null)
 		var dog_index = int(pair.get("dog_index", -1))
 		if dog_index < 0 or dog_index >= dogs.size():
@@ -4727,6 +5030,18 @@ func _apply_first_exit_abduction_time(time_seconds: float) -> void:
 		if time_seconds >= FIRST_EXIT_OWNER_VANISH_TIME and dog.has_method("force_face_direction"):
 			var confused_direction = walk_direction.rotated(Vector3.UP, sin((time_seconds - FIRST_EXIT_OWNER_VANISH_TIME) * 8.0 + float(pair_index)) * 0.85)
 			dog.call("force_face_direction", confused_direction, 1.0)
+		var dog_effect_start = FIRST_EXIT_DOG_POSSESSION_START + float(pair_index) * FIRST_EXIT_DOG_POSSESSION_STAGGER
+		var dog_effect_impact = dog_effect_start + FIRST_EXIT_DOG_POSSESSION_TRAVEL
+		var dog_effect_end = dog_effect_impact + 0.48
+		var dog_head = dog.head_world_position() if dog.has_method("head_world_position") else dog.global_position + Vector3(0.0, 0.55, 0.0)
+		_apply_first_exit_possession_energy(possession, time_seconds, dog_effect_start, dog_effect_impact, dog_effect_end, dog_head, float(pair_index))
+		if time_seconds >= dog_effect_impact:
+			var possessed_state: Dictionary = dogs[dog_index]
+			possessed_state["alien_possessed"] = true
+			possessed_state["alien_origin_possessed"] = true
+			dogs[dog_index] = possessed_state
+
+	_apply_first_exit_freya_immunity(time_seconds)
 
 	var home_fp = Rect2()
 	if freya_home_index >= 0 and freya_home_index < buildings.size():
@@ -4739,10 +5054,69 @@ func _apply_first_exit_abduction_time(time_seconds: float) -> void:
 	outward = outward.normalized()
 	var lateral = Vector3(-outward.z, 0.0, outward.x)
 	var camera_settle = clampf(time_seconds / 0.55, 0.0, 1.0)
+	var camera_target = first_exit_abduction_center + Vector3(0.0, 0.78, 0.0)
+	if time_seconds >= FIRST_EXIT_FREYA_TARGET_START:
+		camera_target = camera_target.lerp(freya.global_position + Vector3(0.0, 0.82, 0.0), 0.43)
 	var desired_camera = first_exit_abduction_center + outward * 5.7 + lateral * 3.6 + Vector3.UP * 4.35
 	camera_node.global_position = camera_node.global_position.lerp(desired_camera, camera_settle)
-	camera_node.fov = 43.0
-	camera_node.look_at(first_exit_abduction_center + Vector3(0.0, 0.78, 0.0), Vector3.UP)
+	camera_node.fov = 45.0 if time_seconds >= FIRST_EXIT_FREYA_TARGET_START else 43.0
+	camera_node.look_at(camera_target, Vector3.UP)
+
+
+func _apply_first_exit_possession_energy(effect: Node3D, time_seconds: float, start: float, impact: float, end: float, target: Vector3, phase: float) -> void:
+	if effect == null:
+		return
+	effect.visible = time_seconds >= start and time_seconds < end
+	if not effect.visible:
+		return
+	if time_seconds < impact:
+		var travel = clampf(inverse_lerp(start, impact, time_seconds), 0.0, 1.0)
+		var approach = target + Vector3(sin(phase + 0.6) * 0.48, 2.35, cos(phase + 0.4) * 0.48)
+		effect.global_position = approach.lerp(target, travel * travel)
+		effect.scale = Vector3.ONE * lerpf(1.15, 0.72, travel)
+	else:
+		var settle = clampf(inverse_lerp(impact, end, time_seconds), 0.0, 1.0)
+		effect.global_position = target
+		effect.scale = Vector3.ONE * lerpf(0.78, 1.85, settle)
+	effect.rotation.y = time_seconds * (4.5 + phase * 0.25)
+	for child in effect.get_children():
+		if child is MeshInstance3D and child.name.begins_with("PossessionRing"):
+			var ring_index = int(child.get_meta("ring_index", 0))
+			child.rotation.y = time_seconds * (5.5 if ring_index == 0 else -6.4)
+
+
+func _apply_first_exit_freya_immunity(time_seconds: float) -> void:
+	if first_exit_freya_possession_effect == null or freya == null:
+		return
+	var freya_head = freya.head_world_position() if freya.has_method("head_world_position") else freya.global_position + Vector3(0.0, 0.65, 0.0)
+	var from_dogs = freya_head - first_exit_abduction_center
+	from_dogs.y = 0.0
+	if from_dogs.length_squared() < 0.001:
+		from_dogs = Vector3.RIGHT
+	from_dogs = from_dogs.normalized()
+	var to_dogs = -from_dogs
+	if freya.has_method("force_face_direction") and time_seconds >= FIRST_EXIT_DOG_POSSESSION_START:
+		freya.call("force_face_direction", to_dogs, 1.0)
+	first_exit_freya_possession_effect.visible = time_seconds >= FIRST_EXIT_FREYA_TARGET_START and time_seconds < FIRST_EXIT_FREYA_BOUNCE_END
+	if first_exit_freya_possession_effect.visible:
+		if time_seconds < FIRST_EXIT_FREYA_IMPACT_TIME:
+			var approach_progress = clampf(inverse_lerp(FIRST_EXIT_FREYA_TARGET_START, FIRST_EXIT_FREYA_IMPACT_TIME, time_seconds), 0.0, 1.0)
+			var approach_start = freya_head + to_dogs * 1.15 + Vector3.UP * 3.4
+			first_exit_freya_possession_effect.global_position = approach_start.lerp(freya_head, approach_progress * approach_progress)
+			first_exit_freya_possession_effect.scale = Vector3.ONE * lerpf(1.2, 0.78, approach_progress)
+		else:
+			first_exit_freya_immunity_confirmed = true
+			var bounce = clampf(inverse_lerp(FIRST_EXIT_FREYA_IMPACT_TIME, FIRST_EXIT_FREYA_BOUNCE_END, time_seconds), 0.0, 1.0)
+			var bounce_end = freya_head + from_dogs * 3.4 + Vector3.UP * 3.2
+			first_exit_freya_possession_effect.global_position = freya_head.lerp(bounce_end, bounce) + Vector3.UP * sin(bounce * PI) * 0.65
+			first_exit_freya_possession_effect.scale = Vector3.ONE * lerpf(0.88, 0.16, bounce)
+		first_exit_freya_possession_effect.rotation.y = time_seconds * 6.8
+		for child in first_exit_freya_possession_effect.get_children():
+			if child is MeshInstance3D and child.name.begins_with("PossessionRing"):
+				var ring_index = int(child.get_meta("ring_index", 0))
+				child.rotation.y = time_seconds * (6.8 if ring_index == 0 else -7.6)
+	if first_exit_immunity_burst != null:
+		_apply_family_bark_wave(first_exit_immunity_burst, time_seconds, FIRST_EXIT_FREYA_IMPACT_TIME - 0.04, FIRST_EXIT_FREYA_IMPACT_TIME + 0.82, false)
 
 
 func _finish_first_exit_abduction() -> void:
@@ -4768,6 +5142,11 @@ func _finish_first_exit_abduction() -> void:
 	if first_exit_abduction_layer != null and is_instance_valid(first_exit_abduction_layer):
 		first_exit_abduction_layer.queue_free()
 	first_exit_abduction_pairs.clear()
+	first_exit_freya_possession_effect = null
+	first_exit_immunity_burst = null
+	first_exit_thought_panel = null
+	first_exit_thought_speaker = null
+	first_exit_thought_label = null
 	if ui_layer != null:
 		ui_layer.visible = true
 	if pause_menu_layer != null:
@@ -4957,7 +5336,7 @@ func _run_family_intro_validation() -> bool:
 		failures.append("post_intro_bowl_highlight_returned_immediately")
 	_append_first_exit_abduction_validation_failures(failures)
 	if failures.is_empty():
-		print("FAMILY_INTRO_OK: live home, exact dialogue, dropped pills, Ryah rescue, Freya pill-eating convulsion and internal monologue, eat-first guidance, and first-exit leashed-owner abduction validated")
+		print("FAMILY_INTRO_OK: live home, exact dialogue, dropped pills, Ryah rescue, Freya pill-eating convulsion and internal monologue, eat-first guidance, dog possession, Freya immunity, and exact first-exit thought validated")
 		return true
 	push_error("FAMILY_INTRO_FAIL: " + ", ".join(failures))
 	return false
@@ -4975,7 +5354,7 @@ func _append_first_exit_abduction_validation_failures(failures: Array[String]) -
 	first_exit_abduction_static = true
 	first_exit_abduction_time = 0.35
 	_apply_first_exit_abduction_time(first_exit_abduction_time)
-	if not first_exit_abduction_active or first_exit_abduction_root == null or str(first_exit_abduction_root.get_meta("visual_signature", "")) != "friendly_freya_first_exit_abduction_v1":
+	if not first_exit_abduction_active or first_exit_abduction_root == null or str(first_exit_abduction_root.get_meta("visual_signature", "")) != "friendly_freya_first_exit_abduction_v2":
 		failures.append("first_exit_abduction_did_not_trigger_on_home_exit")
 		return
 	if first_exit_abduction_pairs.size() != FIRST_EXIT_DOG_WALKER_COUNT:
@@ -4987,8 +5366,11 @@ func _append_first_exit_abduction_validation_failures(failures: Array[String]) -
 			failures.append("first_exit_dog_not_held_on_leash")
 		var owner: Node3D = data.get("owner", null)
 		var leash: MeshInstance3D = data.get("leash", null)
+		var possession: Node3D = data.get("possession", null)
 		if owner == null or not owner.visible or leash == null or not leash.visible or not bool(leash.get_meta("connects_owner_to_dog", false)):
 			failures.append("first_exit_owner_or_leash_missing")
+		if possession == null or str(possession.get_meta("visual_signature", "")) != "friendly_freya_possession_energy_v1":
+			failures.append("first_exit_dog_possession_visual_missing")
 	_apply_first_exit_abduction_time(2.15)
 	for pair in first_exit_abduction_pairs:
 		var data: Dictionary = pair
@@ -5007,6 +5389,32 @@ func _append_first_exit_abduction_validation_failures(failures: Array[String]) -
 			failures.append("first_exit_owner_or_leash_did_not_vanish")
 		if dog_index < 0 or dog_index >= dogs.size() or not bool(dogs[dog_index].get("first_exit_leashed", false)):
 			failures.append("first_exit_dog_released_before_owner_abduction_finished")
+	_apply_first_exit_abduction_time(4.72)
+	var visible_dog_possession_effects = 0
+	for pair in first_exit_abduction_pairs:
+		var data: Dictionary = pair
+		var possession: Node3D = data.get("possession", null)
+		if possession != null and possession.visible:
+			visible_dog_possession_effects += 1
+		var dog_index = int(data.get("dog_index", -1))
+		if dog_index < 0 or dog_index >= dogs.size() or not bool(dogs[dog_index].get("alien_possessed", false)):
+			failures.append("first_exit_dog_not_possessed")
+	if visible_dog_possession_effects < 2:
+		failures.append("first_exit_dog_possession_event_not_readable_%d" % visible_dog_possession_effects)
+	_apply_first_exit_abduction_time(6.4)
+	if first_exit_freya_possession_effect == null or not first_exit_freya_possession_effect.visible:
+		failures.append("first_exit_freya_not_targeted")
+	_apply_first_exit_abduction_time(7.28)
+	var freya_head = freya.head_world_position() if freya.has_method("head_world_position") else freya.global_position + Vector3(0.0, 0.65, 0.0)
+	if not first_exit_freya_immunity_confirmed or first_exit_freya_possession_effect == null or not first_exit_freya_possession_effect.visible:
+		failures.append("first_exit_freya_immunity_not_confirmed")
+	elif first_exit_freya_possession_effect.global_position.distance_to(freya_head) < 0.35:
+		failures.append("first_exit_possession_did_not_bounce_away")
+	if first_exit_immunity_burst == null or not first_exit_immunity_burst.visible or str(first_exit_immunity_burst.get_meta("visual_signature", "")) != "friendly_freya_immunity_burst_v1":
+		failures.append("first_exit_immunity_burst_missing")
+	_apply_first_exit_abduction_time(12.1)
+	if first_exit_thought_panel == null or not first_exit_thought_panel.visible or first_exit_thought_speaker == null or first_exit_thought_speaker.text != "FREYA'S THOUGHTS" or first_exit_thought_label == null or first_exit_thought_label.text != FIRST_EXIT_IMMUNITY_TEXT:
+		failures.append("first_exit_immunity_monologue_missing")
 	var event_root = first_exit_abduction_root
 	var event_layer = first_exit_abduction_layer
 	var released_indices: Array[int] = []
@@ -5458,6 +5866,20 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 		}
 	]
 	var palette: Dictionary = facade_palettes[posmod(palette_seed, facade_palettes.size())]
+	var building_type = str(building.get("building_type", BUILDING_TYPE_GROCERY))
+	if building_type == BUILDING_TYPE_PHARMACY:
+		palette = facade_palettes[0]
+	elif building_type == BUILDING_TYPE_POLICE:
+		palette = facade_palettes[2]
+	elif building_type == BUILDING_TYPE_CLINIC:
+		palette = {
+			"shell": Color8(213, 226, 222), "upper": Color8(142, 168, 166),
+			"trim": Color8(241, 246, 239), "sign": Color8(63, 147, 151),
+			"sign_emission": Color(0.15, 0.48, 0.5), "canopy": Color8(62, 139, 142),
+			"stripe": Color8(222, 241, 235)
+		}
+	elif building_type == BUILDING_TYPE_GROCERY:
+		palette = facade_palettes[3]
 	var shell_color: Color = palette.get("shell", Color8(181, 169, 152))
 	var upper_color: Color = palette.get("upper", Color8(152, 142, 132))
 	var trim_color: Color = palette.get("trim", Color8(226, 216, 198))
@@ -5815,6 +6237,25 @@ func _decorate_storefront(building: Dictionary) -> Dictionary:
 	sign.position = Vector3(center_x, storefront_h - 0.36, front_door_z + front_sign * 0.08)
 	sign.material_override = sign_mat
 	shell_root.add_child(sign)
+	var sign_names = {
+		BUILDING_TYPE_PHARMACY: "PHARMACY",
+		BUILDING_TYPE_GROCERY: "GROCERY",
+		BUILDING_TYPE_POLICE: "POLICE",
+		BUILDING_TYPE_CLINIC: "MEDICAL CLINIC"
+	}
+	var sign_label = Label3D.new()
+	sign_label.name = "BuildingTypeSign"
+	sign_label.text = str(sign_names.get(building_type, "SHOP"))
+	sign_label.font_size = 54
+	sign_label.outline_size = 8
+	sign_label.modulate = Color8(255, 249, 226)
+	sign_label.outline_modulate = sign_color.darkened(0.45)
+	sign_label.position = Vector3(center_x, storefront_h - 0.36, front_door_z + front_sign * 0.19)
+	sign_label.rotation.y = 0.0 if front_sign > 0.0 else PI
+	sign_label.pixel_size = 0.009
+	sign_label.width = int(sign_mesh.size.x / sign_label.pixel_size)
+	sign_label.no_depth_test = true
+	shell_root.add_child(sign_label)
 
 	var fascia = MeshInstance3D.new()
 	var fascia_mesh = BoxMesh.new()
@@ -6117,6 +6558,7 @@ func _clear_store_interiors() -> void:
 			n.queue_free()
 	store_interior_nodes.clear()
 	store_walk_blockers.clear()
+	building_services.clear()
 	for i in range(buildings.size()):
 		var b: Dictionary = buildings[i]
 		b["store_walk_blockers"] = []
@@ -6268,7 +6710,7 @@ func _add_bodega_stock_to_fixture(
 
 func _build_store_interiors() -> void:
 	_clear_store_interiors()
-	if store_building_indices.is_empty():
+	if enterable_building_indices.is_empty():
 		return
 
 	var floor_mat = StandardMaterial3D.new()
@@ -6337,10 +6779,11 @@ func _build_store_interiors() -> void:
 		m.metallic = 0.03
 		meat_mats.append(m)
 
-	for idx in store_building_indices:
+	for idx in enterable_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
 		var b: Dictionary = buildings[idx]
+		var building_type = str(b.get("building_type", BUILDING_TYPE_RESIDENCE_RANCH))
 		var fp: Rect2 = b.get("footprint", Rect2())
 		var shell_override: Node3D = b.get("store_shell_root", null)
 		var has_override_shell = shell_override != null and is_instance_valid(shell_override)
@@ -6456,6 +6899,8 @@ func _build_store_interiors() -> void:
 			)
 			candidate_fixtures.append({"rect": island2, "kind": "produce"})
 
+		if building_type != BUILDING_TYPE_GROCERY:
+			candidate_fixtures = _building_program_fixture_candidates(building_type, x0, x1, z0, z1, front_is_south, wall_t)
 		var layout_pick = _select_store_fixtures_for_access(interior_rect, entry_inside, wall_blockers, candidate_fixtures)
 		var selected_fixtures: Array = layout_pick.get("fixtures", [])
 		var reachable_points: PackedVector2Array = layout_pick.get("reachable", PackedVector2Array())
@@ -6467,12 +6912,19 @@ func _build_store_interiors() -> void:
 			if fixture_rect.size.x <= 0.01 or fixture_rect.size.y <= 0.01:
 				continue
 			var kind = str(item.get("kind", "produce"))
+			if building_type != BUILDING_TYPE_GROCERY:
+				continue
 			if kind == "meat":
 				meat_fixtures.append(fixture_rect)
 			else:
 				produce_fixtures.append(fixture_rect)
 
 		for wall_rect in wall_visuals:
+			var residential_shell_owns_walls = building_type in [BUILDING_TYPE_RESIDENCE_RANCH, BUILDING_TYPE_RESIDENCE_FAMILY, BUILDING_TYPE_RESIDENCE_WALKUP]
+			if residential_shell_owns_walls:
+				# The procedural house shell has actual window and door openings. An
+				# opaque duplicate wall just inside it would defeat transparent glazing.
+				continue
 			var front_left_window_wall: Rect2 = layout.get("front_left_wall", Rect2())
 			var front_right_window_wall: Rect2 = layout.get("front_right_wall", Rect2())
 			if has_override_shell and (wall_rect == front_left_window_wall or wall_rect == front_right_window_wall):
@@ -6513,16 +6965,21 @@ func _build_store_interiors() -> void:
 			_add_store_stand(interior_root, fixture, shelf_mat, wall_trim_mat, 0.88)
 			_add_bodega_stock_to_fixture(interior_root, fixture.grow(-0.02), 0.92, meat_mats, true)
 
-		var fridge_count = clampi(int(round(inner_w / 3.2)), 1, 3)
-		for fi in range(fridge_count):
-			var t = (float(fi) + 0.5) / float(fridge_count)
-			var fridge = MeshInstance3D.new()
-			var fridge_mesh = BoxMesh.new()
-			fridge_mesh.size = Vector3(0.46, 1.85, 0.34)
-			fridge.mesh = fridge_mesh
-			fridge.position = Vector3(lerpf(x0 + 0.85, x1 - 0.85, t), 0.93, z0 + 0.54 if front_is_south else z1 - 0.54)
-			fridge.material_override = fridge_mat
-			interior_root.add_child(fridge)
+		if building_type == BUILDING_TYPE_GROCERY:
+			var fridge_count = clampi(int(round(inner_w / 3.2)), 1, 3)
+			for fi in range(fridge_count):
+				var t = (float(fi) + 0.5) / float(fridge_count)
+				var fridge = MeshInstance3D.new()
+				var fridge_mesh = BoxMesh.new()
+				fridge_mesh.size = Vector3(0.46, 1.85, 0.34)
+				fridge.mesh = fridge_mesh
+				fridge.position = Vector3(lerpf(x0 + 0.85, x1 - 0.85, t), 0.93, z0 + 0.54 if front_is_south else z1 - 0.54)
+				fridge.material_override = fridge_mat
+				interior_root.add_child(fridge)
+		else:
+			_decorate_building_program_interior(interior_root, building_type, selected_fixtures, shelf_mat, wall_trim_mat, interior_rect)
+
+		_create_building_program_service(idx, b, interior_root, interior_rect, entry_inside, reachable_points)
 
 		b["store_walk_blockers"] = blockers
 		b["store_interior_rect"] = interior_rect
@@ -6538,6 +6995,208 @@ func _build_store_interiors() -> void:
 			"fixture_top_max": 1.06
 		}
 		buildings[idx] = b
+
+func _building_program_fixture_candidates(
+	building_type: String,
+	x0: float,
+	x1: float,
+	z0: float,
+	z1: float,
+	front_is_south: bool,
+	wall_t: float
+) -> Array[Dictionary]:
+	var fixtures: Array[Dictionary] = []
+	var width = x1 - x0
+	var depth = z1 - z0
+	var back_z = z0 + wall_t + 0.3 if front_is_south else z1 - wall_t - 0.75
+	var side_depth = maxf(0.9, depth - 2.0)
+	if building_type == BUILDING_TYPE_PHARMACY:
+		fixtures.append({"rect": Rect2(x0 + wall_t + 0.18, z0 + 0.9, 0.42, side_depth), "kind": "medicine_shelf"})
+		fixtures.append({"rect": Rect2(x1 - wall_t - 0.6, z0 + 0.9, 0.42, side_depth), "kind": "medicine_shelf"})
+		fixtures.append({"rect": Rect2(x0 + width * 0.27, back_z, width * 0.46, 0.45), "kind": "pharmacy_counter"})
+	elif building_type == BUILDING_TYPE_POLICE:
+		fixtures.append({"rect": Rect2(x0 + width * 0.27, back_z, width * 0.46, 0.52), "kind": "police_desk"})
+		fixtures.append({"rect": Rect2(x0 + wall_t + 0.2, z0 + depth * 0.43, 0.44, minf(1.6, depth * 0.32)), "kind": "bench"})
+	elif building_type == BUILDING_TYPE_CLINIC:
+		fixtures.append({"rect": Rect2(x0 + width * 0.31, back_z, width * 0.38, 0.48), "kind": "reception"})
+		if width > 4.4:
+			fixtures.append({"rect": Rect2(x0 + width * 0.18, z0 + depth * 0.45, 0.72, 1.35), "kind": "exam_bed"})
+			fixtures.append({"rect": Rect2(x1 - width * 0.18 - 0.72, z0 + depth * 0.45, 0.72, 1.35), "kind": "exam_bed"})
+	else:
+		# Each residence exposes only this furnished ground floor. Upper floors are
+		# represented outside, but have no stair access yet.
+		fixtures.append({"rect": Rect2(x0 + width * 0.24, back_z, width * 0.52, 0.5), "kind": "sofa"})
+		fixtures.append({"rect": Rect2(x0 + wall_t + 0.2, z0 + depth * 0.46, 0.46, minf(1.55, depth * 0.28)), "kind": "kitchen"})
+		if width > 4.4 and depth > 3.5:
+			fixtures.append({"rect": Rect2(x0 + width * 0.54 - 0.45, z0 + depth * 0.52 - 0.38, 0.9, 0.76), "kind": "table"})
+	return fixtures
+
+func _add_program_box(parent: Node3D, name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
+	var item = MeshInstance3D.new()
+	item.name = name
+	var mesh = BoxMesh.new()
+	mesh.size = size
+	item.mesh = mesh
+	item.position = position
+	item.material_override = material
+	parent.add_child(item)
+	return item
+
+func _decorate_building_program_interior(
+	parent: Node3D,
+	building_type: String,
+	fixtures: Array,
+	wood_material: Material,
+	trim_material: Material,
+	interior_rect: Rect2
+) -> void:
+	var accent = StandardMaterial3D.new()
+	accent.roughness = 0.72
+	accent.albedo_color = Color8(89, 135, 184)
+	if building_type == BUILDING_TYPE_PHARMACY:
+		accent.albedo_color = Color8(75, 151, 119)
+	elif building_type == BUILDING_TYPE_POLICE:
+		accent.albedo_color = Color8(48, 82, 139)
+	elif building_type == BUILDING_TYPE_CLINIC:
+		accent.albedo_color = Color8(95, 169, 174)
+	elif building_type == BUILDING_TYPE_RESIDENCE_RANCH:
+		accent.albedo_color = Color8(184, 115, 82)
+	elif building_type == BUILDING_TYPE_RESIDENCE_FAMILY:
+		accent.albedo_color = Color8(104, 139, 103)
+	elif building_type == BUILDING_TYPE_RESIDENCE_WALKUP:
+		accent.albedo_color = Color8(120, 104, 151)
+
+	for item in fixtures:
+		if not (item is Dictionary):
+			continue
+		var rect: Rect2 = item.get("rect", Rect2())
+		if rect.size.x <= 0.03 or rect.size.y <= 0.03:
+			continue
+		var kind = str(item.get("kind", "fixture"))
+		var center = Vector3(rect.get_center().x, 0.0, rect.get_center().y)
+		var height = 0.75
+		if kind == "medicine_shelf":
+			height = 1.45
+		elif kind == "exam_bed":
+			height = 0.62
+		elif kind == "bench" or kind == "sofa":
+			height = 0.58
+		elif kind == "kitchen":
+			height = 0.9
+		_add_program_box(parent, "ProgramFixture_%s" % kind, Vector3(rect.size.x, height, rect.size.y), center + Vector3(0.0, height * 0.5, 0.0), accent)
+		_add_program_box(parent, "ProgramFixtureTop", Vector3(maxf(0.06, rect.size.x - 0.05), 0.055, maxf(0.06, rect.size.y - 0.05)), center + Vector3(0.0, height + 0.025, 0.0), wood_material)
+		if kind == "medicine_shelf":
+			for row in range(4):
+				_add_program_box(parent, "MedicineShelf", Vector3(rect.size.x + 0.05, 0.045, rect.size.y + 0.05), center + Vector3(0.0, 0.28 + float(row) * 0.34, 0.0), trim_material)
+		elif kind == "exam_bed":
+			_add_program_box(parent, "ExamPillow", Vector3(rect.size.x * 0.72, 0.12, rect.size.y * 0.23), center + Vector3(0.0, height + 0.09, -rect.size.y * 0.31), trim_material)
+		elif kind == "sofa":
+			_add_program_box(parent, "SofaBack", Vector3(rect.size.x, 0.55, 0.18), center + Vector3(0.0, 0.57, -rect.size.y * 0.34), accent)
+
+	var back_z = interior_rect.position.y + 0.08
+	var center_x = interior_rect.get_center().x
+	if building_type == BUILDING_TYPE_POLICE:
+		for locker_index in range(3):
+			_add_program_box(parent, "PoliceLocker", Vector3(0.48, 1.45, 0.24), Vector3(center_x + (float(locker_index) - 1.0) * 0.54, 0.725, back_z), accent)
+	elif building_type == BUILDING_TYPE_CLINIC:
+		for cabinet_index in range(3):
+			_add_program_box(parent, "ClinicWallCabinet", Vector3(0.62, 0.62, 0.22), Vector3(center_x + (float(cabinet_index) - 1.0) * 0.7, 1.45, back_z), accent)
+		var cross_mat = StandardMaterial3D.new()
+		cross_mat.albedo_color = Color8(202, 65, 70)
+		cross_mat.emission_enabled = true
+		cross_mat.emission = Color(0.55, 0.08, 0.09)
+		cross_mat.emission_energy_multiplier = 0.35
+		_add_program_box(parent, "ClinicCrossVertical", Vector3(0.16, 0.72, 0.06), Vector3(center_x, 1.62, back_z + 0.15), cross_mat)
+		_add_program_box(parent, "ClinicCrossHorizontal", Vector3(0.62, 0.16, 0.06), Vector3(center_x, 1.62, back_z + 0.15), cross_mat)
+	elif building_type == BUILDING_TYPE_PHARMACY:
+		var pharmacy_label = Label3D.new()
+		pharmacy_label.name = "PharmacyInteriorLabel"
+		pharmacy_label.text = "PRESCRIPTIONS"
+		pharmacy_label.font_size = 42
+		pharmacy_label.outline_size = 6
+		pharmacy_label.modulate = Color8(63, 137, 104)
+		pharmacy_label.position = Vector3(center_x, 1.86, back_z + 0.13)
+		pharmacy_label.rotation.y = PI
+		pharmacy_label.pixel_size = 0.008
+		parent.add_child(pharmacy_label)
+
+func _service_position_from_reachable(reachable: PackedVector2Array, entry_inside: Vector2, interior_rect: Rect2) -> Vector2:
+	var best = interior_rect.get_center()
+	var best_score = -1.0
+	for point in reachable:
+		var edge_margin = minf(
+			minf(point.x - interior_rect.position.x, interior_rect.end.x - point.x),
+			minf(point.y - interior_rect.position.y, interior_rect.end.y - point.y)
+		)
+		if edge_margin < 0.32:
+			continue
+		var score = point.distance_squared_to(entry_inside)
+		if score > best_score:
+			best_score = score
+			best = point
+	return best
+
+func _create_building_program_service(
+	building_index: int,
+	building: Dictionary,
+	parent: Node3D,
+	interior_rect: Rect2,
+	entry_inside: Vector2,
+	reachable: PackedVector2Array
+) -> void:
+	var building_type = str(building.get("building_type", ""))
+	var service_type = ""
+	if building_type == BUILDING_TYPE_GROCERY:
+		service_type = "infinite_dog_food"
+	elif building_type == BUILDING_TYPE_PHARMACY:
+		service_type = "possession_immunity_medicine"
+	elif building_type == BUILDING_TYPE_POLICE:
+		service_type = "dog_armor"
+	else:
+		return
+
+	var point = _service_position_from_reachable(reachable, entry_inside, interior_rect)
+	var root = Node3D.new()
+	root.name = "BuildingService_%s" % service_type
+	root.position = Vector3(point.x, 0.0, point.y)
+	parent.add_child(root)
+	var base_mat = StandardMaterial3D.new()
+	base_mat.roughness = 0.62
+	base_mat.albedo_color = Color8(218, 151, 70) if service_type == "infinite_dog_food" else (Color8(85, 178, 132) if service_type == "possession_immunity_medicine" else Color8(47, 79, 136))
+	if service_type == "infinite_dog_food":
+		var bowl = MeshInstance3D.new()
+		bowl.name = "InfiniteDogFoodBowl"
+		var bowl_mesh = CylinderMesh.new()
+		bowl_mesh.top_radius = 0.34
+		bowl_mesh.bottom_radius = 0.27
+		bowl_mesh.height = 0.14
+		bowl.mesh = bowl_mesh
+		bowl.position.y = 0.08
+		bowl.material_override = base_mat
+		root.add_child(bowl)
+		var food_mat = StandardMaterial3D.new()
+		food_mat.albedo_color = Color8(112, 67, 38)
+		food_mat.roughness = 0.94
+		_add_program_box(root, "InfiniteKibble", Vector3(0.45, 0.06, 0.45), Vector3(0.0, 0.16, 0.0), food_mat)
+	elif service_type == "possession_immunity_medicine":
+		_add_program_box(root, "MedicineDispenser", Vector3(0.56, 0.92, 0.42), Vector3(0.0, 0.46, 0.0), base_mat)
+		var white_mat = StandardMaterial3D.new()
+		white_mat.albedo_color = Color8(244, 244, 232)
+		_add_program_box(root, "MedicineCrossVertical", Vector3(0.1, 0.42, 0.04), Vector3(0.0, 0.56, 0.235), white_mat)
+		_add_program_box(root, "MedicineCrossHorizontal", Vector3(0.36, 0.1, 0.04), Vector3(0.0, 0.56, 0.235), white_mat)
+	else:
+		_add_program_box(root, "ArmorRack", Vector3(0.72, 1.15, 0.3), Vector3(0.0, 0.575, 0.0), base_mat)
+		var armor_mat = StandardMaterial3D.new()
+		armor_mat.albedo_color = Color8(45, 51, 58)
+		armor_mat.metallic = 0.42
+		armor_mat.roughness = 0.38
+		_add_program_box(root, "DogArmorVest", Vector3(0.48, 0.42, 0.2), Vector3(0.0, 0.72, 0.18), armor_mat)
+	building_services.append({
+		"building_index": building_index,
+		"service_type": service_type,
+		"node": root,
+		"pos": point
+	})
 
 func _select_store_fixtures_for_access(
 	interior_rect: Rect2,
@@ -7891,23 +8550,8 @@ func _spawn_freya_and_dogs() -> void:
 	var city_dogs = max(0, total_dogs - park_dogs)
 	var city_points = _spawn_points_even(city_dogs, "sidewalk")
 	var park_points = _spawn_points_in_rect(dog_park.grow(-0.45), park_dogs, "grass")
-	# Possession is sampled separately from every cosmetic decision. Exactly 75%
-	# of NPC dogs are selected at random, but nothing on the dog model receives
-	# this state; Freya's behavior is the player's only clue before expulsion.
-	var possession_rng = RandomNumberGenerator.new()
-	possession_rng.seed = int(rng.randi()) ^ 0x6A09E667
-	var shuffled_indices: Array[int] = []
-	for dog_index in range(total_dogs):
-		shuffled_indices.append(dog_index)
-	for shuffle_index in range(shuffled_indices.size() - 1, 0, -1):
-		var swap_index = possession_rng.randi_range(0, shuffle_index)
-		var held = shuffled_indices[shuffle_index]
-		shuffled_indices[shuffle_index] = shuffled_indices[swap_index]
-		shuffled_indices[swap_index] = held
-	var possessed_indices := {}
-	var possessed_target_count = clampi(int(round(float(total_dogs) * ALIEN_POSSESSION_CHANCE)), 0, total_dogs)
-	for selected_index in range(possessed_target_count):
-		possessed_indices[shuffled_indices[selected_index]] = true
+	# Every NPC dog begins possessed. Possession remains completely independent
+	# from breed and coat choices, so the intro event is the player's visual clue.
 
 	for i in range(total_dogs):
 		var dog = DogAgentScript.new()
@@ -8006,7 +8650,7 @@ func _spawn_freya_and_dogs() -> void:
 		dog.scale = Vector3.ONE
 		dynamic_root.add_child(dog)
 		var pref_surface = _pick_dog_pref_surface(in_park)
-		var starts_possessed = possessed_indices.has(i)
+		var starts_possessed = true
 		dogs.append({
 			"node": dog,
 			"dir": _random_dir(),
@@ -8029,6 +8673,8 @@ func _spawn_freya_and_dogs() -> void:
 			"alien_possessed": starts_possessed,
 			"alien_origin_possessed": starts_possessed,
 			"alien_expelled": false,
+			"possession_immune": false,
+			"has_dog_armor": false,
 			"exorcism_progress": 0.0,
 			"exorcism_latched": false,
 			"alien_transfer_serial": -1,
@@ -8437,6 +9083,20 @@ func _freya_spawn_point_near_dog_park() -> Vector3:
 					break
 			if target_index < 0 and not store_building_indices.is_empty():
 				target_index = store_building_indices[0]
+		elif visual_view.begins_with("building_"):
+			var requested_types = {
+				"building_residence_outside": BUILDING_TYPE_RESIDENCE_FAMILY,
+				"building_residence_inside": BUILDING_TYPE_RESIDENCE_FAMILY,
+				"building_pharmacy_inside": BUILDING_TYPE_PHARMACY,
+				"building_grocery_inside": BUILDING_TYPE_GROCERY,
+				"building_police_inside": BUILDING_TYPE_POLICE,
+				"building_clinic_inside": BUILDING_TYPE_CLINIC
+			}
+			var requested_type = str(requested_types.get(visual_view, ""))
+			for building_index in range(buildings.size()):
+				if str(buildings[building_index].get("building_type", "")) == requested_type:
+					target_index = building_index
+					break
 		elif visual_view == "wide_gable" or visual_view == "wide_hip":
 			var requested_style = "gable" if visual_view == "wide_gable" else "hip"
 			var best_area = -1.0
@@ -8466,7 +9126,10 @@ func _freya_spawn_point_near_dog_park() -> Vector3:
 			var target_point = Vector2(target_fp.get_center().x, target_fp.position.y + (target_fp.size.y if target_front_south else 0.0) + target_front_sign * 2.0)
 			if visual_view == "home_inside" or visual_view == "post_intro_food_tutorial":
 				target_point = target_building.get("home_interior_rect", target_fp).get_center()
-			elif visual_view == "home_outside" or visual_view == "storefront":
+			elif visual_view.ends_with("_inside"):
+				var reachable: PackedVector2Array = target_building.get("store_reachable_points", PackedVector2Array())
+				target_point = reachable[int(reachable.size() * 0.5)] if not reachable.is_empty() else target_building.get("store_interior_rect", target_fp).get_center()
+			elif visual_view == "home_outside" or visual_view == "storefront" or visual_view.ends_with("_outside"):
 				target_point = target_layout.get("entry_outside_pos", target_point)
 			return Vector3(target_point.x, 0.0, target_point.y)
 	var home_preview = OS.get_environment("FREYA_START_AT_HOME").to_lower()
@@ -8544,7 +9207,7 @@ func _point_in_dog_park_fence(p: Vector2, pad: float) -> bool:
 	return false
 
 func _point_in_occupied_store(p: Vector2, pad: float = 0.0) -> bool:
-	for store_index in store_building_indices:
+	for store_index in enterable_building_indices:
 		if store_index < 0 or store_index >= buildings.size():
 			continue
 		var store: Dictionary = buildings[store_index]
@@ -8770,6 +9433,208 @@ func _increase_freya_hunger(delta: float, rate_per_second: float) -> void:
 		return
 	freya_hunger = clampf(freya_hunger + delta * rate_per_second, 0.0, 100.0)
 
+func _is_dog_park_training_active() -> bool:
+	return not active_dog_park_training.is_empty() and freya != null and is_instance_valid(freya)
+
+func _nearest_dog_park_training_item(max_range: float = DOG_PARK_TRAINING_INTERACT_RANGE) -> Dictionary:
+	if freya == null or not is_instance_valid(freya):
+		return {}
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	var best: Dictionary = {}
+	var best_distance_sq = max_range * max_range
+	for item_index in range(dog_park_training_items.size()):
+		var item: Dictionary = dog_park_training_items[item_index]
+		var node: Node3D = item.get("node", null)
+		var path: PackedVector3Array = item.get("path", PackedVector3Array())
+		if node == null or not is_instance_valid(node) or path.size() < 2:
+			continue
+		for endpoint_index in [0, path.size() - 1]:
+			var endpoint: Vector3 = path[endpoint_index]
+			var endpoint_2d = Vector2(endpoint.x, endpoint.z)
+			var distance_sq = freya_pos.distance_squared_to(endpoint_2d)
+			if distance_sq > best_distance_sq:
+				continue
+			best_distance_sq = distance_sq
+			best = {
+				"item_index": item_index,
+				"endpoint_index": endpoint_index,
+				"endpoint": endpoint,
+				"distance_sq": distance_sq
+			}
+	return best
+
+func _reversed_training_path(source: PackedVector3Array) -> PackedVector3Array:
+	var reversed = PackedVector3Array()
+	for source_index in range(source.size() - 1, -1, -1):
+		reversed.append(source[source_index])
+	return reversed
+
+func _dog_park_training_status(kind: String) -> String:
+	match kind:
+		"weave_poles":
+			return "Freya weaves through the poles!"
+		"jump_hurdle":
+			return "Freya takes the hurdle!"
+		"a_frame":
+			return "Freya climbs the A-frame!"
+		"crawl_tunnel":
+			return "Freya crawls through the tunnel!"
+	return "Freya trains!"
+
+func _try_start_dog_park_training() -> bool:
+	if _is_dog_park_training_active() or freya_vomit_timer > 0.0 or freya_eat_timer > 0.0:
+		return _is_dog_park_training_active()
+	var nearest = _nearest_dog_park_training_item()
+	if nearest.is_empty():
+		return false
+	var item_index = int(nearest.get("item_index", -1))
+	if item_index < 0 or item_index >= dog_park_training_items.size():
+		return false
+	var item: Dictionary = dog_park_training_items[item_index]
+	var source_path: PackedVector3Array = item.get("path", PackedVector3Array())
+	if source_path.size() < 2:
+		return false
+	var route = source_path.duplicate()
+	if int(nearest.get("endpoint_index", 0)) == source_path.size() - 1:
+		route = _reversed_training_path(source_path)
+	var kind = str(item.get("kind", ""))
+	var approach_start = freya.global_position
+	approach_start.y = 0.0
+	active_dog_park_training = {
+		"kind": kind,
+		"route": route,
+		"approach_start": approach_start,
+		"elapsed": 0.0,
+		"duration": float(item.get("duration", DOG_PARK_TRAINING_DURATIONS.get(kind, 1.6)))
+	}
+	freya_move_dir = Vector3.ZERO
+	if active_claim_target_type != CLAIM_TARGET_NONE and active_claim_target_index >= 0:
+		_reset_claim_progress(active_claim_target_type, active_claim_target_index)
+	active_claim_target_type = CLAIM_TARGET_NONE
+	active_claim_target_index = -1
+	_stop_claim_pee_audio()
+	_hide_claim_pee_effect()
+	_hide_claim_meter()
+	_hide_interactable_highlights()
+	_show_status(_dog_park_training_status(kind), 1.1)
+	return true
+
+func _sample_dog_park_training_path(path: PackedVector3Array, progress: float, kind: String) -> Vector3:
+	if path.is_empty():
+		return freya.global_position if freya != null else Vector3.ZERO
+	if path.size() == 1:
+		return path[0]
+	var t = clampf(progress, 0.0, 1.0)
+	if kind == "jump_hurdle":
+		var jump_position = path[0].lerp(path[path.size() - 1], t)
+		jump_position.y += sin(t * PI) * 0.94
+		return jump_position
+
+	var total_length = 0.0
+	for segment_index in range(path.size() - 1):
+		total_length += path[segment_index].distance_to(path[segment_index + 1])
+	if total_length <= 0.0001:
+		return path[path.size() - 1]
+	var target_distance = t * total_length
+	var traversed = 0.0
+	for segment_index in range(path.size() - 1):
+		var segment_start: Vector3 = path[segment_index]
+		var segment_end: Vector3 = path[segment_index + 1]
+		var segment_length = segment_start.distance_to(segment_end)
+		if target_distance <= traversed + segment_length or segment_index == path.size() - 2:
+			var local_t = clampf((target_distance - traversed) / maxf(0.0001, segment_length), 0.0, 1.0)
+			return segment_start.lerp(segment_end, local_t)
+		traversed += segment_length
+	return path[path.size() - 1]
+
+func _update_dog_park_training(delta: float) -> void:
+	if not _is_dog_park_training_active():
+		return
+	var route: PackedVector3Array = active_dog_park_training.get("route", PackedVector3Array())
+	if route.size() < 2:
+		active_dog_park_training.clear()
+		if freya.has_method("clear_training_pose"):
+			freya.call("clear_training_pose")
+		return
+
+	freya_social = clampf(freya_social - delta, 0.0, 100.0)
+	_increase_freya_hunger(delta, HUNGER_ACTIVE_ACTION_PER_SEC)
+	var elapsed = float(active_dog_park_training.get("elapsed", 0.0)) + delta
+	active_dog_park_training["elapsed"] = elapsed
+	var kind = str(active_dog_park_training.get("kind", ""))
+	var duration = maxf(0.1, float(active_dog_park_training.get("duration", 1.6)))
+	var approach_start: Vector3 = active_dog_park_training.get("approach_start", freya.global_position)
+
+	if elapsed < DOG_PARK_TRAINING_APPROACH_SEC:
+		var approach_t = clampf(elapsed / DOG_PARK_TRAINING_APPROACH_SEC, 0.0, 1.0)
+		approach_t = approach_t * approach_t * (3.0 - 2.0 * approach_t)
+		var approach_target: Vector3 = route[0]
+		freya.global_position = approach_start.lerp(approach_target, approach_t)
+		var approach_direction = approach_target - approach_start
+		approach_direction.y = 0.0
+		freya_move_dir = approach_direction.normalized() if approach_direction.length_squared() > 0.0001 else Vector3.ZERO
+		freya.update_motion(delta, freya_move_dir, false, false)
+		return
+
+	var training_progress = clampf((elapsed - DOG_PARK_TRAINING_APPROACH_SEC) / duration, 0.0, 1.0)
+	var position = _sample_dog_park_training_path(route, training_progress, kind)
+	var before = _sample_dog_park_training_path(route, maxf(0.0, training_progress - 0.012), kind)
+	var after = _sample_dog_park_training_path(route, minf(1.0, training_progress + 0.012), kind)
+	var tangent = after - before
+	var planar_tangent = Vector3(tangent.x, 0.0, tangent.z)
+	if planar_tangent.length_squared() < 0.0001:
+		planar_tangent = Vector3(route[route.size() - 1].x - route[0].x, 0.0, route[route.size() - 1].z - route[0].z)
+	freya_move_dir = planar_tangent.normalized() if planar_tangent.length_squared() > 0.0001 else Vector3.ZERO
+	freya.global_position = position
+	var vertical_slope = tangent.y / maxf(0.001, Vector2(tangent.x, tangent.z).length())
+	if freya.has_method("update_training_motion"):
+		freya.call("update_training_motion", delta, freya_move_dir, kind, training_progress, vertical_slope)
+	else:
+		freya.update_motion(delta, freya_move_dir, true, false)
+
+	if training_progress < 1.0:
+		return
+	freya.global_position = Vector3(route[route.size() - 1].x, 0.0, route[route.size() - 1].z)
+	if freya.has_method("clear_training_pose"):
+		freya.call("clear_training_pose")
+	active_dog_park_training.clear()
+	freya_move_dir = Vector3.ZERO
+	interact_highlight_update_timer = 0.0
+	_show_status("Training complete — good dog!", 0.9)
+
+func _update_dog_park_training_preview(delta: float) -> void:
+	if dog_park_training_preview_kind.is_empty() or freya == null or not is_instance_valid(freya):
+		return
+	var preview_item: Dictionary = {}
+	for item in dog_park_training_items:
+		if item is Dictionary and str((item as Dictionary).get("kind", "")) == dog_park_training_preview_kind:
+			preview_item = item
+			break
+	if preview_item.is_empty():
+		return
+	var route: PackedVector3Array = preview_item.get("path", PackedVector3Array())
+	if route.size() < 2:
+		return
+	var preview_phases = {
+		"weave_poles": 0.48,
+		"jump_hurdle": 0.5,
+		"a_frame": 0.43,
+		"crawl_tunnel": 0.5
+	}
+	var phase = float(preview_phases.get(dog_park_training_preview_kind, 0.5))
+	var before = _sample_dog_park_training_path(route, maxf(0.0, phase - 0.012), dog_park_training_preview_kind)
+	var position = _sample_dog_park_training_path(route, phase, dog_park_training_preview_kind)
+	var after = _sample_dog_park_training_path(route, minf(1.0, phase + 0.012), dog_park_training_preview_kind)
+	var tangent = after - before
+	var planar_tangent = Vector3(tangent.x, 0.0, tangent.z)
+	freya_move_dir = planar_tangent.normalized() if planar_tangent.length_squared() > 0.0001 else Vector3.FORWARD
+	freya.global_position = position
+	var vertical_slope = tangent.y / maxf(0.001, Vector2(tangent.x, tangent.z).length())
+	if freya.has_method("update_training_motion"):
+		freya.call("update_training_motion", delta, freya_move_dir, dog_park_training_preview_kind, phase, vertical_slope)
+	else:
+		freya.update_motion(delta, freya_move_dir, true, false)
+
 func _compute_freya_move_speed(running: bool) -> float:
 	var speed_penalty = freya_hunger * 0.0043
 	var speed = FREYA_BASE_SPEED * (1.0 - speed_penalty)
@@ -8848,8 +9713,9 @@ func _try_block_post_intro_home_exit(candidate: Vector2, attempted_direction: Ve
 	return true
 
 func _update_dogs(delta: float) -> void:
-	var friendly_requested = Input.is_action_pressed("friendly_social")
-	var aggressive_social = Input.is_action_pressed("aggressive_social")
+	var training_locked = _is_dog_park_training_active()
+	var friendly_requested = Input.is_action_pressed("friendly_social") and not training_locked
+	var aggressive_social = Input.is_action_pressed("aggressive_social") and not training_locked
 	if aggressive_social:
 		friendly_requested = false
 	var friendly_social = friendly_requested and freya_hunger < 99.999
@@ -9415,7 +10281,7 @@ func _spawn_free_alien_from_store(store_index: int) -> bool:
 	if free_aliens.size() >= MAX_FREE_ALIENS or store_index < 0 or store_index >= buildings.size():
 		return false
 	var building: Dictionary = buildings[store_index]
-	if not bool(building.get("is_store", false)) or not bool(building.get("alien_occupied", false)):
+	if not bool(building.get("generates_free_aliens", false)) or not bool(building.get("alien_occupied", false)):
 		return false
 	var visual = _create_alien_transfer_visual()
 	visual.name = "StorefrontFreeAlien"
@@ -9449,7 +10315,7 @@ func _update_free_alien_generation(delta: float) -> void:
 		if store_index < 0 or store_index >= buildings.size():
 			continue
 		var store: Dictionary = buildings[store_index]
-		if not bool(store.get("alien_occupied", false)):
+		if not bool(store.get("generates_free_aliens", false)) or not bool(store.get("alien_occupied", false)):
 			continue
 		var cooldown = maxf(0.0, float(store.get("alien_spawn_cooldown", FREE_ALIEN_SPAWN_MIN_SEC)) - delta)
 		store["alien_spawn_cooldown"] = cooldown
@@ -9651,12 +10517,12 @@ func _create_alien_building_visual(building_index: int) -> Node3D:
 	count_label.no_depth_test = true
 	crown.add_child(count_label)
 
-	if bool(building.get("is_store", false)):
+	if bool(building.get("bottom_floor_only", false)):
 		var layout: Dictionary = building.get("store_layout", {})
 		var entry: Vector2 = layout.get("entry_outside_pos", building.get("entry_pos", center))
 		var lock_local = Vector3(entry.x - center.x, 0.82, entry.y - center.y)
 		for lock_angle in [-0.62, 0.62]:
-			_alien_box(root, "AlienStoreLock", Vector3(1.45, 0.12, 0.13), lock_local, alien_core_material, lock_angle)
+			_alien_box(root, "AlienBuildingLock", Vector3(1.45, 0.12, 0.13), lock_local, alien_core_material, lock_angle)
 	return root
 
 func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool:
@@ -9667,7 +10533,7 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool
 		return false
 	var was_occupied = bool(building.get("alien_occupied", false))
 	var freya_was_inside_store = false
-	if bool(building.get("is_store", false)) and freya != null and is_instance_valid(freya):
+	if bool(building.get("enterable", false)) and freya != null and is_instance_valid(freya):
 		var freya_pos_2d = Vector2(freya.global_position.x, freya.global_position.z)
 		freya_was_inside_store = _is_inside_store_index(building_index, freya_pos_2d)
 	var visual: Node3D = building.get("alien_visual_root", null)
@@ -9676,6 +10542,7 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool
 			visual.queue_free()
 		visual = _create_alien_building_visual(building_index)
 	building["alien_occupied"] = true
+	building["enterable"] = false
 	building["alien_integrity"] = maxf(float(building.get("alien_integrity", 0.0)), 1.0 if not was_occupied else ALIEN_BUILDING_MIN_INTEGRITY)
 	building["alien_visual_root"] = visual
 	building["alien_occupant_serial"] = alien_serial
@@ -9684,6 +10551,7 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool
 		building["alien_pee_exposure"] = 0.0
 		building["alien_spawn_cooldown"] = rng.randf_range(4.0, 8.0)
 	buildings[building_index] = building
+	_rebuild_walkability_cache()
 	_update_alien_building_label(building_index)
 	if freya_was_inside_store:
 		var footprint: Rect2 = building.get("footprint", Rect2())
@@ -9714,8 +10582,8 @@ func _update_alien_building_label(building_index: int) -> void:
 		return
 	var count = maxi(0, int(building.get("alien_occupant_count", 0)))
 	var line = "ALIENS ×%d" % count
-	if bool(building.get("is_store", false)):
-		line += "\nSTORE LOCKED"
+	if bool(building.get("bottom_floor_only", false)):
+		line += "\nBUILDING LOCKED"
 	var sources = maxi(0, int(building.get("alien_reinforcement_sources", 0)))
 	if sources > 0:
 		line += "\nREINFORCED ×%d" % sources
@@ -9724,7 +10592,7 @@ func _update_alien_building_label(building_index: int) -> void:
 func _update_alien_reinforcement_fields() -> void:
 	var occupied_store_indices: Array[int] = []
 	for store_index in store_building_indices:
-		if store_index >= 0 and store_index < buildings.size() and bool(buildings[store_index].get("alien_occupied", false)):
+		if store_index >= 0 and store_index < buildings.size() and bool(buildings[store_index].get("generates_free_aliens", false)) and bool(buildings[store_index].get("alien_occupied", false)):
 			occupied_store_indices.append(store_index)
 	for building_index in range(buildings.size()):
 		var building: Dictionary = buildings[building_index]
@@ -9783,6 +10651,9 @@ func _alien_total_occupant_count() -> int:
 	return count
 
 func _update_freya_alien_discomfort(delta: float) -> void:
+	if _is_dog_park_training_active() or not dog_park_training_preview_kind.is_empty():
+		freya_alien_discomfort = 0.0
+		return
 	if freya == null or not is_instance_valid(freya):
 		freya_alien_discomfort = 0.0
 		return
@@ -10001,7 +10872,7 @@ func _hide_interactable_highlights() -> void:
 			marker.visible = false
 
 func _update_interactable_highlights(delta: float) -> void:
-	if freya == null:
+	if freya == null or _is_dog_park_training_active():
 		_hide_interactable_highlights()
 		return
 	interact_highlight_update_timer = maxf(0.0, interact_highlight_update_timer - delta)
@@ -10022,6 +10893,42 @@ func _update_interactable_highlights(delta: float) -> void:
 				freya_home_bowl_node.global_position,
 				1.38 if post_intro_meal_tutorial_active else 0.82
 			)
+
+	var service_range_sq = (BUILDING_SERVICE_RANGE + 0.16) * (BUILDING_SERVICE_RANGE + 0.16)
+	for service in building_services:
+		if not (service is Dictionary):
+			continue
+		var service_node: Node3D = service.get("node", null)
+		var service_building_index = int(service.get("building_index", -1))
+		if service_node == null or not is_instance_valid(service_node) or service_building_index < 0 or service_building_index >= buildings.size():
+			continue
+		if bool(buildings[service_building_index].get("alien_occupied", false)):
+			continue
+		var service_pos: Vector2 = service.get("pos", Vector2(service_node.global_position.x, service_node.global_position.z))
+		if freya_pos.distance_squared_to(service_pos) <= service_range_sq:
+			_mark_interactable_highlight(seen, "building_service_%d" % service_node.get_instance_id(), service_node.global_position + Vector3(0.0, 0.18, 0.0), 0.92)
+
+	if freya_carries_immunity_dose or freya_carries_dog_armor:
+		var upgrade_dog_index = _nearest_dog_for_building_upgrade(BUILDING_SERVICE_RANGE + 0.18)
+		if upgrade_dog_index >= 0:
+			var upgrade_dog: Node3D = dogs[upgrade_dog_index].get("node", null)
+			if upgrade_dog != null and is_instance_valid(upgrade_dog):
+				_mark_interactable_highlight(seen, "dog_upgrade_%d" % upgrade_dog.get_instance_id(), upgrade_dog.global_position + Vector3(0.0, 0.2, 0.0), 1.0)
+
+	var nearby_training = _nearest_dog_park_training_item(DOG_PARK_TRAINING_INTERACT_RANGE + 0.16)
+	if not nearby_training.is_empty():
+		var training_item_index = int(nearby_training.get("item_index", -1))
+		if training_item_index >= 0 and training_item_index < dog_park_training_items.size():
+			var training_item: Dictionary = dog_park_training_items[training_item_index]
+			var training_node: Node3D = training_item.get("node", null)
+			if training_node != null and is_instance_valid(training_node):
+				var training_endpoint: Vector3 = nearby_training.get("endpoint", training_item.get("visual_position", Vector3.ZERO))
+				_mark_interactable_highlight(
+					seen,
+					"dog_park_training_%s" % str(training_item.get("kind", "equipment")),
+					training_endpoint + Vector3(0.0, 0.08, 0.0),
+					1.05
+				)
 
 	if not freya_has_stick and carried_stick == null:
 		var stick_range_sq = (STICK_PICKUP_RANGE + 0.15) * (STICK_PICKUP_RANGE + 0.15)
@@ -10096,6 +11003,8 @@ func _update_interactable_highlights(delta: float) -> void:
 			marker.visible = false
 
 func _handle_actions() -> void:
+	if _is_dog_park_training_active():
+		return
 	if Input.is_action_just_pressed("eat"):
 		_try_interact()
 	if Input.is_action_just_pressed("vomit"):
@@ -10783,6 +11692,12 @@ func _update_claim_pee_effect(delta: float) -> void:
 	claim_pee_splash_node.visible = true
 
 func _update_claiming(delta: float) -> void:
+	if _is_dog_park_training_active():
+		_reset_claim_progress(active_claim_target_type, active_claim_target_index)
+		active_claim_target_type = CLAIM_TARGET_NONE
+		active_claim_target_index = -1
+		_stop_claim_pee_audio()
+		return
 	var prev_type = active_claim_target_type
 	var prev_index = active_claim_target_index
 
@@ -11049,6 +11964,12 @@ func _update_carried_stick_pose() -> void:
 	freya_has_stick = true
 
 func _try_interact() -> void:
+	if _try_apply_carried_dog_upgrade():
+		return
+	if _try_use_building_service():
+		return
+	if _try_start_dog_park_training():
+		return
 	if carried_stick != null and is_instance_valid(carried_stick):
 		freya_has_stick = true
 		if _try_eat_home_bowl(false):
@@ -11071,6 +11992,83 @@ func _try_interact() -> void:
 	if _try_eat_store_food(false):
 		return
 	_try_eat_poop(true)
+
+func _nearest_dog_for_building_upgrade(max_range: float = BUILDING_SERVICE_RANGE) -> int:
+	if freya == null or not is_instance_valid(freya):
+		return -1
+	var best_index = -1
+	var best_distance = max_range
+	for i in range(dogs.size()):
+		var dog: Node3D = dogs[i].get("node", null)
+		if dog == null or not is_instance_valid(dog):
+			continue
+		var distance = dog.global_position.distance_to(freya.global_position)
+		if distance <= best_distance:
+			best_distance = distance
+			best_index = i
+	return best_index
+
+func _try_apply_carried_dog_upgrade() -> bool:
+	if not freya_carries_immunity_dose and not freya_carries_dog_armor:
+		return false
+	var dog_index = _nearest_dog_for_building_upgrade()
+	if dog_index < 0:
+		return false
+	var state: Dictionary = dogs[dog_index]
+	if bool(state.get("alien_possessed", false)):
+		_show_status("Free this dog from possession before giving it supplies.", 1.35)
+		return true
+	var dog: Node3D = state.get("node", null)
+	if freya_carries_immunity_dose:
+		state["possession_immune"] = true
+		freya_carries_immunity_dose = false
+		dogs[dog_index] = state
+		_show_status("This dog took the pharmacy medicine and is now possession-immune!", 1.65)
+		return true
+	state["has_dog_armor"] = true
+	freya_carries_dog_armor = false
+	if dog != null and is_instance_valid(dog) and dog.has_method("set_dog_armor"):
+		dog.call("set_dog_armor", true)
+	dogs[dog_index] = state
+	_show_status("Equipped this dog with doggy armor from the police station!", 1.55)
+	return true
+
+func _try_use_building_service() -> bool:
+	if freya == null or not is_instance_valid(freya):
+		return false
+	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	var best: Dictionary = {}
+	var best_distance = BUILDING_SERVICE_RANGE
+	for service in building_services:
+		if not (service is Dictionary):
+			continue
+		var node: Node3D = service.get("node", null)
+		var building_index = int(service.get("building_index", -1))
+		if node == null or not is_instance_valid(node) or building_index < 0 or building_index >= buildings.size():
+			continue
+		if bool(buildings[building_index].get("alien_occupied", false)) or not _is_inside_store_index(building_index, freya_pos):
+			continue
+		var position: Vector2 = service.get("pos", Vector2(node.global_position.x, node.global_position.z))
+		var distance = freya_pos.distance_to(position)
+		if distance <= best_distance:
+			best_distance = distance
+			best = service
+	if best.is_empty():
+		return false
+	match str(best.get("service_type", "")):
+		"infinite_dog_food":
+			freya_hunger = 0.0
+			_trigger_freya_eat_feedback("food")
+			_show_status("Ate from the grocery's bottomless dog-food bowl — Hunger 0%", 1.45)
+		"possession_immunity_medicine":
+			freya_carries_immunity_dose = true
+			_show_status("Picked up one medicine dose. Bring it to a freed dog and press F.", 1.7)
+		"dog_armor":
+			freya_carries_dog_armor = true
+			_show_status("Picked up doggy armor. Bring it to a freed dog and press F.", 1.7)
+		_:
+			return false
+	return true
 
 func _try_eat_home_bowl(show_fail_status: bool = false) -> bool:
 	if freya == null or not is_instance_valid(freya) or freya_home_bowl_node == null or not is_instance_valid(freya_home_bowl_node):
@@ -11522,9 +12520,9 @@ func _is_inside_store_interior(store_idx: int, p: Vector2) -> bool:
 	return interior_rect.grow(0.08).has_point(p)
 
 func _store_index_for_interior_point(p: Vector2) -> int:
-	if store_building_indices.is_empty():
+	if enterable_building_indices.is_empty():
 		return -1
-	for idx in store_building_indices:
+	for idx in enterable_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
 		if _is_inside_store_interior(idx, p):
@@ -11538,10 +12536,10 @@ func _store_index_for_visual_focus(p: Vector2) -> int:
 	return _store_index_containing_freya()
 
 func _store_index_containing_freya() -> int:
-	if freya == null or store_building_indices.is_empty():
+	if freya == null or enterable_building_indices.is_empty():
 		return -1
 	var p = Vector2(freya.global_position.x, freya.global_position.z)
-	for idx in store_building_indices:
+	for idx in enterable_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
 		if _is_inside_store_index(idx, p):
@@ -11558,7 +12556,7 @@ func _apply_store_focus_visuals() -> void:
 			active_idx = active_store_index
 	if store_focus_overlay != null:
 		store_focus_overlay.visible = inside_store
-	for idx in store_building_indices:
+	for idx in enterable_building_indices:
 		if idx < 0 or idx >= buildings.size():
 			continue
 		var b: Dictionary = buildings[idx]
@@ -12143,16 +13141,24 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 	# remain on walkable ground; the alien may slide/steer but never tunnel.
 	var collision_test_index = -1
 	var collision_start = Vector3.ZERO
+	var collision_saved_building: Dictionary = {}
 	for building_index in range(buildings.size()):
 		var collision_building: Dictionary = buildings[building_index]
-		if bool(collision_building.get("enterable", false)):
+		if bool(collision_building.get("is_freya_home", false)) or bool(collision_building.get("alien_occupied", false)):
 			continue
+		collision_saved_building = collision_building.duplicate()
+		collision_building["enterable"] = false
+		buildings[building_index] = collision_building
+		_rebuild_walkability_cache()
 		var collision_center: Vector2 = collision_building.get("footprint", Rect2()).get_center()
 		var candidate_start = _alien_building_approach_position(building_index, collision_center + Vector2(100.0, 0.0))
 		if _is_walkable(candidate_start.x, candidate_start.z, ALIEN_COLLISION_RADIUS):
 			collision_test_index = building_index
 			collision_start = candidate_start
 			break
+		buildings[building_index] = collision_saved_building
+		collision_saved_building = {}
+		_rebuild_walkability_cache()
 	if collision_test_index < 0:
 		failures.append("target_alien_collision_probe_building_missing")
 	else:
@@ -12171,12 +13177,13 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 		if _point_in_blocking_building(collision_end, ALIEN_COLLISION_RADIUS + BUILDING_COLLISION_PAD):
 			failures.append("target_alien_tunneled_into_building")
 		collision_probe.queue_free()
+		buildings[collision_test_index] = collision_saved_building
+		_rebuild_walkability_cache()
 
-	var expected_possessed = int(round(float(dogs.size()) * ALIEN_POSSESSION_CHANCE))
+	var expected_possessed = dogs.size()
 	var origin_possessed = 0
 	var current_possessed = 0
 	var possessed_styles := {}
-	var ordinary_styles := {}
 	var cosmetic_styles := {}
 	var cosmetic_colors := {}
 	var possessed_test_index = -1
@@ -12198,22 +13205,18 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 		cosmetic_colors[color] = true
 		if started_possessed:
 			possessed_styles[style] = true
-		else:
-			ordinary_styles[style] = true
 		if dog == null or not is_instance_valid(dog):
 			failures.append("target_alien_dog_node_missing")
 		elif _count_nodes_named(dog, "Alien") > 0:
 			failures.append("target_secret_alien_has_visual_marker_%d" % dog_index)
 	if origin_possessed != expected_possessed:
-		failures.append("target_alien_origin_ratio_bad_%d_of_%d" % [origin_possessed, dogs.size()])
-	if origin_possessed <= 0 or origin_possessed >= dogs.size():
-		failures.append("target_alien_secret_groups_missing")
+		failures.append("target_alien_not_all_dogs_start_possessed_%d_of_%d" % [origin_possessed, dogs.size()])
 	if cosmetic_styles.size() < 3 or cosmetic_colors.size() < 4:
 		failures.append("target_dog_cosmetic_variety_low_%d_%d" % [cosmetic_styles.size(), cosmetic_colors.size()])
 	if current_possessed > origin_possessed:
 		failures.append("target_alien_dog_repossessed_without_mechanic")
-	if possessed_styles.is_empty() or ordinary_styles.is_empty():
-		failures.append("target_alien_cosmetic_groups_missing")
+	if possessed_styles.size() < 3:
+		failures.append("target_alien_possessed_cosmetic_variety_low_%d" % possessed_styles.size())
 	if possessed_test_index < 0:
 		failures.append("target_no_possessed_dog_available")
 	else:
@@ -12335,6 +13338,7 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 			travel_building_visual.queue_free()
 		buildings[occupation_test_index] = travel_saved_building
 		alien_building_occupation_count = travel_occupation_count_before
+		_rebuild_walkability_cache()
 
 		var occupation_count_before = alien_building_occupation_count
 		if not _occupy_building_with_alien(occupation_test_index, 99101):
@@ -12389,8 +13393,10 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 			weakened["alien_pee_exposure"] = 0.0
 			weakened["alien_reinforcement_sources"] = 0
 			weakened["alien_reinforcement_strength"] = 0.0
+			weakened["enterable"] = true
 			buildings[occupation_test_index] = weakened
 			alien_building_occupation_count = occupation_count_before
+			_rebuild_walkability_cache()
 
 	if freya_home_index < 0 or freya_home_index >= buildings.size():
 		failures.append("target_alien_ryah_home_missing")
@@ -12471,7 +13477,7 @@ func _append_alien_storefront_validation_failures(failures: Array[String]) -> vo
 		failures.append("target_occupied_store_still_enterable")
 	if _is_walkable(interior_center.x, interior_center.y, FREYA_COLLISION_RADIUS):
 		failures.append("target_occupied_store_not_physically_locked")
-	if store_visual == null or not is_instance_valid(store_visual) or _count_nodes_named(store_visual, "AlienStoreLock") < 2:
+	if store_visual == null or not is_instance_valid(store_visual) or _count_nodes_named(store_visual, "AlienBuildingLock") < 2:
 		failures.append("target_occupied_store_lock_visual_missing")
 	if int(occupied_store.get("alien_occupant_count", 0)) != 1:
 		failures.append("target_occupied_store_count_missing")
@@ -12557,6 +13563,7 @@ func _append_alien_storefront_validation_failures(failures: Array[String]) -> vo
 		buildings[nearby_index] = saved_nearby
 	alien_building_occupation_count = occupation_count_before
 	_update_alien_reinforcement_fields()
+	_rebuild_walkability_cache()
 	_apply_store_focus_visuals()
 
 func _append_size_validation_failures(failures: Array[String]) -> void:
@@ -12643,6 +13650,135 @@ func _append_size_validation_failures(failures: Array[String]) -> void:
 	if brick_world_w < 0.18 or brick_world_w > 0.24 or brick_world_h < 0.06 or brick_world_h > 0.085:
 		failures.append("brick_world_dimensions_bad_%.3fx%.3f" % [brick_world_w, brick_world_h])
 
+func _append_building_program_validation_failures(failures: Array[String]) -> void:
+	var type_counts := {}
+	var expected_enterable = 0
+	var residence_count = 0
+	for building_index in range(buildings.size()):
+		var building: Dictionary = buildings[building_index]
+		var building_type = str(building.get("building_type", ""))
+		type_counts[building_type] = int(type_counts.get(building_type, 0)) + 1
+		if bool(building.get("is_freya_home", false)):
+			if not bool(building.get("enterable", false)) or freya_home_interior_root == null or not is_instance_valid(freya_home_interior_root):
+				failures.append("target_building_program_home_not_enterable")
+			continue
+		expected_enterable += 1
+		if bool(building.get("alien_occupied", false)):
+			continue
+		if not bool(building.get("enterable", false)):
+			failures.append("target_clean_building_not_enterable_%d" % building_index)
+		if not enterable_building_indices.has(building_index):
+			failures.append("target_enterable_registry_missing_%d" % building_index)
+		if not bool(building.get("bottom_floor_only", false)):
+			failures.append("target_building_bottom_floor_rule_missing_%d" % building_index)
+		if building_type in [BUILDING_TYPE_RESIDENCE_RANCH, BUILDING_TYPE_RESIDENCE_FAMILY, BUILDING_TYPE_RESIDENCE_WALKUP]:
+			residence_count += 1
+			if int(building.get("transparent_window_count", 0)) < 3 or int(building.get("opaque_window_backing_count", -1)) != 0:
+				failures.append("target_residence_transparent_windows_missing_%d" % building_index)
+			if int(building.get("upper_floor_slab_count", -1)) != maxi(0, int(building.get("floors", 1)) - 1):
+				failures.append("target_residence_upper_floor_separation_missing_%d" % building_index)
+		var interior_root: Node3D = building.get("store_interior_root", null)
+		var interior_rect: Rect2 = building.get("store_interior_rect", Rect2())
+		var reachable: PackedVector2Array = building.get("store_reachable_points", PackedVector2Array())
+		if interior_root == null or not is_instance_valid(interior_root) or interior_rect.get_area() < 4.0:
+			failures.append("target_building_interior_missing_%d" % building_index)
+		elif reachable.size() < 8:
+			failures.append("target_building_interior_unreachable_%d" % building_index)
+		var entry: Vector2 = building.get("entry_pos", Vector2(-1.0, -1.0))
+		if entry.x < 0.0 or not _is_inside_store_index(building_index, entry):
+			failures.append("target_building_entry_invalid_%d" % building_index)
+
+	for expected_type in [
+		BUILDING_TYPE_RESIDENCE_RANCH,
+		BUILDING_TYPE_RESIDENCE_FAMILY,
+		BUILDING_TYPE_RESIDENCE_WALKUP,
+		BUILDING_TYPE_PHARMACY,
+		BUILDING_TYPE_GROCERY,
+		BUILDING_TYPE_POLICE,
+		BUILDING_TYPE_CLINIC
+	]:
+		if int(type_counts.get(expected_type, 0)) < 1:
+			failures.append("target_building_type_missing_%s" % expected_type)
+	if enterable_building_indices.size() != expected_enterable:
+		failures.append("target_enterable_registry_count_bad_%d_expected_%d" % [enterable_building_indices.size(), expected_enterable])
+	var neighborhood_detail_batch: Node3D = static_root.get_node_or_null("BatchedNeighborhoodDetails")
+	if residence_count > 0 and (neighborhood_detail_batch == null or _count_transparent_geometry(neighborhood_detail_batch) < 1):
+		failures.append("target_residence_transparent_window_batch_missing")
+
+	var service_by_type := {}
+	for service in building_services:
+		if service is Dictionary:
+			service_by_type[str(service.get("service_type", ""))] = service
+	for required_service in ["infinite_dog_food", "possession_immunity_medicine", "dog_armor"]:
+		if not service_by_type.has(required_service):
+			failures.append("target_building_service_missing_%s" % required_service)
+	for service in building_services:
+		if not (service is Dictionary):
+			continue
+		var service_building_index = int(service.get("building_index", -1))
+		if service_building_index >= 0 and service_building_index < buildings.size() and str(buildings[service_building_index].get("building_type", "")) == BUILDING_TYPE_CLINIC:
+			failures.append("target_clinic_function_should_remain_unassigned")
+
+	var saved_freya_position = freya.global_position
+	var saved_hunger = freya_hunger
+	var saved_immunity_dose = freya_carries_immunity_dose
+	var saved_armor = freya_carries_dog_armor
+	if service_by_type.has("infinite_dog_food"):
+		var grocery: Dictionary = service_by_type["infinite_dog_food"]
+		var grocery_node: Node3D = grocery.get("node", null)
+		var grocery_node_id = grocery_node.get_instance_id() if grocery_node != null and is_instance_valid(grocery_node) else 0
+		var grocery_pos: Vector2 = grocery.get("pos", Vector2.ZERO)
+		freya.global_position = Vector3(grocery_pos.x, freya.global_position.y, grocery_pos.y)
+		freya_hunger = 83.0
+		if not _try_use_building_service() or freya_hunger > 0.001:
+			failures.append("target_grocery_infinite_food_failed")
+		freya_hunger = 61.0
+		if not _try_use_building_service() or freya_hunger > 0.001 or grocery_node == null or not is_instance_valid(grocery_node) or grocery_node.get_instance_id() != grocery_node_id:
+			failures.append("target_grocery_food_not_reusable")
+
+	var upgrade_dog_index = 0 if not dogs.is_empty() else -1
+	if upgrade_dog_index >= 0:
+		var saved_dog_state: Dictionary = dogs[upgrade_dog_index].duplicate()
+		var dog: Node3D = dogs[upgrade_dog_index].get("node", null)
+		var saved_dog_position = dog.global_position if dog != null and is_instance_valid(dog) else Vector3.ZERO
+		var test_state: Dictionary = dogs[upgrade_dog_index]
+		test_state["alien_possessed"] = false
+		test_state["possession_immune"] = false
+		test_state["has_dog_armor"] = false
+		dogs[upgrade_dog_index] = test_state
+		if service_by_type.has("possession_immunity_medicine"):
+			var pharmacy: Dictionary = service_by_type["possession_immunity_medicine"]
+			var pharmacy_pos: Vector2 = pharmacy.get("pos", Vector2.ZERO)
+			freya.global_position = Vector3(pharmacy_pos.x, freya.global_position.y, pharmacy_pos.y)
+			if not _try_use_building_service() or not freya_carries_immunity_dose:
+				failures.append("target_pharmacy_medicine_pickup_failed")
+			elif dog != null and is_instance_valid(dog):
+				dog.global_position = freya.global_position + Vector3(0.6, 0.0, 0.0)
+				if not _try_apply_carried_dog_upgrade() or not bool(dogs[upgrade_dog_index].get("possession_immune", false)) or freya_carries_immunity_dose:
+					failures.append("target_pharmacy_immunity_application_failed")
+		if service_by_type.has("dog_armor"):
+			var station: Dictionary = service_by_type["dog_armor"]
+			var station_pos: Vector2 = station.get("pos", Vector2.ZERO)
+			freya.global_position = Vector3(station_pos.x, freya.global_position.y, station_pos.y)
+			if not _try_use_building_service() or not freya_carries_dog_armor:
+				failures.append("target_police_armor_pickup_failed")
+			elif dog != null and is_instance_valid(dog):
+				dog.global_position = freya.global_position + Vector3(0.6, 0.0, 0.0)
+				if not _try_apply_carried_dog_upgrade() or not bool(dogs[upgrade_dog_index].get("has_dog_armor", false)) or dog.get_node_or_null("DoggyArmor") == null:
+					failures.append("target_police_armor_application_failed")
+		if dog != null and is_instance_valid(dog):
+			if dog.has_method("set_dog_armor"):
+				dog.call("set_dog_armor", bool(saved_dog_state.get("has_dog_armor", false)))
+			dog.global_position = saved_dog_position
+		dogs[upgrade_dog_index] = saved_dog_state
+	else:
+		failures.append("target_building_services_no_dog_for_validation")
+
+	freya.global_position = saved_freya_position
+	freya_hunger = saved_hunger
+	freya_carries_immunity_dose = saved_immunity_dose
+	freya_carries_dog_armor = saved_armor
+
 func _run_targeted_validation_checks() -> bool:
 	var failures: Array[String] = []
 	var saved_pos = freya.global_position
@@ -12652,6 +13788,7 @@ func _run_targeted_validation_checks() -> bool:
 	var saved_hunger = freya_hunger
 	var saved_eat_timer = freya_eat_timer
 	_append_bark_library_validation_failures(failures)
+	_append_building_program_validation_failures(failures)
 	_append_alien_validation_failures(failures)
 	_append_army_collar_validation_failures(failures)
 	_append_mailbox_claim_validation_failures(failures)
@@ -13003,7 +14140,7 @@ func _run_targeted_validation_checks() -> bool:
 	_apply_freya_home_focus_visuals()
 
 	if failures.is_empty():
-		print("TARGET_OK: bark-library+smaller-imp+readable-army-collars+mailbox-claim+alien-collision+possession+home-bowl+store-lock+visual validations passed")
+		print("TARGET_OK: enterable-building-program+pharmacy-immunity+infinite-grocery-food+dog-armor+dog-park-training+all-dog-origin-possession+bark-library+smaller-imp+readable-army-collars+mailbox-claim+alien-collision+home-bowl+building-lock+visual validations passed")
 		return true
 	else:
 		push_error("TARGET_FAIL: " + ", ".join(failures))
@@ -13015,6 +14152,12 @@ func _run_headless_smoke_checks() -> bool:
 	var initial_spawn_distance = Vector2(freya.global_position.x, freya.global_position.z).distance_to(park_center)
 	if absf(freya_hunger - 100.0) > 0.001:
 		failures.append("freya_initial_hunger_not_full_%.2f" % freya_hunger)
+	var initially_possessed_dogs = 0
+	for initial_dog_state in dogs:
+		if bool((initial_dog_state as Dictionary).get("alien_possessed", false)) and bool((initial_dog_state as Dictionary).get("alien_origin_possessed", false)):
+			initially_possessed_dogs += 1
+	if initially_possessed_dogs != dogs.size():
+		failures.append("all_dogs_not_possessed_at_spawn_%d_of_%d" % [initially_possessed_dogs, dogs.size()])
 	var expected_blocks = CITY_BLOCK_COLUMNS * CITY_BLOCK_ROWS
 	if city_blocks.size() != expected_blocks:
 		failures.append("city_block_count_%d_expected_%d" % [city_blocks.size(), expected_blocks])
@@ -13356,6 +14499,82 @@ func _run_headless_smoke_checks() -> bool:
 			failures.append("dog_park_equipment_missing_%s" % equipment_type)
 	if dog_park_obstacles.size() < expected_park_equipment.size():
 		failures.append("dog_park_obstacle_collision_missing")
+	var training_kinds := {}
+	for training_item in dog_park_training_items:
+		if not (training_item is Dictionary):
+			continue
+		var training_data: Dictionary = training_item
+		var training_kind = str(training_data.get("kind", ""))
+		var training_node: Node3D = training_data.get("node", null)
+		var training_path: PackedVector3Array = training_data.get("path", PackedVector3Array())
+		if training_kind.is_empty() or training_node == null or not is_instance_valid(training_node):
+			continue
+		if not bool(training_node.get_meta("training_interactable", false)) or str(training_node.get_meta("training_kind", "")) != training_kind:
+			failures.append("dog_park_training_metadata_bad_%s" % training_kind)
+		if training_path.size() < 2:
+			failures.append("dog_park_training_path_short_%s" % training_kind)
+		else:
+			for endpoint_index in [0, training_path.size() - 1]:
+				var endpoint: Vector3 = training_path[endpoint_index]
+				if not _is_walkable(endpoint.x, endpoint.z, FREYA_COLLISION_RADIUS):
+					failures.append("dog_park_training_endpoint_blocked_%s_%d" % [training_kind, endpoint_index])
+		if float(training_data.get("duration", 0.0)) <= 0.0:
+			failures.append("dog_park_training_duration_missing_%s" % training_kind)
+		training_kinds[training_kind] = true
+	for equipment_type in expected_park_equipment:
+		if not training_kinds.has(equipment_type):
+			failures.append("dog_park_training_interaction_missing_%s" % equipment_type)
+	if dog_park_training_items.size() != expected_park_equipment.size():
+		failures.append("dog_park_training_interaction_count_%d" % dog_park_training_items.size())
+	if freya == null or not freya.has_method("update_training_motion") or not freya.has_method("clear_training_pose") or not freya.has_method("training_pose_active"):
+		failures.append("freya_training_animation_api_missing")
+	else:
+		var training_saved_position = freya.global_position
+		var training_saved_hunger = freya_hunger
+		var training_saved_social = freya_social
+		var training_saved_vomit_timer = freya_vomit_timer
+		var training_saved_eat_timer = freya_eat_timer
+		var training_saved_active = active_dog_park_training.duplicate(true)
+		active_dog_park_training.clear()
+		freya_vomit_timer = 0.0
+		freya_eat_timer = 0.0
+		for training_index in range(dog_park_training_items.size()):
+			var exercise: Dictionary = dog_park_training_items[training_index]
+			var exercise_kind = str(exercise.get("kind", ""))
+			var exercise_path: PackedVector3Array = exercise.get("path", PackedVector3Array())
+			if exercise_path.size() < 2:
+				continue
+			var reverse_course = training_index % 2 == 1
+			var start_index = exercise_path.size() - 1 if reverse_course else 0
+			var finish_index = 0 if reverse_course else exercise_path.size() - 1
+			freya.global_position = exercise_path[start_index]
+			if not _try_start_dog_park_training():
+				failures.append("dog_park_training_start_failed_%s" % exercise_kind)
+				continue
+			var exercise_duration = float(exercise.get("duration", 1.6))
+			_update_dog_park_training(DOG_PARK_TRAINING_APPROACH_SEC + exercise_duration * 0.5)
+			if active_dog_park_training.is_empty() or not bool(freya.call("training_pose_active")):
+				failures.append("dog_park_training_pose_missing_%s" % exercise_kind)
+			if exercise_kind == "jump_hurdle" and freya.global_position.y < 0.8:
+				failures.append("dog_park_hurdle_jump_too_low")
+			if exercise_kind == "a_frame" and freya.global_position.y < 0.8:
+				failures.append("dog_park_aframe_climb_too_low")
+			_update_dog_park_training(exercise_duration * 0.55)
+			var expected_finish: Vector3 = exercise_path[finish_index]
+			if not active_dog_park_training.is_empty():
+				failures.append("dog_park_training_did_not_finish_%s" % exercise_kind)
+				active_dog_park_training.clear()
+				freya.call("clear_training_pose")
+			if freya.global_position.distance_to(Vector3(expected_finish.x, 0.0, expected_finish.z)) > 0.04:
+				failures.append("dog_park_training_finish_bad_%s" % exercise_kind)
+			if bool(freya.call("training_pose_active")):
+				failures.append("dog_park_training_pose_not_cleared_%s" % exercise_kind)
+		freya.global_position = training_saved_position
+		freya_hunger = training_saved_hunger
+		freya_social = training_saved_social
+		freya_vomit_timer = training_saved_vomit_timer
+		freya_eat_timer = training_saved_eat_timer
+		active_dog_park_training = training_saved_active
 	if park_breeds.size() < 5:
 		failures.append("dog_park_breed_variety_low_%d" % park_breeds.size())
 	if park_models.size() != 1 or not park_models.has(FREYA_PRIMARY_MODEL):
@@ -14354,7 +15573,7 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(controls_scroll)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat / use Freya's home bowl / pick up a stick\nV: Drop carried stick\nHold R: Claim trees, poles, fire hydrants, and mailboxes\nHold R by an alien wall: Weaken its hold\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold C near dogs: Socialize at a Hunger cost; possessed dogs also raise Vomit\nHold X near dogs: Expel an alien or scare a real dog away\nApproach free aliens: Make them flee to the nearest building\nTab (hold): Objectives\nEsc: Pause / resume"
+	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat / use bowls / pick up a stick or building supply / give a supply to a freed dog\nV: Drop carried stick\nHold R: Claim trees, poles, fire hydrants, and mailboxes\nHold R by an alien wall: Weaken its hold\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold C near dogs: Socialize at a Hunger cost; possessed dogs also raise Vomit\nHold X near dogs: Expel an alien or scare a real dog away\nApproach free aliens: Make them flee to the nearest building\nTab (hold): Objectives\nEsc: Pause / resume"
 	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
@@ -14379,7 +15598,7 @@ func _create_pause_menu() -> void:
 	pause_howto_panel.add_child(howto_scroll)
 
 	var howto_text = Label.new()
-	howto_text.text = "You are Freya, the world's best dog, on a mission to protect and claim this neighborhood. Hunger barely changes while Freya rests; walking raises it faster, and running or taking sustained actions raises it faster still. Hold R beside a tree, pole, fire hydrant, or mailbox to pee on and claim it; claimed targets get Freya's ring and minimap marker, and can be reclaimed from aliens. Some ordinary-looking dogs secretly carry aliens. They never look different, but Freya automatically crouches, shivers, and tucks her tail when one is close. Hold X near a suspicious dog: a possessed dog is cleansed, while a real dog flees from the wrong guess. Hold C to socialize at a Hunger cost; socializing with a possessed dog also raises Vomit, and after enough time a real dog joins Freya's army and receives a camouflage collar. Press F beside the food bowl in Ryah Diane's house to reset Hunger to zero; the bowl is always available. Expelled aliens race toward buildings, and occupied storefronts lock, reinforce nearby alien buildings, and generate at most eight free aliens across the map. Approach a free alien to send it fleeing to the nearest building. Ryah Diane's crying protects Freya's home. Hold R beside an alien wall to permanently weaken its hold."
+	howto_text.text = "You are Freya, the world's best dog, on a mission to protect and claim this neighborhood. Hunger barely changes while Freya rests; walking raises it faster, and running or taking sustained actions raises it faster still. Hold R beside a tree, pole, fire hydrant, or mailbox to pee on and claim it; claimed targets get Freya's ring and minimap marker, and can be reclaimed from aliens. Some ordinary-looking dogs secretly carry aliens. They never look different, but Freya automatically crouches, shivers, and tucks her tail when one is close. Hold X near a suspicious dog: a possessed dog is cleansed, while a real dog flees from the wrong guess. Hold C to socialize at a Hunger cost; socializing with a possessed dog also raises Vomit, and after enough time a real dog joins Freya's army and receives a camouflage collar. Every clean building is enterable. The home and grocery bowls reset Hunger to zero; pharmacy medicine makes a freed dog immune to possession; police armor visibly protects a freed dog; the clinic's future use is undecided. Press F to use these services and again beside a freed dog to give carried supplies. Alien occupation locks any building. Occupied retail storefronts also reinforce nearby alien buildings and generate at most eight free aliens across the map. Approach a free alien to send it fleeing to the nearest building. Ryah Diane's crying protects Freya's home. Hold R beside an alien wall to permanently weaken its hold."
 	howto_text.custom_minimum_size = Vector2(482, 420)
 	howto_text.autowrap_mode = TextServer.AUTOWRAP_WORD
 	howto_text.add_theme_font_size_override("font_size", 16)
@@ -14511,6 +15730,16 @@ func _make_value_label(panel: Panel, pos: Vector2) -> Label:
 func _show_status(text: String, duration: float) -> void:
 	status_label.text = text
 	status_timer = duration
+
+func _carried_supply_status() -> String:
+	var supplies: Array[String] = []
+	if freya_carries_immunity_dose:
+		supplies.append("immunity medicine")
+	if freya_carries_dog_armor:
+		supplies.append("doggy armor")
+	if supplies.is_empty():
+		return ""
+	return "Carrying: %s — press F beside a freed dog" % ", ".join(supplies)
 
 func _update_ui() -> void:
 	hud_update_timer = maxf(0.0, hud_update_timer - get_process_delta_time())

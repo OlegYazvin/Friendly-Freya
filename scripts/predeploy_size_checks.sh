@@ -65,6 +65,9 @@ run_scene_validation res://scenes/Startup.tscn FREYA_STARTUP_VALIDATE=1
 echo "Running Friendly Freya intro cut-scene validation..."
 run_scene_validation res://scenes/IntroCutscene.tscn FREYA_INTRO_VALIDATE=1
 
+echo "Running Friendly Freya placement-ready kennel validation..."
+run_scene_validation res://scenes/KennelConcept.tscn FREYA_KENNEL_VALIDATE=1
+
 echo "Running Friendly Freya gameplay checks (smoke + targeted validation)..."
 run_scene_validation res://scenes/Main.tscn FREYA_VALIDATE=1 FREYA_SMOKE=1
 echo "Predeploy checks passed."
