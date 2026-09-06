@@ -128,7 +128,7 @@ To build locally after installing matching export templates:
 
 ```sh
 ./scripts/predeploy_size_checks.sh
-./scripts/build_windows_release.sh v0.1.0
+./scripts/build_windows_release.sh v0.1.1
 ```
 
 The build script verifies the executable and PCK, confirms the active CC0 dog

@@ -1,20 +1,23 @@
-# Friendly Freya v0.1.0
+# Friendly Freya v0.1.1
 
-This is the first packaged Windows release of the current Friendly Freya
-prototype.
+This release expands the intro, neighborhood, characters, and dog-centered
+gameplay of the Friendly Freya prototype.
 
 ## Highlights
 
-- Includes the complete UFO and live-home intro sequence plus the current
-  neighborhood gameplay systems.
-- Fixes Gene's pill-reveal pose so his raised hands support the bottles without
-  clipping through them.
-- Loads the exact authored intro audio correctly from the packaged game data.
+- Continues the intro inside the actual playable family home with Gene, Zoe,
+  Ryah Diane, Freya, the abduction sequence, and a direct handoff to gameplay.
+- Adds the eat-first home tutorial, first-exit possession scene, expanded alien
+  and possessed-dog behavior, and enterable furnished building types.
+- Adds varied voxel dogs, camouflage army collars, dog-park equipment
+  interactions, and the placement-ready dog kennel concept.
+- Adds the brighter heroic Freya title artwork and the expanded authored bark
+  library.
 - Ships as a portable 64-bit Windows ZIP with no Godot installation required.
 
 ## Install
 
-1. Download `Friendly-Freya-v0.1.0-Windows-x86_64.zip`.
+1. Download `Friendly-Freya-v0.1.1-Windows-x86_64.zip`.
 2. Extract the complete ZIP.
 3. Run `FriendlyFreya/FriendlyFreya.exe`.
 
