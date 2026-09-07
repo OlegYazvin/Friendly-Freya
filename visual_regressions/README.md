@@ -39,15 +39,15 @@ relationships called out by the visual audit.
 - [wide_hip.png](wide_hip.png) — long-axis hip ridge, shingles, soffit, fascia, and wall support.
 - [storefront.png](storefront.png) — transparent storefront openings with the furnished store visible outside.
 - [building_residence_outside.png](building_residence_outside.png) — hollow suburban residence shell with real entrance and transparent windows.
-- [building_residence_inside.png](building_residence_inside.png) — ground-floor-only residential cutaway and neighboring upper-story context.
+- [building_residence_inside.png](building_residence_inside.png) — ground-floor-only residential cutaway with that residence's complete batched lower shell removed around Freya.
 - [building_pharmacy_inside.png](building_pharmacy_inside.png) — prescription shelving, counter, and immunity-medicine dispenser.
 - [building_grocery_inside.png](building_grocery_inside.png) — produce/meat fixtures and permanent dog-food point.
 - [building_police_inside.png](building_police_inside.png) — police lockers and dog-armor rack.
 - [building_clinic_inside.png](building_clinic_inside.png) — furnished medical interior with intentionally unassigned gameplay role.
 - [home_outside.png](home_outside.png) — Freya's already-controlled home exterior, transparent windows, subtle Freya-territory tint, yard identity with a claimable mailbox, and roof connection.
-- [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane.
-- [post_intro_food_tutorial.png](post_intro_food_tutorial.png) — the first controllable home moment with Freya fully hungry, her first-person eat-first guidance, and the pulsing arrow/ring identifying her bowl.
-- [first_exit_leashed.png](first_exit_leashed.png) — Freya's first post-meal exit frames three temporary people and their city dogs connected by clearly visible leashes on the street-side sidewalk.
+- [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane, framed by the two camera-away walls of the gameplay cutaway.
+- [post_intro_food_tutorial.png](post_intro_food_tutorial.png) — the first controllable home moment with the corrected two-wall cutaway, Freya fully hungry, her first-person eat-first guidance, and the pulsing arrow/ring identifying her bowl.
+- [first_exit_leashed.png](first_exit_leashed.png) — Freya's first post-meal exit frames three temporary people and their still-ordinary city dogs, safely staged farther down the street-side sidewalk and connected by clearly visible leashes.
 - [first_exit_abduction.png](first_exit_abduction.png) — separate two-ring beams lift the three people while every dog remains leashed and held out of its normal AI.
 - [first_exit_owners_gone.png](first_exit_owners_gone.png) — the people, leashes, and beams are gone while the three dogs remain held for the next cinematic beat.
 - [first_exit_dog_possession.png](first_exit_dog_possession.png) — purple, cyan, and magenta energy visibly descends into the three ordinary-looking dogs.

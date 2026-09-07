@@ -69,9 +69,10 @@ bindings are configured in `main.gd` under `_configure_input` and
   saving Ryah, Freya eats them, has a comic convulsion, and discovers her
   internal monologue. Freya then starts fully hungry, and an authored-bark
   thought prompt plus a pulsing bowl pointer keeps her inside until she eats.
-- On Freya's first exit, three temporary dog walkers appear with leashed city
-  dogs. Alien beams abduct the people, visible possession energy enters the
-  dogs, and the same energy targets Freya but bounces away. Freya recognizes
+- On Freya's first exit, three temporary dog walkers appear farther down the
+  street-side sidewalk with initially ordinary leashed city dogs. Alien beams
+  abduct the people, visible possession energy turns the dogs aggressive, and
+  the same energy targets Freya but bounces away. Freya recognizes
   her immunity in an internal-monologue panel before the dogs resume their
   normal autonomous behavior.
 - An isometric procedural suburban neighborhood surrounds a center-block dog
@@ -85,10 +86,11 @@ bindings are configured in `main.gd` under `_configure_input` and
 - Hunger starts at `100%`, rises very slowly at rest after eating, and rises
   faster while walking, running, or taking sustained actions. Home-bowl food
   resets Hunger to zero.
-- Every NPC dog begins secretly possessed. Possession never changes their
-  appearance; the first-exit event and Freya's unease supply the clues.
-  Possessed dogs bark aggressively and scare Freya away unless the player holds
-  `X` to make her bark back and stand ground.
+- Every roaming NPC dog begins secretly possessed. The three first-exit dogs
+  are held ordinary on their leashes until the visible possession beat.
+  Possession never changes dog appearance; the event and Freya's unease supply
+  the clues. After that reveal, possessed dogs bark aggressively and scare
+  Freya away unless the player holds `R` to bark back and stand ground.
 - Socialization costs Hunger and raises Vomit around a possessed dog. Recruited
   dogs wear a broad camouflage neck collar with no overhead indicator.
 - Dog exchanges draw from independent recorded conversational, excited-social,

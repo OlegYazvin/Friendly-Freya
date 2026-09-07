@@ -1,6 +1,7 @@
 # Friendly Freya Title Card Theme
 
 [Audio attribution](../../godot/assets/audio/ATTRIBUTION.md) ·
+[Source-derived energetic rebuild](../../scripts/build_title_card_source_energy_candidates.sh) ·
 [Stable Audio 3 build script](../../scripts/build_title_card_theme.sh) ·
 [ACE-Step cover request](../../scripts/request_ace_step_cover.sh)
 
@@ -12,40 +13,43 @@ The source performance is the project-owner recording at:
 
 ## Current shipped menu asset
 
-The current `menu/title_card_theme_8bit.wav` is a Stable Audio 3
-audio-to-audio render:
+The current `menu/title_card_theme_8bit.wav` is
+`title_card_theme_source_energy_candidate_02.wav`, a faster source-derived
+chiptune transform of the project-owner recording.
 
-1. Use the project-owner WAV directly.
-2. Duplicate the original 8.51-second performance once as the full 17.02-second
-   reference bed.
-3. Run Stable Audio 3 Small-Music through the optimized TFLite CPU path in
-   audio-to-audio mode.
-4. Prompt for a bright, cheerful NES/chiptune title-screen theme.
-5. Save as a Godot-friendly 44.1 kHz, 16-bit PCM WAV.
-
-This deliberately does not use the rejected MIDI-continuation experiment. The
-bad Magenta/MusicRNN tail was removed because it drifted from the recorded
+This pass intentionally does not use the rejected MIDI-continuation experiment.
+The bad Magenta/MusicRNN tail was removed because it drifted from the recorded
 theme and sounded like an incoherent add-on. The active asset is not built from
 that MIDI path.
 
-## Current render settings
+The local Stable Audio 3 wrapper exists in the project AI runtimes, but this
+environment currently reports an incomplete dependency setup before inference.
+To stay inside the project audio policy, this pass keeps every candidate
+strictly based on the uploaded source recording instead of synthesizing a
+fallback melody.
 
-- Model/runtime: Stable Audio 3 optimized TFLite CPU path
-- Model id: `small-music`
-- Decoder/encoder: `same-s`
-- Seed: `20260620`
-- Duration: `17.02`
-- Init audio: the doubled source recording
-- Init noise level: `0.68`
-- Steps: `8`
-- Prompt:
-  `bright cheerful NES 8-bit chiptune title screen theme, cute heroic dog
-  adventure in a suburban town, square wave lead melody, triangle bass, simple
-  playful arcade drums, lighthearted and sunny, clean instrumental, no vocals,
-  no human humming, loopable`
+## Current energetic candidate set
 
-Alternate generated candidates are stored in
-[`ai_attempts/`](ai_attempts/):
+All three current candidates:
+
+1. Start from the project-owner WAV directly.
+2. Loop the 8.51-second performance to a 17.02-second title-card bed.
+3. Increase tempo for a more energetic menu feel.
+4. Apply chiptune-style bit/sample reduction, limiting, and small source-audio
+   echo/pulse treatments.
+5. Save as Godot-friendly 44.1 kHz, 16-bit PCM WAV.
+
+Alternate candidates are stored in [`ai_attempts/`](ai_attempts/):
+
+- `title_card_theme_source_energy_candidate_01.wav` is the gentlest faster
+  option: brighter, cleaner, and closer to the original recording.
+- `title_card_theme_source_energy_candidate_02.wav` is the currently shipped
+  option: faster, bouncier, and more arcade-title-card flavored.
+- `title_card_theme_source_energy_candidate_03.wav` is the most aggressive
+  option: fastest and crunchiest.
+
+Earlier Stable Audio generated candidates are also kept in
+[`ai_attempts/`](ai_attempts/) for reference:
 
 - `title_card_theme_stable_audio_candidate_02.wav` is the currently shipped
   candidate. It keeps more of the source structure with a lower init-noise
@@ -80,7 +84,20 @@ ACE-Step API server or an authenticated remote ACE-Step-compatible endpoint.
 - Local ACE-Step remains promising, but Stable Audio 3 produced a local
   CPU-rendered audio-to-audio candidate in this environment first.
 
-## Rebuild
+## Rebuild the current source-derived candidates
+
+```sh
+./scripts/build_title_card_source_energy_candidates.sh
+```
+
+By default, candidate `02` becomes the live Godot menu asset. To ship a
+different one:
+
+```sh
+FREYA_TITLE_LIVE_CANDIDATE=01 ./scripts/build_title_card_source_energy_candidates.sh
+```
+
+## Rebuild the older Stable Audio render
 
 ```sh
 ./scripts/build_title_card_theme.sh

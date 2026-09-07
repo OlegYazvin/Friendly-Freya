@@ -62,7 +62,7 @@ Alien occupation should produce a stable architectural transformation. Neither t
   Characters do not gain a separate physics-only collision system.
 - Roaming aliens move briskly at 4.0 world units per second. A fleeing or building-bound alien moves at 5.8: faster than Freya's 4.6 walk, but slower than her 7.13 run.
 - Possession is the exception: after reaching a walkable contact point immediately outside a building, the alien may disappear into it and increment that building's occupant count. It never walks through the wall.
-- Ryah Diane rejects an alien at the outside wall of Freya's home; the rejected imp runs away along the ground before choosing another building.
+- Freya and Ryah Diane's home is excluded from alien targets and from alien walkability. An alien expelled inside its footprint is moved to a valid exterior point and sent toward a different, possessable building.
 
 ### Occupied Storefronts Become Alien Strongholds
 
@@ -77,11 +77,11 @@ The data model should still distinguish a storefront's base function from its cu
 
 ### Scent Claims Include Mailboxes
 
-- Holding `R` lets Freya pee on trees, light poles, fire hydrants, and residential mailboxes to fill the same timed claim meter.
+- Holding `Space` lets Freya pee on trees, light poles, fire hydrants, and residential mailboxes to fill the same timed claim meter.
 - Completed claims store Freya or enemy ownership, display the matching world ring and minimap marker, and allow Freya to reclaim an enemy-owned target.
 - An interrupted ordinary-object claim resets its partial progress. Peeing on an alien-controlled building breaks its hold and makes the building enterable/claimable again.
 - Freya controls her home by default. Other buildings can be claimed only when every nearby claimable object around them is Freya-marked and the building connects to Freya territory on the same generated block or a direct north/south/east/west neighboring block.
-- Claiming a clean eligible building requires holding `R` inside for 10 seconds. Partial building progress decays by about 10% every 2 seconds while Freya is not peeing inside.
+- Claiming a clean eligible building requires holding `Space` inside for 10 seconds. Partial building progress decays by about 10% every 2 seconds while Freya is not peeing inside.
 - Claimed building territory receives a subtle yellow ground tint; Ryah Diane places a quick scribbly Freya drawing on a wooden stake near the entrance. The building model itself does not transform.
 - Freya wins when she owns every building on the map.
 
@@ -91,10 +91,10 @@ The data model should still distinguish a storefront's base function from its cu
 
 - **Implemented:** Every NPC dog begins possessed, independently from appearance.
 - **Implemented:** Freya becomes uneasy near possessed dogs without directly identifying them.
-- **Implemented:** Close possessed dogs bark aggressively and scare Freya into fleeing unless the player holds `X` to make her bark back and stand ground.
+- **Implemented:** Close possessed dogs bark aggressively and scare Freya into fleeing unless the player holds `R` to make her bark back and stand ground. This aggression stays disabled until the first-exit possession reveal, and dog-park threats do not project through the fence.
 - **Implemented:** A short aggressive bark expels possession and creates a visible alien transfer.
 - **Implemented:** Expelled aliens choose among nearby available buildings.
-- **Implemented:** Ryah Diane's crying rejects an alien from Freya's home and forces it to select another building.
+- **Implemented:** Aliens cannot enter or target Freya and Ryah Diane's home; any expelled alien originating inside is placed safely outside and routed elsewhere.
 - **Implemented:** Alien buildings have a distinct façade/roof treatment and persistent pee-based integrity damage.
 - **Implemented:** All dogs share Freya's voxel mesh, rig, and gait; breeds vary through voxel-rig body-part proportions, sizes, coats, collars, tags, and bandanas independently of possession.
 - **Implemented:** Friendly socialization costs Hunger, stops at full Hunger, and recruits dogs into Freya's army with broad, high-contrast neck-mounted camouflage collars and no overhead indicator.
@@ -108,14 +108,16 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** Freya's permanent food bowl inside Ryah Diane's house is reusable and resets Hunger to zero when Freya eats from it.
 - **Implemented:** Freya starts fully hungry after the family prologue; first-person text, exact authored barks, and a pulsing bowl pointer guide her to eat, while the home boundary turns her back with a reminder until the meal is complete.
 - **Implemented:** Gene drops his pill bottles during abduction; after saving Ryah, Freya eats the spill, performs a comic convulsion, discovers her internal monologue, and only then enters the eat-first tutorial.
-- **Implemented:** Freya's first post-meal exit stages three people with leashed city dogs, abducts the people in separate beams, shows possession energy enter the dogs, then shows the same energy bounce away from Freya. Her exact internal thought identifies the immunity before the leashes clear and dog behavior resumes.
+- **Implemented:** Freya's first post-meal exit stages three people with initially ordinary leashed city dogs farther down a street-side sidewalk, abducts the people in separate beams, turns those dogs aggressive only when possession energy enters them, then shows the same energy bounce away from Freya. Her exact internal thought identifies the immunity before the leashes clear and dog behavior resumes.
 - **Implemented:** The dog park population is six dogs and the park has a complete two-rail perimeter with a visible open gate, weave poles, a jump hurdle, an A-frame, and a crawl tunnel. Each training obstacle now has contextual `F` interaction points at both ends and its own brief, collision-safe Freya animation: slalom weaving, a parabolic hurdle leap, an A-frame climb, or a lowered tunnel crawl.
 - **Implemented:** Dog audio is separated into conversational, excited-social, and aggressive recorded-bark pools; friendly call-and-response routes by speaker, aggressive socializing stays in its own pool, and per-category shuffle bags exhaust every clip before reuse without immediate cycle-boundary repeats.
-- **Implemented:** Residential mailboxes use the same hold-`R` pee claim, owner/reclaim state, world-ring feedback, and Freya/enemy minimap markers as trees, light poles, and fire hydrants.
-- **Implemented:** Freya owns her initial home by default. Eligible clean building interiors can now be claimed through the 10-second hold-`R` pee action after surrounding objects are marked and the building connects to Freya territory; progress decays when interrupted, and full-map ownership triggers victory.
+- **Implemented:** Residential mailboxes use the same hold-`Space` pee claim, owner/reclaim state, world-ring feedback, and Freya/enemy minimap markers as trees, light poles, and fire hydrants.
+- **Implemented:** Freya owns her initial home by default. Eligible clean building interiors can now be claimed through the 10-second hold-`Space` pee action after surrounding objects are marked and the building connects to Freya territory; progress decays when interrupted, and full-map ownership triggers victory.
 - **Implemented:** Every non-possessed building is enterable. Residences are
   scattered across ranch, two-story, and three-story flavors and expose only a
-  furnished bottom floor through hollow shells with transparent windows.
+  furnished bottom floor through hollow shells with transparent windows. Each
+  residence owns its own wall/foundation render batch so its complete lower
+  shell disappears with that house when Freya enters.
 - **Implemented:** The pharmacy provides medicine that freed dogs consume for
   permanent possession immunity; the grocery provides an infinite reusable
   dog-food bowl; and the police station provides visible doggy armor.
@@ -236,7 +238,7 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 
 - **Implemented:** Occupied storefronts exclusively generate free-roaming aliens, capped at eight map-wide.
 - **Implemented:** Approaching Freya makes a free alien flee to the nearest building, where it increments the occupant count.
-- **Implemented:** Alien roaming, fleeing, Ryah rejection, and expelled-alien travel use grounded character collision; possession begins only from a reachable exterior wall point.
+- **Implemented:** Alien roaming, fleeing, and expelled-alien travel use grounded character collision; possession begins only from a reachable exterior wall point, and Ryah's home is forbidden navigation space.
 - Let aliens attempt possession against real dogs.
 - Add resistance and Freya support actions for army dogs.
 - Define success, failure, cooldown, and readable feedback for possession attempts.
@@ -264,7 +266,7 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 
 ### Implemented Invariants
 
-Existing checks for all-dog initial possession, appearance independence, Freya's unease, exorcism transfer, Ryah's defense, alien-building visuals, and pee weakening should remain.
+Existing checks for all-dog initial possession, appearance independence, Freya's unease, exorcism transfer, Ryah-home exclusion, alien-building visuals, and pee weakening should remain.
 
 The current automated guardrail suite should continue to prove:
 

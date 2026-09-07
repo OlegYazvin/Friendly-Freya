@@ -170,6 +170,32 @@ func _compute_world_origin(view_world: Vector2) -> Vector2:
 		origin.y = clampf(origin.y, 0.0, max_origin.y)
 	return origin
 
+func _draw_home_marker(center: Vector2, pulse: float) -> void:
+	var ring_color = Color(1.0, 0.9, 0.38, 0.96)
+	var outline_color = Color(0.035, 0.035, 0.025, 0.98)
+	draw_circle(center, 9.0 + pulse * 1.35, Color(0.0, 0.0, 0.0, 0.55))
+	draw_arc(center, 9.0 + pulse * 1.35, 0.0, TAU, 28, ring_color, 2.5, true)
+
+	var roof_outer = PackedVector2Array([
+		center + Vector2(-7.7, -0.8),
+		center + Vector2(0.0, -8.4),
+		center + Vector2(7.7, -0.8)
+	])
+	var roof_inner = PackedVector2Array([
+		center + Vector2(-5.9, -0.9),
+		center + Vector2(0.0, -6.5),
+		center + Vector2(5.9, -0.9)
+	])
+	draw_colored_polygon(roof_outer, outline_color)
+	draw_colored_polygon(roof_inner, Color(0.98, 0.82, 0.24, 1.0))
+
+	var body_outer = Rect2(center + Vector2(-5.6, -1.0), Vector2(11.2, 8.6))
+	var body_inner = Rect2(center + Vector2(-4.2, 0.2), Vector2(8.4, 6.8))
+	draw_rect(body_outer, outline_color, true)
+	draw_rect(body_inner, Color(1.0, 0.95, 0.7, 1.0), true)
+	draw_rect(Rect2(center + Vector2(-1.2, 3.0), Vector2(2.4, 4.0)), Color(0.45, 0.27, 0.13, 1.0), true)
+	draw_rect(Rect2(center + Vector2(2.3, 1.8), Vector2(1.7, 1.5)), Color(0.4, 0.78, 0.92, 1.0), true)
+
 func _draw() -> void:
 	if map_size.x <= 0.0 or map_size.y <= 0.0:
 		return
@@ -194,6 +220,7 @@ func _draw() -> void:
 		_smoothed_angle = lerp_angle(_smoothed_angle, angle, MINIMAP_ANGLE_SMOOTH)
 	world_origin = _smoothed_world_origin
 	angle = _smoothed_angle
+	var pulse = 0.72 + 0.28 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
 
 	for s in sidewalks:
 		_draw_map_rect(s, world_origin, scale_vec, angle, draw_rect, Color(0.72, 0.74, 0.76, 0.95), true)
@@ -218,6 +245,8 @@ func _draw() -> void:
 	if home_building.size.x > 0.0 and home_building.size.y > 0.0:
 		_draw_map_rect(home_building, world_origin, scale_vec, angle, draw_rect, Color(0.94, 0.73, 0.3, 0.78), true)
 		_draw_map_rect(home_building, world_origin, scale_vec, angle, draw_rect, Color(1.0, 0.95, 0.7, 1.0), false, 2.2)
+		var home_center = _to_map_pos(home_building.get_center(), world_origin, scale_vec, angle, draw_rect)
+		_draw_home_marker(home_center, pulse)
 
 	for alien_index in range(alien_buildings.size()):
 		var alien_rect = alien_buildings[alien_index]
@@ -227,7 +256,6 @@ func _draw() -> void:
 		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.24, 0.015, 0.34, 0.48 + integrity * 0.28), true)
 		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.12, 1.0, 0.68, 0.48 + integrity * 0.5), false, 1.4 + integrity * 1.2)
 
-	var pulse = 0.72 + 0.28 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006))
 	for i in range(store_entries.size()):
 		var s = store_entries[i]
 		var center = _to_map_pos(s, world_origin, scale_vec, angle, draw_rect)

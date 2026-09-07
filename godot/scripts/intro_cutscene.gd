@@ -26,6 +26,7 @@ var speech_tail: Polygon2D
 var speech_speaker_label: Label
 var speech_phase_label: Label
 var speech_text_label: Label
+var advance_button: Button
 var skip_button: Button
 var scene_id_label: Label
 var transition_overlay: ColorRect
@@ -60,6 +61,8 @@ func _ready() -> void:
 		if requested_time >= 0.0:
 			timeline_time = requested_time
 			static_view = true
+			if advance_button != null:
+				advance_button.visible = false
 			skip_button.visible = false
 		else:
 			push_warning("Unknown FREYA_INTRO_VIEW '%s'; playing the intro normally." % requested_view)
@@ -91,9 +94,54 @@ func _unhandled_input(event: InputEvent) -> void:
 	if static_view or transition_started:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode in [KEY_SPACE, KEY_ESCAPE]:
+		if event.keycode == KEY_SPACE:
+			get_viewport().set_input_as_handled()
+			_advance_intro_scene()
+		elif event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 			_finish_to_game()
+
+
+func _intro_scene_index_for_time(time_seconds: float) -> int:
+	for scene_index in range(IntroTimeline.SCENES.size()):
+		var scene: Dictionary = IntroTimeline.SCENES[scene_index]
+		if time_seconds >= float(scene.get("start", 0.0)) and time_seconds < float(scene.get("end", 0.0)):
+			return scene_index
+	return maxi(0, IntroTimeline.SCENES.size() - 1)
+
+
+func _intro_dialogue_complete_time(scene: Dictionary) -> float:
+	var text = str(scene.get("english", ""))
+	if text.is_empty():
+		return float(scene.get("start", 0.0))
+	var scene_start = float(scene.get("start", 0.0))
+	var scene_end = float(scene.get("end", scene_start))
+	return clampf(scene_start + maxf(0.04, float(text.length()) / 27.0 - 0.16) + 0.02, scene_start, scene_end - 0.02)
+
+
+func _advance_intro_scene() -> void:
+	if static_view or transition_started or IntroTimeline.SCENES.is_empty():
+		return
+	var previous_time = timeline_time
+	var scene_index = _intro_scene_index_for_time(timeline_time)
+	var scene: Dictionary = IntroTimeline.SCENES[scene_index]
+	var has_dialogue = not str(scene.get("speaker_id", "")).is_empty()
+	var dialogue_complete_time = _intro_dialogue_complete_time(scene)
+	if has_dialogue and timeline_time < dialogue_complete_time - 0.015:
+		timeline_time = dialogue_complete_time
+	elif scene_index >= IntroTimeline.SCENES.size() - 1:
+		timeline_time = IntroTimeline.TOTAL_DURATION
+		_fire_crossed_audio_events(previous_time, timeline_time)
+		_apply_timeline_time(timeline_time)
+		_update_speech_bubble_anchor()
+		_finish_to_game(true)
+		return
+	else:
+		var next_scene: Dictionary = IntroTimeline.SCENES[scene_index + 1]
+		timeline_time = minf(IntroTimeline.TOTAL_DURATION, float(next_scene.get("start", timeline_time)) + 0.001)
+	_fire_crossed_audio_events(previous_time, timeline_time)
+	_apply_timeline_time(timeline_time)
+	_update_speech_bubble_anchor()
 
 
 func _create_materials() -> void:
@@ -419,12 +467,25 @@ func _create_cutscene_ui() -> void:
 		bar.offset_top = 0.0 if is_top else -54.0
 		root.add_child(bar)
 
+	advance_button = Button.new()
+	advance_button.name = "AdvanceIntroButton"
+	advance_button.text = "NEXT  [SPACE]"
+	advance_button.anchor_left = 1.0
+	advance_button.anchor_right = 1.0
+	advance_button.offset_left = -446.0
+	advance_button.offset_right = -230.0
+	advance_button.offset_top = 12.0
+	advance_button.offset_bottom = 46.0
+	advance_button.focus_mode = Control.FOCUS_ALL
+	advance_button.pressed.connect(_advance_intro_scene)
+	root.add_child(advance_button)
+
 	skip_button = Button.new()
 	skip_button.name = "SkipIntroButton"
-	skip_button.text = "SKIP INTRO  [SPACE / ESC]"
+	skip_button.text = "SKIP INTRO  [ESC]"
 	skip_button.anchor_left = 1.0
 	skip_button.anchor_right = 1.0
-	skip_button.offset_left = -262.0
+	skip_button.offset_left = -218.0
 	skip_button.offset_right = -24.0
 	skip_button.offset_top = 12.0
 	skip_button.offset_bottom = 46.0
@@ -722,6 +783,8 @@ func _finish_to_game(play_family_sequence: bool = false) -> void:
 		rune_audio_player.stop()
 	if translation_audio_player != null:
 		translation_audio_player.stop()
+	if advance_button != null:
+		advance_button.disabled = true
 	if skip_button != null:
 		skip_button.disabled = true
 	if play_family_sequence:
@@ -743,6 +806,7 @@ func _run_intro_validation() -> void:
 	_validate_audio(failures)
 	_validate_fleet(failures)
 	_validate_seekable_bubbles(failures)
+	_validate_dialogue_advance_controls(failures)
 	_validate_camera_pullback(failures)
 	if GAME_SCENE_PATH != "res://scenes/Main.tscn" or not ResourceLoader.exists(GAME_SCENE_PATH):
 		failures.append("completion_route_missing")
@@ -803,8 +867,32 @@ func _validate_timeline(failures: Array[String]) -> void:
 			failures.append("dialogue_english_bad_%d" % line_index)
 		if str(line.get("runes", "")).is_empty() or str(line.get("runes", "")) == str(line.get("english", "")):
 			failures.append("dialogue_runes_bad_%d" % line_index)
-		if float(line.get("rune_duration", 0.0)) <= 0.0 or float(line.get("morph_duration", 0.0)) <= 0.0:
-			failures.append("dialogue_progression_duration_bad_%d" % line_index)
+			if float(line.get("rune_duration", 0.0)) <= 0.0 or float(line.get("morph_duration", 0.0)) <= 0.0:
+				failures.append("dialogue_progression_duration_bad_%d" % line_index)
+
+
+func _validate_dialogue_advance_controls(failures: Array[String]) -> void:
+	if advance_button == null or not is_instance_valid(advance_button):
+		failures.append("intro_advance_button_missing")
+	elif advance_button.text != "NEXT  [SPACE]" or not advance_button.pressed.is_connected(_advance_intro_scene):
+		failures.append("intro_advance_button_bad")
+	if skip_button == null or not is_instance_valid(skip_button):
+		failures.append("intro_skip_button_missing")
+	elif skip_button.text.contains("SPACE") or not skip_button.text.contains("ESC"):
+		failures.append("intro_skip_button_binding_bad")
+	var saved_time = timeline_time
+	var saved_transition = transition_started
+	var saved_static = static_view
+	static_view = false
+	transition_started = false
+	timeline_time = float(IntroTimeline.SCENES[1].get("start", 0.0)) + 0.02
+	_advance_intro_scene()
+	if timeline_time <= saved_time or timeline_time >= float(IntroTimeline.SCENES[2].get("start", IntroTimeline.TOTAL_DURATION)):
+		failures.append("intro_space_does_not_complete_line")
+	transition_started = saved_transition
+	static_view = saved_static
+	timeline_time = saved_time
+	_apply_timeline_time(timeline_time)
 
 
 func _validate_cast(failures: Array[String]) -> void:
