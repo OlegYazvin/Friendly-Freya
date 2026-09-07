@@ -8,6 +8,7 @@ const ClaimUtilsScript = preload("res://scripts/claim_utils.gd")
 const AlienVisualFactoryScript = preload("res://scripts/alien_visual_factory.gd")
 const FamilyIntroTimeline = preload("res://scripts/family_intro_timeline.gd")
 const FamilyVisualFactory = preload("res://scripts/family_visual_factory.gd")
+const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
@@ -134,11 +135,17 @@ const CLAIM_TARGET_TREE = 2
 const CLAIM_TARGET_FIRE_HYDRANT = 3
 const CLAIM_TARGET_ALIEN_BUILDING = 4
 const CLAIM_TARGET_MAILBOX = 5
+const CLAIM_TARGET_BUILDING = 6
 const CLAIM_OWNER_NONE = ClaimUtilsScript.OWNER_NONE
 const CLAIM_OWNER_FREYA = ClaimUtilsScript.OWNER_FREYA
 const CLAIM_OWNER_ENEMY = ClaimUtilsScript.OWNER_ENEMY
 const CLAIM_RANGE = 1.8
 const CLAIM_FILL_TIME = 2.75
+const BUILDING_CLAIM_FILL_TIME = 10.0
+const BUILDING_CLAIM_DECAY_PER_SEC = 0.05
+const BUILDING_CLAIM_SURROUNDING_MARGIN = 3.2
+const BUILDING_CLAIM_SWARM_RADIUS = 16.0
+const BUILDING_CLAIM_SWARM_SPEED_MULT = 1.38
 const CLAIM_RING_PULSE_SPEED = 2.25
 const CLAIM_PEE_SOURCE_BACK_OFFSET = 0.34
 const CLAIM_PEE_SOURCE_UP_OFFSET = 0.34
@@ -148,6 +155,10 @@ const CLAIM_PEE_TARGET_POLE_HEIGHT = 0.44
 const CLAIM_PEE_TARGET_TREE_HEIGHT = 0.56
 const SOCIALIZE_RANGE = 4.2
 const DOG_ARMY_ALIGN_TIME = 4.0
+const POSSESSED_DOG_AGGRO_BARK_RADIUS = 4.2
+const POSSESSED_DOG_SCARE_RADIUS = 3.35
+const FREYA_POSSESSED_DOG_FLEE_SPEED_MULT = 1.18
+const FREYA_POSSESSED_DOG_SCARE_STATUS_COOLDOWN = 1.25
 const HUNGER_IDLE_PER_SEC = 0.025
 const HUNGER_WALK_PER_SEC = 0.35
 const HUNGER_RUN_PER_SEC = 0.85
@@ -666,6 +677,10 @@ var claim_ring_material: StandardMaterial3D
 var claim_ring_enemy_material: StandardMaterial3D
 var claim_pee_stream_material: StandardMaterial3D
 var claim_pee_splash_material: StandardMaterial3D
+var freya_control_tint_material: StandardMaterial3D
+var freya_claim_stake_material: StandardMaterial3D
+var freya_claim_sign_material: StandardMaterial3D
+var freya_claim_scribble_material: StandardMaterial3D
 var alien_core_material: StandardMaterial3D
 var alien_trail_material: StandardMaterial3D
 var alien_body_material: StandardMaterial3D
@@ -714,6 +729,10 @@ var claim_meter_label: Label
 var claim_meter_bar: TextureProgressBar
 var active_claim_target_type = CLAIM_TARGET_NONE
 var active_claim_target_index = -1
+var freya_victory_complete = false
+var freya_scare_status_cooldown = 0.0
+var freya_claim_marker_animations: Array = []
+var freya_control_block_tint_nodes: Dictionary = {}
 var claim_pee_stream_node: Node3D
 var claim_pee_stream_segments: Array[MeshInstance3D] = []
 var claim_pee_splash_node: MeshInstance3D
@@ -820,6 +839,7 @@ func _ready() -> void:
 	else:
 		rng.randomize()
 	_configure_input()
+	AudioPreferencesScript.load_and_apply_master_volume()
 	_create_render_setup()
 	_create_world_roots()
 	# Headless validation has no audio device. Leaving audio unloaded there avoids
@@ -836,6 +856,7 @@ func _ready() -> void:
 	_mark_freya_home()
 	_mark_store_buildings()
 	_build_freya_home_interior()
+	_initialize_building_claim_state()
 	_build_suburban_yard_details()
 	_batch_neighborhood_building_details()
 	_add_building_sidewalks()
@@ -1215,6 +1236,7 @@ func _process(delta: float) -> void:
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
 	_update_claim_rings()
+	_update_freya_claim_markers(delta)
 	_update_interactable_highlights(delta)
 	_update_roof_occlusion(delta)
 	_update_ui()
@@ -1263,6 +1285,7 @@ func _profile_gameplay_update(delta: float) -> void:
 	_update_post_intro_meal_tutorial(delta)
 	_update_claiming(delta)
 	_update_claim_pee_effect(delta)
+	_update_freya_claim_markers(delta)
 	_perf_profile_mark("world_state", started)
 
 	started = Time.get_ticks_usec()
@@ -2023,6 +2046,29 @@ func _create_prop_materials() -> void:
 	claim_pee_splash_material.emission_enabled = true
 	claim_pee_splash_material.emission = Color(0.95, 0.82, 0.14)
 	claim_pee_splash_material.emission_energy_multiplier = 1.05
+
+	freya_control_tint_material = StandardMaterial3D.new()
+	freya_control_tint_material.albedo_color = Color(1.0, 0.9, 0.28, 0.16)
+	freya_control_tint_material.roughness = 1.0
+	freya_control_tint_material.metallic = 0.0
+	freya_control_tint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	freya_control_tint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	freya_control_tint_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	freya_claim_stake_material = StandardMaterial3D.new()
+	freya_claim_stake_material.albedo_color = Color8(126, 83, 43)
+	freya_claim_stake_material.roughness = 0.86
+	freya_claim_stake_material.metallic = 0.0
+
+	freya_claim_sign_material = StandardMaterial3D.new()
+	freya_claim_sign_material.albedo_color = Color8(236, 219, 160)
+	freya_claim_sign_material.roughness = 0.92
+	freya_claim_sign_material.metallic = 0.0
+
+	freya_claim_scribble_material = StandardMaterial3D.new()
+	freya_claim_scribble_material.albedo_color = Color(0.12, 0.09, 0.06, 1.0)
+	freya_claim_scribble_material.roughness = 0.74
+	freya_claim_scribble_material.metallic = 0.0
 
 	alien_core_material = StandardMaterial3D.new()
 	alien_core_material.albedo_color = Color(0.34, 0.02, 0.46, 0.9)
@@ -8246,6 +8292,10 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 	created["floors"] = floors
 	var shrink = minf(0.24, minf(footprint.size.x, footprint.size.y) * 0.06)
 	created["collision_rect"] = footprint.grow(-shrink)
+	var city_block = _city_block_for_point(footprint.get_center())
+	created["block_index"] = int(city_block.get("index", -1))
+	created["block_col"] = int(city_block.get("col", -999))
+	created["block_row"] = int(city_block.get("row", -999))
 	created["is_store"] = false
 	created["is_freya_home"] = false
 	created["enterable"] = false
@@ -8262,6 +8312,11 @@ func _add_building(footprint: Rect2, floors: int, front_is_south: bool) -> void:
 	created["alien_reinforcement_sources"] = 0
 	created["alien_reinforcement_strength"] = 0.0
 	created["alien_spawn_cooldown"] = rng.randf_range(FREE_ALIEN_SPAWN_MIN_SEC, FREE_ALIEN_SPAWN_MAX_SEC)
+	created["claimed"] = false
+	created["claimed_by"] = CLAIM_OWNER_NONE
+	created["claim_progress"] = 0.0
+	created["freya_control_tint_node"] = null
+	created["ryah_claim_marker_node"] = null
 	var node: Node3D = created["node"]
 	static_root.add_child(node)
 	buildings.append(created)
@@ -9366,6 +9421,7 @@ func _point_near_hardscape(p: Vector2, margin: float) -> bool:
 
 func _update_freya(delta: float) -> void:
 	freya_social = clamp(freya_social - delta * 1.0, 0.0, 100.0)
+	freya_scare_status_cooldown = maxf(0.0, freya_scare_status_cooldown - delta)
 
 	if freya_vomit_timer > 0.0:
 		_increase_freya_hunger(delta, HUNGER_ACTIVE_ACTION_PER_SEC)
@@ -9385,6 +9441,9 @@ func _update_freya(delta: float) -> void:
 		return
 
 	if _update_post_intro_meal_turnaround(delta):
+		return
+	var possessed_threat = _nearest_possessed_dog_threat(POSSESSED_DOG_SCARE_RADIUS)
+	if bool(possessed_threat.get("found", false)) and _force_freya_flee_from_possessed_dog(delta, possessed_threat):
 		return
 
 	var input_x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
@@ -9640,12 +9699,74 @@ func _compute_freya_move_speed(running: bool) -> float:
 	var speed = FREYA_BASE_SPEED * (1.0 - speed_penalty)
 	# Possessed dogs make Freya hesitate before the player knows why. The modest
 	# cap keeps this readable without making nearby crowds frustrating to cross.
-	speed *= 1.0 - clampf(freya_alien_discomfort, 0.0, 1.0) * 0.1
+	if not _freya_aggressive_bark_held():
+		speed *= 1.0 - clampf(freya_alien_discomfort, 0.0, 1.0) * 0.1
 	if running:
 		speed *= FREYA_RUN_MULT
 		if freya_has_stick and carried_stick != null and is_instance_valid(carried_stick):
 			speed *= FREYA_STICK_RUN_MULT
 	return maxf(1.7, speed)
+
+func _freya_aggressive_bark_held() -> bool:
+	return Input.is_action_pressed("aggressive_social") and not _is_dog_park_training_active()
+
+func _nearest_possessed_dog_threat(max_radius: float) -> Dictionary:
+	if freya == null or not is_instance_valid(freya):
+		return {"found": false}
+	var best_distance = max_radius
+	var best_index = -1
+	var best_node: Node3D = null
+	for dog_index in range(dogs.size()):
+		var state: Dictionary = dogs[dog_index]
+		if not bool(state.get("alien_possessed", false)):
+			continue
+		var dog: Node3D = state.get("node", null)
+		if dog == null or not is_instance_valid(dog):
+			continue
+		var distance = dog.global_position.distance_to(freya.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = dog_index
+			best_node = dog
+	return {
+		"found": best_index >= 0,
+		"index": best_index,
+		"node": best_node,
+		"distance": best_distance
+	}
+
+func _force_freya_flee_from_possessed_dog(delta: float, threat: Dictionary) -> bool:
+	if freya == null or not is_instance_valid(freya):
+		return false
+	if _freya_aggressive_bark_held():
+		return false
+	var dog: Node3D = threat.get("node", null)
+	if dog == null or not is_instance_valid(dog):
+		return false
+	var away = freya.global_position - dog.global_position
+	away.y = 0.0
+	if away.length_squared() < 0.001:
+		away = -freya.global_transform.basis.z
+		away.y = 0.0
+	if away.length_squared() < 0.001:
+		away = Vector3.RIGHT.rotated(Vector3.UP, rng.randf_range(0.0, TAU))
+	away = away.normalized()
+	freya_move_dir = away
+	_increase_freya_hunger(delta, HUNGER_WALK_PER_SEC)
+	var speed = _compute_freya_move_speed(false) * FREYA_POSSESSED_DOG_FLEE_SPEED_MULT
+	var next: Vector3 = freya.global_position + away * speed * delta
+	if _try_block_post_intro_home_exit(Vector2(next.x, next.z), away):
+		freya.update_motion(delta, post_intro_meal_turnaround_direction, false, false)
+		return true
+	if _is_walkable(next.x, freya.global_position.z, FREYA_COLLISION_RADIUS):
+		freya.global_position.x = next.x
+	if _is_walkable(freya.global_position.x, next.z, FREYA_COLLISION_RADIUS):
+		freya.global_position.z = next.z
+	freya.update_motion(delta, away, false, false)
+	if freya_scare_status_cooldown <= 0.0 and status_timer <= 0.2:
+		_show_status("Freya is scared — hold X to bark back!", 0.85)
+		freya_scare_status_cooldown = FREYA_POSSESSED_DOG_SCARE_STATUS_COOLDOWN
+	return true
 
 func _update_post_intro_meal_turnaround(delta: float) -> bool:
 	if not post_intro_meal_tutorial_active or post_intro_meal_turnaround_timer <= 0.0:
@@ -9728,6 +9849,7 @@ func _update_dogs(delta: float) -> void:
 	var passive_social_target_dist = 1000000.0
 	var has_passive_social_target = false
 	_update_aggressive_bark_context(delta, aggressive_social)
+	var claim_swarm = _active_building_claim_swarm()
 
 	for i in range(dogs.size()):
 		var state: Dictionary = dogs[i]
@@ -9744,6 +9866,7 @@ func _update_dogs(delta: float) -> void:
 		var flee_timer = maxf(0.0, float(state.get("flee_timer", 0.0)) - delta)
 		state["flee_timer"] = flee_timer
 		var is_fleeing = flee_timer > 0.0
+		var is_swarming_claim = false
 
 		var in_park = bool(state.get("park", false))
 		var pref_surface = str(state.get("pref_surface", "sidewalk"))
@@ -9763,6 +9886,21 @@ func _update_dogs(delta: float) -> void:
 				away = Vector3.RIGHT.rotated(Vector3.UP, rng.randf_range(0.0, TAU))
 			dir = away.normalized()
 			state["flee_direction"] = dir
+		elif bool(claim_swarm.get("active", false)) and bool(state.get("alien_possessed", false)):
+			var swarm_anchor: Vector3 = claim_swarm.get("position", freya.global_position)
+			var dist_to_claim_anchor = dog.global_position.distance_to(swarm_anchor)
+			var dist_to_freya = dog.global_position.distance_to(freya.global_position)
+			if dist_to_claim_anchor <= BUILDING_CLAIM_SWARM_RADIUS or dist_to_freya <= BUILDING_CLAIM_SWARM_RADIUS * 0.65:
+				is_swarming_claim = true
+				var toward = freya.global_position - dog.global_position
+				toward.y = 0.0
+				if aggressive_social and dist_to_freya <= SOCIALIZE_RANGE:
+					toward = dog.global_position - freya.global_position
+					toward.y = 0.0
+				if toward.length_squared() < 0.001:
+					toward = Vector3.RIGHT.rotated(Vector3.UP, rng.randf_range(0.0, TAU))
+				dir = toward.normalized()
+				state["wander"] = 0.16
 		elif float(state["wander"]) <= 0.0:
 			var drive_surface = pref_surface
 			if (not in_park) and pref_surface == "sidewalk" and rng.randf() < 0.2:
@@ -9771,6 +9909,10 @@ func _update_dogs(delta: float) -> void:
 			state["wander"] = rng.randf_range(0.8, 2.6)
 
 		var speed = float(state["speed"]) * (DOG_FLEE_SPEED_MULT if is_fleeing else 1.0)
+		if is_swarming_claim:
+			speed *= BUILDING_CLAIM_SWARM_SPEED_MULT
+			if aggressive_social and dog.global_position.distance_to(freya.global_position) <= SOCIALIZE_RANGE:
+				speed *= 0.48
 		var next: Vector3 = dog.global_position + dir * speed * delta
 		var next_surface = _surface_at(Vector2(next.x, next.z))
 		var next_inside_park = (not in_park) or dog_park.grow(-0.18).has_point(Vector2(next.x, next.z))
@@ -9811,6 +9953,7 @@ func _update_dogs(delta: float) -> void:
 
 		var friendly_interacting = friendly_social and (not is_fleeing) and in_social_range
 		var aggressive_interacting = aggressive_social and in_social_range
+		var possessed_aggro_barking = bool(state.get("alien_possessed", false)) and (not friendly_interacting) and (not aggressive_interacting) and near <= POSSESSED_DOG_AGGRO_BARK_RADIUS
 		if aggressive_interacting:
 			aggressive_interaction_active = true
 		if friendly_interacting:
@@ -9822,7 +9965,11 @@ func _update_dogs(delta: float) -> void:
 				passive_social_target = dog.global_position
 				passive_social_target_dist = near
 				has_passive_social_target = true
-		if (friendly_interacting or aggressive_interacting) and float(state["bark"]) <= 0.0:
+		if possessed_aggro_barking and float(state["bark"]) <= 0.0:
+			_spawn_bark_pulse(dog.head_world_position(), Color(1.0, 0.42, 0.34, 0.9))
+			_queue_bark_sequence(false, rng.randi_range(1, 2), BARK_CATEGORY_AGGRESSIVE)
+			state["bark"] = rng.randf_range(0.58, 0.94)
+		elif (friendly_interacting or aggressive_interacting) and float(state["bark"]) <= 0.0:
 			if aggressive_social:
 				var pack = max(1, aggressive_bark_nearby_count)
 				var pulse_hot = clampf(0.64 + float(pack) * 0.05, 0.64, 1.0)
@@ -9918,6 +10065,8 @@ func _nearest_random_alien_building(origin: Vector2, excluded_indices: Array = [
 		var building: Dictionary = buildings[building_index]
 		if bool(building.get("alien_occupied", false)):
 			continue
+		if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA) and not bool(building.get("is_freya_home", false)):
+			continue
 		var footprint: Rect2 = building.get("footprint", Rect2())
 		if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
 			continue
@@ -9952,6 +10101,8 @@ func _nearest_alien_building(
 		if (not allow_occupied) and bool(building.get("alien_occupied", false)):
 			continue
 		if (not allow_freya_home) and bool(building.get("is_freya_home", false)):
+			continue
+		if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA) and not bool(building.get("is_freya_home", false)):
 			continue
 		var footprint: Rect2 = building.get("footprint", Rect2())
 		if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
@@ -10209,7 +10360,7 @@ func _update_alien_transfers(delta: float) -> void:
 			continue
 
 		var target_index = int(transfer.get("target_index", -1))
-		if target_index < 0 or target_index >= buildings.size() or bool(buildings[target_index].get("alien_occupied", false)):
+		if target_index < 0 or target_index >= buildings.size() or bool(buildings[target_index].get("alien_occupied", false)) or (_building_is_controlled_by_freya(target_index) and not bool(buildings[target_index].get("is_freya_home", false))):
 			transfer = _retarget_alien_transfer(transfer)
 			target_index = int(transfer.get("target_index", -1))
 			if target_index < 0:
@@ -10248,7 +10399,10 @@ func _update_alien_transfers(delta: float) -> void:
 			alien_transfers[transfer_index] = transfer
 			continue
 
-		_occupy_building_with_alien(target_index, int(transfer.get("serial", -1)))
+		if not _occupy_building_with_alien(target_index, int(transfer.get("serial", -1))):
+			transfer = _retarget_alien_transfer(transfer)
+			alien_transfers[transfer_index] = transfer
+			continue
 		node.queue_free()
 		alien_transfers.remove_at(transfer_index)
 
@@ -10384,7 +10538,7 @@ func _update_free_aliens(delta: float) -> void:
 				continue
 
 		var target_index = int(alien.get("target_index", -1))
-		if target_index < 0 or target_index >= buildings.size():
+		if target_index < 0 or target_index >= buildings.size() or (_building_is_controlled_by_freya(target_index) and not bool(buildings[target_index].get("is_freya_home", false))):
 			alien = _retarget_free_alien(alien)
 			target_index = int(alien.get("target_index", -1))
 			if target_index < 0:
@@ -10413,7 +10567,10 @@ func _update_free_aliens(delta: float) -> void:
 			alien = _retarget_free_alien(alien)
 			free_aliens[alien_index] = alien
 			continue
-		_occupy_building_with_alien(target_index, int(alien.get("serial", -1)))
+		if not _occupy_building_with_alien(target_index, int(alien.get("serial", -1))):
+			alien = _retarget_free_alien(alien)
+			free_aliens[alien_index] = alien
+			continue
 		node.queue_free()
 		free_aliens.remove_at(alien_index)
 
@@ -10531,6 +10688,8 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool
 	var building: Dictionary = buildings[building_index]
 	if bool(building.get("is_freya_home", false)):
 		return false
+	if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
+		return false
 	var was_occupied = bool(building.get("alien_occupied", false))
 	var freya_was_inside_store = false
 	if bool(building.get("enterable", false)) and freya != null and is_instance_valid(freya):
@@ -10543,6 +10702,9 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int) -> bool
 		visual = _create_alien_building_visual(building_index)
 	building["alien_occupied"] = true
 	building["enterable"] = false
+	building["claimed"] = false
+	building["claimed_by"] = CLAIM_OWNER_NONE
+	building["claim_progress"] = 0.0
 	building["alien_integrity"] = maxf(float(building.get("alien_integrity", 0.0)), 1.0 if not was_occupied else ALIEN_BUILDING_MIN_INTEGRITY)
 	building["alien_visual_root"] = visual
 	building["alien_occupant_serial"] = alien_serial
@@ -10657,6 +10819,11 @@ func _update_freya_alien_discomfort(delta: float) -> void:
 	if freya == null or not is_instance_valid(freya):
 		freya_alien_discomfort = 0.0
 		return
+	if _freya_aggressive_bark_held():
+		freya_alien_discomfort = lerpf(freya_alien_discomfort, 0.0, clampf(delta * 8.0, 0.0, 1.0))
+		if freya.has_method("set_discomfort"):
+			freya.call("set_discomfort", freya_alien_discomfort, freya.global_position, delta)
+		return
 	var nearest_distance = ALIEN_DISCOMFORT_RADIUS
 	var threat_position = freya.global_position
 	for state in dogs:
@@ -10675,6 +10842,26 @@ func _update_freya_alien_discomfort(delta: float) -> void:
 	freya_alien_discomfort = lerpf(freya_alien_discomfort, target_strength, clampf(delta * 6.0, 0.0, 1.0))
 	if freya.has_method("set_discomfort"):
 		freya.call("set_discomfort", freya_alien_discomfort, threat_position, delta)
+
+func _active_building_claim_swarm() -> Dictionary:
+	if active_claim_target_type != CLAIM_TARGET_BUILDING or active_claim_target_index < 0:
+		return {"active": false}
+	if not Input.is_action_pressed("claim"):
+		return {"active": false}
+	if active_claim_target_index >= buildings.size():
+		return {"active": false}
+	var building: Dictionary = buildings[active_claim_target_index]
+	if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
+		return {"active": false}
+	var footprint: Rect2 = building.get("footprint", Rect2())
+	if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
+		return {"active": false}
+	var center = footprint.get_center()
+	return {
+		"active": true,
+		"building_index": active_claim_target_index,
+		"position": Vector3(center.x, 0.0, center.y)
+	}
 
 func _count_dogs_near_freya(radius: float) -> int:
 	if freya == null:
@@ -11027,6 +11214,398 @@ func _entry_is_claimed(entry: Dictionary) -> bool:
 func _apply_claim_owner_to_entry(entry: Dictionary, owner: String) -> Dictionary:
 	return ClaimUtilsScript.apply_owner(entry, owner)
 
+func _initialize_building_claim_state() -> void:
+	freya_control_block_tint_nodes.clear()
+	freya_claim_marker_animations.clear()
+	for building_index in range(buildings.size()):
+		var building: Dictionary = buildings[building_index]
+		var footprint: Rect2 = building.get("footprint", Rect2())
+		var block = _building_block_for_index(building_index)
+		if block.is_empty() and footprint.size.x > 0.0 and footprint.size.y > 0.0:
+			block = _city_block_for_point(footprint.get_center())
+		building["block_index"] = int(block.get("index", building.get("block_index", -1)))
+		building["block_col"] = int(block.get("col", building.get("block_col", -999)))
+		building["block_row"] = int(block.get("row", building.get("block_row", -999)))
+		if not building.has("claimed"):
+			building["claimed"] = false
+		if not building.has("claimed_by"):
+			building["claimed_by"] = CLAIM_OWNER_NONE
+		if not building.has("claim_progress"):
+			building["claim_progress"] = 0.0
+		if not building.has("freya_control_tint_node"):
+			building["freya_control_tint_node"] = null
+		if not building.has("ryah_claim_marker_node"):
+			building["ryah_claim_marker_node"] = null
+		buildings[building_index] = building
+
+	if freya_home_index >= 0 and freya_home_index < buildings.size():
+		_set_claim_owner(CLAIM_TARGET_BUILDING, freya_home_index, CLAIM_OWNER_FREYA)
+	freya_victory_complete = _controlled_building_count() >= _claimable_building_total() and _claimable_building_total() > 0
+
+func _building_block_for_index(building_index: int) -> Dictionary:
+	if building_index < 0 or building_index >= buildings.size():
+		return {}
+	var building: Dictionary = buildings[building_index]
+	var block_index = int(building.get("block_index", -1))
+	if block_index >= 0 and block_index < city_blocks.size():
+		return city_blocks[block_index]
+	var footprint: Rect2 = building.get("footprint", Rect2())
+	if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
+		return {}
+	return _city_block_for_point(footprint.get_center())
+
+func _claimable_building_total() -> int:
+	var total = 0
+	for building in buildings:
+		var footprint: Rect2 = building.get("footprint", Rect2())
+		if footprint.size.x > 0.0 and footprint.size.y > 0.0:
+			total += 1
+	return total
+
+func _controlled_building_count() -> int:
+	var total = 0
+	for building in buildings:
+		if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
+			total += 1
+	return total
+
+func _building_is_controlled_by_freya(building_index: int) -> bool:
+	if building_index < 0 or building_index >= buildings.size():
+		return false
+	return _entry_is_claimed_by(buildings[building_index], CLAIM_OWNER_FREYA)
+
+func _building_has_adjacent_freya_control(building_index: int) -> bool:
+	var target_block = _building_block_for_index(building_index)
+	if target_block.is_empty():
+		return false
+	var target_col = int(target_block.get("col", -999))
+	var target_row = int(target_block.get("row", -999))
+	for other_index in range(buildings.size()):
+		if other_index == building_index or not _building_is_controlled_by_freya(other_index):
+			continue
+		var other_block = _building_block_for_index(other_index)
+		if other_block.is_empty():
+			continue
+		var dc = absi(int(other_block.get("col", -999)) - target_col)
+		var dr = absi(int(other_block.get("row", -999)) - target_row)
+		# Same generated city block counts as connected territory because a block
+		# can contain several enterable lots. Expansion to new blocks is cardinal.
+		if dc + dr <= 1:
+			return true
+	return false
+
+func _point_distance_to_rect(point: Vector2, rect: Rect2) -> float:
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return INF
+	var closest = Vector2(
+		clampf(point.x, rect.position.x, rect.end.x),
+		clampf(point.y, rect.position.y, rect.end.y)
+	)
+	return point.distance_to(closest)
+
+func _building_surrounding_claimables(building_index: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if building_index < 0 or building_index >= buildings.size():
+		return result
+	var footprint: Rect2 = buildings[building_index].get("footprint", Rect2())
+	if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
+		return result
+	for i in range(street_poles.size()):
+		var pole: Dictionary = street_poles[i]
+		var pos: Vector2 = pole.get("pos", Vector2.ZERO)
+		if _point_distance_to_rect(pos, footprint) <= BUILDING_CLAIM_SURROUNDING_MARGIN:
+			result.append({"type": CLAIM_TARGET_LIGHT_POLE, "index": i})
+	for i in range(trees.size()):
+		var tree: Dictionary = trees[i]
+		var pos: Vector2 = tree.get("pos", Vector2.ZERO)
+		if _point_distance_to_rect(pos, footprint) <= BUILDING_CLAIM_SURROUNDING_MARGIN:
+			result.append({"type": CLAIM_TARGET_TREE, "index": i})
+	for i in range(fire_hydrants.size()):
+		var hydrant: Dictionary = fire_hydrants[i]
+		var pos: Vector2 = hydrant.get("pos", Vector2.ZERO)
+		if _point_distance_to_rect(pos, footprint) <= BUILDING_CLAIM_SURROUNDING_MARGIN:
+			result.append({"type": CLAIM_TARGET_FIRE_HYDRANT, "index": i})
+	for i in range(mailboxes.size()):
+		var mailbox: Dictionary = mailboxes[i]
+		var pos: Vector2 = mailbox.get("pos", Vector2.ZERO)
+		if _point_distance_to_rect(pos, footprint) <= BUILDING_CLAIM_SURROUNDING_MARGIN:
+			result.append({"type": CLAIM_TARGET_MAILBOX, "index": i})
+	return result
+
+func _building_surrounding_claim_summary(building_index: int) -> Dictionary:
+	var total = 0
+	var claimed = 0
+	for item in _building_surrounding_claimables(building_index):
+		total += 1
+		var target_type = int(item.get("type", CLAIM_TARGET_NONE))
+		var target_index = int(item.get("index", -1))
+		var entry = _claim_entry_for_target(target_type, target_index)
+		if not entry.is_empty() and _entry_is_claimed_by(entry, CLAIM_OWNER_FREYA):
+			claimed += 1
+	return {"claimed": claimed, "total": total}
+
+func _building_surrounding_claims_complete(building_index: int) -> bool:
+	var summary = _building_surrounding_claim_summary(building_index)
+	return int(summary.get("claimed", 0)) >= int(summary.get("total", 0))
+
+func _building_claim_status(building_index: int) -> Dictionary:
+	var status = {
+		"eligible": false,
+		"reason": "",
+		"surrounding_claimed": 0,
+		"surrounding_total": 0
+	}
+	if building_index < 0 or building_index >= buildings.size():
+		status["reason"] = "No claimable building here."
+		return status
+	var building: Dictionary = buildings[building_index]
+	if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
+		status["reason"] = "This building is already Freya's."
+		return status
+	if bool(building.get("alien_occupied", false)):
+		status["reason"] = "This building is still possessed — weaken the alien hold first."
+		return status
+	if not bool(building.get("enterable", false)):
+		status["reason"] = "This building is not enterable yet."
+		return status
+	var interior_rect: Rect2 = building.get("store_interior_rect", Rect2())
+	if interior_rect.size.x <= 0.0 or interior_rect.size.y <= 0.0:
+		status["reason"] = "This building has no accessible interior yet."
+		return status
+	var summary = _building_surrounding_claim_summary(building_index)
+	status["surrounding_claimed"] = int(summary.get("claimed", 0))
+	status["surrounding_total"] = int(summary.get("total", 0))
+	if int(status["surrounding_claimed"]) < int(status["surrounding_total"]):
+		status["reason"] = "Pee on everything around this building first (%d/%d marked)." % [int(status["surrounding_claimed"]), int(status["surrounding_total"])]
+		return status
+	if not _building_has_adjacent_freya_control(building_index):
+		status["reason"] = "Freya can only claim buildings connected to her territory."
+		return status
+	status["eligible"] = true
+	status["reason"] = "Hold R here for 10 seconds to claim this building."
+	return status
+
+func _building_claim_target_for_position(freya_pos: Vector2) -> Dictionary:
+	var building_index = _store_index_for_interior_point(freya_pos)
+	if building_index < 0:
+		return {"found": false}
+	var claim_status = _building_claim_status(building_index)
+	if bool(claim_status.get("eligible", false)):
+		return {
+			"found": true,
+			"type": CLAIM_TARGET_BUILDING,
+			"index": building_index,
+			"dist_sq": 0.0,
+			"building_status": claim_status
+		}
+	return {
+		"found": false,
+		"blocked": true,
+		"blocked_reason": str(claim_status.get("reason", "")),
+		"type": CLAIM_TARGET_BUILDING,
+		"index": building_index,
+		"dist_sq": 0.0
+	}
+
+func _update_building_claim_decay(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var held_building_index = -1
+	if Input.is_action_pressed("claim") and freya != null and is_instance_valid(freya):
+		var held_target = _building_claim_target_for_position(Vector2(freya.global_position.x, freya.global_position.z))
+		if bool(held_target.get("found", false)):
+			held_building_index = int(held_target.get("index", -1))
+	for building_index in range(buildings.size()):
+		if building_index == held_building_index:
+			continue
+		if active_claim_target_type == CLAIM_TARGET_BUILDING and active_claim_target_index == building_index and Input.is_action_pressed("claim"):
+			continue
+		var building: Dictionary = buildings[building_index]
+		if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
+			continue
+		var progress = clampf(float(building.get("claim_progress", 0.0)), 0.0, 1.0)
+		if progress <= 0.0:
+			continue
+		progress = maxf(0.0, progress - delta * BUILDING_CLAIM_DECAY_PER_SEC)
+		building["claim_progress"] = progress
+		buildings[building_index] = building
+
+func _create_freya_control_tint_for_block(block: Dictionary) -> MeshInstance3D:
+	var rect: Rect2 = block.get("rect", Rect2())
+	var tint = MeshInstance3D.new()
+	tint.name = "FreyaControlledBlockTint"
+	var mesh = PlaneMesh.new()
+	mesh.size = Vector2(maxf(0.1, rect.size.x), maxf(0.1, rect.size.y))
+	tint.mesh = mesh
+	tint.position = Vector3(rect.get_center().x, 0.026, rect.get_center().y)
+	tint.material_override = freya_control_tint_material
+	tint.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tint.set_meta("freya_controlled_block", int(block.get("index", -1)))
+	static_root.add_child(tint, true)
+	return tint
+
+func _ensure_freya_control_visual_for_building(building_index: int) -> void:
+	if building_index < 0 or building_index >= buildings.size():
+		return
+	var building: Dictionary = buildings[building_index]
+	var block = _building_block_for_index(building_index)
+	if block.is_empty():
+		return
+	var block_index = int(block.get("index", -1))
+	var tint: MeshInstance3D = freya_control_block_tint_nodes.get(block_index, null)
+	if tint == null or not is_instance_valid(tint):
+		tint = _create_freya_control_tint_for_block(block)
+		freya_control_block_tint_nodes[block_index] = tint
+	building["freya_control_tint_node"] = tint
+	buildings[building_index] = building
+
+func _create_ryah_claim_marker(building_index: int) -> Node3D:
+	var building: Dictionary = buildings[building_index]
+	var footprint: Rect2 = building.get("footprint", Rect2())
+	var center = footprint.get_center()
+	var layout: Dictionary = building.get("store_layout", {})
+	var entry: Vector2 = layout.get("entry_outside_pos", building.get("entry_pos", center))
+	var outward = entry - center
+	if outward.length_squared() < 0.001:
+		outward = Vector2.DOWN if bool(building.get("front_is_south", true)) else Vector2.UP
+	outward = outward.normalized()
+	var pos2 = entry + outward * 0.62
+	if not _is_walkable(pos2.x, pos2.y, 0.12):
+		pos2 = entry
+	var root = Node3D.new()
+	root.name = "RyahFreyaClaimStake"
+	var forward = Vector3(outward.x, 0.0, outward.y).normalized()
+	var right = Vector3(forward.z, 0.0, -forward.x).normalized()
+	root.global_transform = Transform3D(Basis(right, Vector3.UP, forward).orthonormalized(), Vector3(pos2.x, 0.0, pos2.y))
+	root.set_meta("building_index", building_index)
+
+	var stake = MeshInstance3D.new()
+	stake.name = "WoodStake"
+	var stake_mesh = BoxMesh.new()
+	stake_mesh.size = Vector3(0.09, 1.08, 0.07)
+	stake.mesh = stake_mesh
+	stake.position = Vector3(0.0, 0.54, 0.0)
+	stake.material_override = freya_claim_stake_material
+	stake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(stake, true)
+
+	var sign = MeshInstance3D.new()
+	sign.name = "RyahScribblyFreyaSign"
+	var sign_mesh = BoxMesh.new()
+	sign_mesh.size = Vector3(0.68, 0.44, 0.045)
+	sign.mesh = sign_mesh
+	sign.position = Vector3(0.0, 1.06, 0.035)
+	sign.material_override = freya_claim_sign_material
+	sign.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(sign, true)
+
+	var scribble_specs = [
+		{"name": "ScribbleFreyaBody", "size": Vector3(0.31, 0.035, 0.025), "pos": Vector3(-0.02, 1.07, 0.07), "rot": 0.1},
+		{"name": "ScribbleFreyaHead", "size": Vector3(0.12, 0.032, 0.025), "pos": Vector3(0.21, 1.12, 0.072), "rot": -0.2},
+		{"name": "ScribbleFreyaTail", "size": Vector3(0.14, 0.026, 0.025), "pos": Vector3(-0.25, 1.14, 0.072), "rot": 0.62},
+		{"name": "ScribbleFreyaLegOne", "size": Vector3(0.035, 0.13, 0.025), "pos": Vector3(-0.12, 0.98, 0.074), "rot": -0.16},
+		{"name": "ScribbleFreyaLegTwo", "size": Vector3(0.035, 0.12, 0.025), "pos": Vector3(0.02, 0.98, 0.074), "rot": 0.13},
+		{"name": "ScribbleFreyaLegThree", "size": Vector3(0.032, 0.1, 0.025), "pos": Vector3(0.14, 0.985, 0.074), "rot": -0.05}
+	]
+	for spec in scribble_specs:
+		var mark = MeshInstance3D.new()
+		mark.name = str(spec["name"])
+		var mark_mesh = BoxMesh.new()
+		mark_mesh.size = spec["size"]
+		mark.mesh = mark_mesh
+		mark.position = spec["pos"]
+		mark.rotation.z = float(spec["rot"])
+		mark.material_override = freya_claim_scribble_material
+		mark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mark, true)
+
+	static_root.add_child(root, true)
+	root.set_meta("base_position", root.position)
+	return root
+
+func _ensure_ryah_claim_marker_for_building(building_index: int, animate: bool = true) -> void:
+	if building_index < 0 or building_index >= buildings.size():
+		return
+	var building: Dictionary = buildings[building_index]
+	var existing: Node3D = building.get("ryah_claim_marker_node", null)
+	if existing != null and is_instance_valid(existing):
+		return
+	var marker = _create_ryah_claim_marker(building_index)
+	building["ryah_claim_marker_node"] = marker
+	buildings[building_index] = building
+	if animate:
+		marker.visible = true
+		marker.scale = Vector3(0.82, 0.08, 0.82)
+		marker.position = marker.position + Vector3(0.0, -0.52, 0.0)
+		freya_claim_marker_animations.append({
+			"node": marker,
+			"age": 0.0,
+			"duration": 0.82,
+			"base_position": marker.get_meta("base_position", marker.position + Vector3(0.0, 0.52, 0.0))
+		})
+
+func _update_freya_claim_markers(delta: float) -> void:
+	for marker_index in range(freya_claim_marker_animations.size() - 1, -1, -1):
+		var animation: Dictionary = freya_claim_marker_animations[marker_index]
+		var marker: Node3D = animation.get("node", null)
+		if marker == null or not is_instance_valid(marker):
+			freya_claim_marker_animations.remove_at(marker_index)
+			continue
+		var duration = maxf(0.1, float(animation.get("duration", 0.82)))
+		var age = minf(duration, float(animation.get("age", 0.0)) + delta)
+		animation["age"] = age
+		var t = clampf(age / duration, 0.0, 1.0)
+		var eased = t * t * (3.0 - 2.0 * t)
+		var overshoot = sin(t * PI) * 0.075
+		var base_position: Vector3 = animation.get("base_position", marker.position)
+		marker.position = base_position + Vector3(0.0, lerpf(-0.52, 0.0, eased) + overshoot, 0.0)
+		marker.scale = Vector3(
+			lerpf(0.82, 1.0, eased),
+			lerpf(0.08, 1.0, eased),
+			lerpf(0.82, 1.0, eased)
+		)
+		if age >= duration:
+			marker.position = base_position
+			marker.scale = Vector3.ONE
+			freya_claim_marker_animations.remove_at(marker_index)
+		else:
+			freya_claim_marker_animations[marker_index] = animation
+
+func _clear_alien_occupation(building_index: int) -> void:
+	if building_index < 0 or building_index >= buildings.size():
+		return
+	var building: Dictionary = buildings[building_index]
+	var was_occupied = bool(building.get("alien_occupied", false))
+	var visual: Node3D = building.get("alien_visual_root", null)
+	if visual != null and is_instance_valid(visual):
+		visual.queue_free()
+	building["alien_occupied"] = false
+	building["alien_integrity"] = 0.0
+	building["alien_visual_root"] = null
+	building["alien_occupant_serial"] = -1
+	building["alien_occupant_count"] = 0
+	building["alien_pee_exposure"] = 0.0
+	building["alien_reinforcement_sources"] = 0
+	building["alien_reinforcement_strength"] = 0.0
+	building["enterable"] = true
+	buildings[building_index] = building
+	if was_occupied:
+		alien_building_occupation_count = maxi(0, alien_building_occupation_count - 1)
+	_rebuild_walkability_cache()
+	_update_alien_reinforcement_fields()
+
+func _check_victory_condition() -> void:
+	if freya_victory_complete:
+		return
+	var total = _claimable_building_total()
+	if total <= 0:
+		return
+	var controlled = _controlled_building_count()
+	if controlled < total:
+		return
+	freya_victory_complete = true
+	_show_status("Victory! Freya owns the whole map!", 5.0)
+
 func _alien_building_wall_point(building_index: int, origin: Vector2) -> Vector2:
 	if building_index < 0 or building_index >= buildings.size():
 		return origin
@@ -11060,6 +11639,9 @@ func _find_nearest_claim_target() -> Dictionary:
 	var best_type := CLAIM_TARGET_NONE
 	var best_index := -1
 	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+	var building_target = _building_claim_target_for_position(freya_pos)
+	if bool(building_target.get("found", false)) or bool(building_target.get("blocked", false)):
+		return building_target
 
 	for i in range(street_poles.size()):
 		var pole: Dictionary = street_poles[i]
@@ -11138,6 +11720,8 @@ func _claim_target_owner(target_type: int, index: int) -> String:
 		return _claim_owner_from_entry(mailboxes[index])
 	if target_type == CLAIM_TARGET_ALIEN_BUILDING and index < buildings.size():
 		return CLAIM_OWNER_ENEMY if bool(buildings[index].get("alien_occupied", false)) else CLAIM_OWNER_NONE
+	if target_type == CLAIM_TARGET_BUILDING and index < buildings.size():
+		return _claim_owner_from_entry(buildings[index])
 	return CLAIM_OWNER_NONE
 
 func _set_claim_owner(target_type: int, index: int, owner: String) -> void:
@@ -11152,6 +11736,27 @@ func _set_claim_owner(target_type: int, index: int, owner: String) -> void:
 		fire_hydrants[index] = _apply_claim_owner_to_entry(fire_hydrants[index], owner_key)
 	elif target_type == CLAIM_TARGET_MAILBOX and index < mailboxes.size():
 		mailboxes[index] = _apply_claim_owner_to_entry(mailboxes[index], owner_key)
+	elif target_type == CLAIM_TARGET_BUILDING and index < buildings.size():
+		var building: Dictionary = _apply_claim_owner_to_entry(buildings[index], owner_key)
+		if owner_key == CLAIM_OWNER_FREYA:
+			var alien_visual: Node3D = building.get("alien_visual_root", null)
+			if alien_visual != null and is_instance_valid(alien_visual):
+				alien_visual.queue_free()
+			building["claim_progress"] = 1.0
+			building["alien_occupied"] = false
+			building["alien_integrity"] = 0.0
+			building["alien_occupant_serial"] = -1
+			building["alien_occupant_count"] = 0
+			building["alien_pee_exposure"] = 0.0
+			building["enterable"] = true
+		elif owner_key == CLAIM_OWNER_NONE:
+			building["claim_progress"] = 0.0
+		buildings[index] = building
+		if owner_key == CLAIM_OWNER_FREYA:
+			_ensure_freya_control_visual_for_building(index)
+			if not bool(buildings[index].get("is_freya_home", false)):
+				_ensure_ryah_claim_marker_for_building(index, true)
+		return
 	if owner_key != CLAIM_OWNER_NONE:
 		_ensure_claim_ring_for_target(target_type, index)
 
@@ -11398,6 +12003,11 @@ func _claim_target_world_position(target_type: int, index: int) -> Vector3:
 		return Vector3(p.x, 1.1, p.y)
 	if target_type == CLAIM_TARGET_ALIEN_BUILDING and index >= 0 and index < buildings.size():
 		return _alien_building_target_position(index)
+	if target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		var building: Dictionary = buildings[index]
+		var footprint: Rect2 = building.get("footprint", Rect2())
+		var center = footprint.get_center()
+		return Vector3(center.x, maxf(1.6, float(building.get("height", 3.0)) * 0.46), center.y)
 	return freya.global_position + Vector3(0.0, 1.5, 0.0)
 
 func _claim_progress_for_target(target_type: int, index: int) -> float:
@@ -11412,6 +12022,8 @@ func _claim_progress_for_target(target_type: int, index: int) -> float:
 	if target_type == CLAIM_TARGET_ALIEN_BUILDING and index >= 0 and index < buildings.size():
 		var integrity = clampf(float(buildings[index].get("alien_integrity", 1.0)), ALIEN_BUILDING_MIN_INTEGRITY, 1.0)
 		return clampf((1.0 - integrity) / (1.0 - ALIEN_BUILDING_MIN_INTEGRITY), 0.0, 1.0)
+	if target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		return clampf(float(buildings[index].get("claim_progress", 0.0)), 0.0, 1.0)
 	return 0.0
 
 func _claim_entry_for_target(target_type: int, index: int) -> Dictionary:
@@ -11423,6 +12035,8 @@ func _claim_entry_for_target(target_type: int, index: int) -> Dictionary:
 		return fire_hydrants[index]
 	if target_type == CLAIM_TARGET_MAILBOX and index >= 0 and index < mailboxes.size():
 		return mailboxes[index]
+	if target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		return buildings[index]
 	return {}
 
 func _set_claim_entry_for_target(target_type: int, index: int, entry: Dictionary) -> void:
@@ -11434,6 +12048,8 @@ func _set_claim_entry_for_target(target_type: int, index: int, entry: Dictionary
 		fire_hydrants[index] = entry
 	elif target_type == CLAIM_TARGET_MAILBOX and index >= 0 and index < mailboxes.size():
 		mailboxes[index] = entry
+	elif target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		buildings[index] = entry
 
 func _advance_claim_progress(target_type: int, index: int, delta: float, fill_time: float) -> bool:
 	var entry = _claim_entry_for_target(target_type, index)
@@ -11458,7 +12074,10 @@ func _weaken_alien_building(building_index: int, delta: float) -> bool:
 	building["alien_integrity"] = integrity
 	building["alien_pee_exposure"] = float(building.get("alien_pee_exposure", 0.0)) + delta
 	buildings[building_index] = building
-	return integrity <= ALIEN_BUILDING_MIN_INTEGRITY + 0.0001
+	if integrity <= ALIEN_BUILDING_MIN_INTEGRITY + 0.0001:
+		_clear_alien_occupation(building_index)
+		return true
+	return false
 
 func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
 	if target_type == CLAIM_TARGET_LIGHT_POLE and index >= 0 and index < street_poles.size():
@@ -11493,9 +12112,18 @@ func _claim_target_base_world_position(target_type: int, index: int) -> Vector3:
 		var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
 		var wall_point = _alien_building_wall_point(index, freya_pos)
 		return Vector3(wall_point.x, 0.0, wall_point.y)
+	if target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		return freya.global_position
 	return freya.global_position
 
 func _claim_target_pee_world_position(target_type: int, index: int) -> Vector3:
+	if target_type == CLAIM_TARGET_BUILDING and index >= 0 and index < buildings.size():
+		var backward: Vector3 = freya.global_transform.basis.z
+		backward.y = 0.0
+		if backward.length_squared() < 0.0001:
+			backward = Vector3.BACK
+		backward = backward.normalized()
+		return freya.global_position + backward * 0.46 + Vector3(0.0, 0.08, 0.0)
 	var center = _claim_target_base_world_position(target_type, index)
 	var toward_freya = Vector2(freya.global_position.x - center.x, freya.global_position.z - center.z)
 	if toward_freya.length_squared() < 0.0001:
@@ -11692,6 +12320,7 @@ func _update_claim_pee_effect(delta: float) -> void:
 	claim_pee_splash_node.visible = true
 
 func _update_claiming(delta: float) -> void:
+	_update_building_claim_decay(delta)
 	if _is_dog_park_training_active():
 		_reset_claim_progress(active_claim_target_type, active_claim_target_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
@@ -11730,7 +12359,11 @@ func _update_claiming(delta: float) -> void:
 		active_claim_target_index = -1
 		_stop_claim_pee_audio()
 		if Input.is_action_just_pressed("claim"):
-			_show_status("No tree, pole, hydrant, mailbox, alien wall, or dumpster in range", 0.95)
+			var blocked_reason = str(target.get("blocked_reason", ""))
+			if not blocked_reason.is_empty():
+				_show_status(blocked_reason, 1.2)
+			else:
+				_show_status("No tree, pole, hydrant, mailbox, building, alien wall, or dumpster in range", 0.95)
 		return
 
 	var target_type = int(target.get("type", CLAIM_TARGET_NONE))
@@ -11749,10 +12382,11 @@ func _update_claiming(delta: float) -> void:
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
 		_stop_claim_pee_audio()
-		_show_status("Alien hold critically weakened — ready for future fortification.", 1.55)
+		_show_status("Alien hold broken — the building can be claimed.", 1.55)
 		return
 
-	var claimed_now = _advance_claim_progress(target_type, target_index, delta, CLAIM_FILL_TIME)
+	var fill_time = BUILDING_CLAIM_FILL_TIME if target_type == CLAIM_TARGET_BUILDING else CLAIM_FILL_TIME
+	var claimed_now = _advance_claim_progress(target_type, target_index, delta, fill_time)
 	if claimed_now:
 		_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
 
@@ -11779,6 +12413,9 @@ func _update_claiming(delta: float) -> void:
 			_show_status("Fire hydrant claimed by Freya!", 0.95)
 	elif target_type == CLAIM_TARGET_MAILBOX:
 		_show_status("Mailbox claimed by Freya!", 0.95)
+	elif target_type == CLAIM_TARGET_BUILDING:
+		_show_status("Building claimed by Freya! (%d/%d)" % [_controlled_building_count(), _claimable_building_total()], 1.25)
+		_check_victory_condition()
 
 func _update_claim_rings(delta: float = 0.016) -> void:
 	claim_ring_update_timer = maxf(0.0, claim_ring_update_timer - delta)
@@ -11898,6 +12535,8 @@ func _update_claim_meter_overlay() -> void:
 		claim_meter_label.text = "Alien hold · %d inside" % occupants
 		if reinforcement > 0:
 			claim_meter_label.text = "Aliens %d · Reinforced ×%d" % [occupants, reinforcement]
+	elif active_claim_target_type == CLAIM_TARGET_BUILDING:
+		claim_meter_label.text = "Claiming Building"
 	else:
 		claim_meter_label.text = "Claiming Fire Hydrant"
 	claim_meter_panel.visible = true
@@ -13094,6 +13733,141 @@ func _append_mailbox_claim_validation_failures(failures: Array[String]) -> void:
 	claim_ring_update_timer = saved_ring_timer
 	_hide_claim_meter()
 
+func _first_building_claim_validation_candidate() -> int:
+	for building_index in range(buildings.size()):
+		if building_index == freya_home_index:
+			continue
+		var building: Dictionary = buildings[building_index]
+		if bool(building.get("alien_occupied", false)):
+			continue
+		if not bool(building.get("enterable", false)):
+			continue
+		var interior_rect: Rect2 = building.get("store_interior_rect", Rect2())
+		if interior_rect.size.x <= 0.5 or interior_rect.size.y <= 0.5:
+			continue
+		if _building_has_adjacent_freya_control(building_index):
+			return building_index
+	return -1
+
+func _force_building_surrounding_claims_for_validation(building_index: int, owner: String) -> Array[Dictionary]:
+	var saved_entries: Array[Dictionary] = []
+	for item in _building_surrounding_claimables(building_index):
+		var target_type = int(item.get("type", CLAIM_TARGET_NONE))
+		var target_index = int(item.get("index", -1))
+		var entry = _claim_entry_for_target(target_type, target_index)
+		if entry.is_empty():
+			continue
+		saved_entries.append({"type": target_type, "index": target_index, "entry": entry.duplicate()})
+		var owned_entry = _apply_claim_owner_to_entry(entry, owner)
+		if owner == CLAIM_OWNER_FREYA:
+			owned_entry["claim_progress"] = 1.0
+		_set_claim_entry_for_target(target_type, target_index, owned_entry)
+	return saved_entries
+
+func _restore_claim_entries_for_validation(saved_entries: Array[Dictionary]) -> void:
+	for saved in saved_entries:
+		_set_claim_entry_for_target(int(saved.get("type", CLAIM_TARGET_NONE)), int(saved.get("index", -1)), saved.get("entry", {}))
+
+func _append_building_claim_validation_failures(failures: Array[String]) -> void:
+	if freya_home_index < 0 or freya_home_index >= buildings.size():
+		failures.append("target_building_claim_home_missing")
+		return
+	if not _building_is_controlled_by_freya(freya_home_index):
+		failures.append("target_home_not_claimed_by_default")
+	var home_tint: Node3D = buildings[freya_home_index].get("freya_control_tint_node", null)
+	if home_tint == null or not is_instance_valid(home_tint):
+		failures.append("target_home_control_tint_missing")
+	var total_buildings = _claimable_building_total()
+	if total_buildings != buildings.size() or total_buildings <= 1:
+		failures.append("target_building_claim_total_bad_%d" % total_buildings)
+
+	var building_index = _first_building_claim_validation_candidate()
+	if building_index < 0:
+		failures.append("target_no_adjacent_building_claim_candidate")
+		return
+
+	var saved_building: Dictionary = buildings[building_index].duplicate()
+	var saved_freya_position = freya.global_position
+	var saved_hunger = freya_hunger
+	var saved_active_type = active_claim_target_type
+	var saved_active_index = active_claim_target_index
+	var saved_victory = freya_victory_complete
+	var saved_tint_nodes: Dictionary = freya_control_block_tint_nodes.duplicate()
+	var saved_marker_animations = freya_claim_marker_animations.duplicate()
+	var surrounding_summary = _building_surrounding_claim_summary(building_index)
+	var status_before = _building_claim_status(building_index)
+	if int(surrounding_summary.get("total", 0)) > 0 and bool(status_before.get("eligible", false)):
+		failures.append("target_building_claim_eligible_before_surroundings")
+
+	var saved_surroundings = _force_building_surrounding_claims_for_validation(building_index, CLAIM_OWNER_FREYA)
+	var status_after_surroundings = _building_claim_status(building_index)
+	if not bool(status_after_surroundings.get("eligible", false)):
+		failures.append("target_building_claim_not_eligible_after_surroundings_%s" % str(status_after_surroundings.get("reason", "")))
+
+	var interior_rect: Rect2 = buildings[building_index].get("store_interior_rect", Rect2())
+	var center = interior_rect.get_center()
+	freya.global_position = Vector3(center.x, freya.global_position.y, center.y)
+	active_claim_target_type = CLAIM_TARGET_NONE
+	active_claim_target_index = -1
+	Input.action_press("claim")
+	_update_claiming(BUILDING_CLAIM_FILL_TIME * 0.5)
+	Input.action_release("claim")
+	var partial_progress = float(buildings[building_index].get("claim_progress", 0.0))
+	if partial_progress < 0.48 or partial_progress > 0.52 or _building_is_controlled_by_freya(building_index):
+		failures.append("target_building_claim_partial_progress_bad_%.3f" % partial_progress)
+	_update_claiming(2.0)
+	var decayed_progress = float(buildings[building_index].get("claim_progress", 0.0))
+	if decayed_progress > partial_progress - 0.095:
+		failures.append("target_building_claim_decay_missing_%.3f_to_%.3f" % [partial_progress, decayed_progress])
+	Input.action_press("claim")
+	_update_claiming(BUILDING_CLAIM_FILL_TIME + 0.25)
+	Input.action_release("claim")
+	if not _building_is_controlled_by_freya(building_index):
+		failures.append("target_building_claim_completion_failed")
+	var marker: Node3D = buildings[building_index].get("ryah_claim_marker_node", null)
+	if marker == null or not is_instance_valid(marker) or _count_nodes_named(marker, "ScribbleFreya") < 3 or _count_nodes_named(marker, "WoodStake") != 1:
+		failures.append("target_building_claim_marker_missing")
+	var tint: Node3D = buildings[building_index].get("freya_control_tint_node", null)
+	if tint == null or not is_instance_valid(tint):
+		failures.append("target_building_claim_tint_missing")
+
+	var total_after_claim = _controlled_building_count()
+	var saved_buildings_for_victory: Array[Dictionary] = []
+	for saved_index in range(buildings.size()):
+		saved_buildings_for_victory.append((buildings[saved_index] as Dictionary).duplicate())
+	for i in range(buildings.size()):
+		if i == freya_home_index or i == building_index:
+			continue
+		buildings[i] = _apply_claim_owner_to_entry(buildings[i], CLAIM_OWNER_FREYA)
+	_check_victory_condition()
+	if not freya_victory_complete:
+		failures.append("target_building_claim_victory_not_detected")
+	for restore_index in range(saved_buildings_for_victory.size()):
+		buildings[restore_index] = saved_buildings_for_victory[restore_index]
+
+	var new_marker: Node3D = buildings[building_index].get("ryah_claim_marker_node", null)
+	if new_marker != null and is_instance_valid(new_marker) and new_marker != saved_building.get("ryah_claim_marker_node", null):
+		new_marker.queue_free()
+	for key in freya_control_block_tint_nodes.keys():
+		if saved_tint_nodes.has(key):
+			continue
+		var new_tint: Node3D = freya_control_block_tint_nodes.get(key, null)
+		if new_tint != null and is_instance_valid(new_tint):
+			new_tint.queue_free()
+	buildings[building_index] = saved_building
+	_restore_claim_entries_for_validation(saved_surroundings)
+	freya.global_position = saved_freya_position
+	freya_hunger = saved_hunger
+	active_claim_target_type = saved_active_type
+	active_claim_target_index = saved_active_index
+	freya_victory_complete = saved_victory
+	freya_control_block_tint_nodes = saved_tint_nodes
+	freya_claim_marker_animations = saved_marker_animations
+	_stop_claim_pee_audio()
+	_hide_claim_meter()
+	if total_after_claim < 2:
+		failures.append("target_building_claim_count_not_incremented")
+
 func _append_alien_validation_failures(failures: Array[String]) -> void:
 	# The expelled/storefront alien must be an actual opaque voxel character, not
 	# the legacy hovering orb, and its walk cycle must articulate paired limbs.
@@ -13222,6 +13996,7 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 	else:
 		var test_state: Dictionary = dogs[possessed_test_index]
 		var test_dog: Node3D = test_state.get("node", null)
+		var saved_dog_state_snapshot: Dictionary = test_state.duplicate()
 		var saved_dog_pos = test_dog.global_position
 		test_dog.global_position = freya.global_position + Vector3(1.1, 0.0, 0.0)
 		freya_alien_discomfort = 0.0
@@ -13235,6 +14010,70 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 		if freya_alien_discomfort >= uneasy_strength:
 			failures.append("target_freya_discomfort_not_clearing")
 
+		test_state["alien_possessed"] = true
+		test_state["speed"] = 0.0
+		test_state["dir"] = Vector3.ZERO
+		test_state["wander"] = 1.0
+		test_state["bark"] = 0.0
+		test_state["flee_timer"] = 0.0
+		dogs[possessed_test_index] = test_state
+		var saved_freya_pos = freya.global_position
+		var saved_scare_status_timer = status_timer
+		var saved_scare_cooldown = freya_scare_status_cooldown
+		var saved_scare_vomit_timer = freya_vomit_timer
+		var saved_scare_eat_timer = freya_eat_timer
+		var scare_base = freya.global_position
+		var candidates = [
+			freya.global_position,
+			_random_walkable_point(true, FREYA_COLLISION_RADIUS),
+			Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y + 1.7)
+		]
+		for candidate in candidates:
+			if candidate is Vector3 and _is_walkable((candidate as Vector3).x, (candidate as Vector3).z, FREYA_COLLISION_RADIUS) and _is_walkable((candidate as Vector3).x - 0.75, (candidate as Vector3).z, FREYA_COLLISION_RADIUS):
+				scare_base = candidate
+				break
+		freya.global_position = scare_base
+		test_dog.global_position = scare_base + Vector3(1.1, 0.0, 0.0)
+		var fear_distance_before = freya.global_position.distance_to(test_dog.global_position)
+		Input.action_release("move_left")
+		Input.action_release("move_right")
+		Input.action_release("move_up")
+		Input.action_release("move_down")
+		Input.action_release("run")
+		Input.action_release("claim")
+		Input.action_release("friendly_social")
+		Input.action_release("aggressive_social")
+		freya_vomit_timer = 0.0
+		freya_eat_timer = 0.0
+		_update_freya(0.2)
+		if freya.global_position.distance_to(test_dog.global_position) <= fear_distance_before + 0.1:
+			failures.append("target_possessed_dog_fear_flee_missing")
+		freya.global_position = scare_base
+		freya_scare_status_cooldown = 0.0
+		Input.action_press("aggressive_social")
+		_update_freya(0.2)
+		Input.action_release("aggressive_social")
+		if freya.global_position.distance_to(scare_base) > 0.025:
+			failures.append("target_aggressive_bark_did_not_block_fear")
+		freya.global_position = scare_base
+		test_state = dogs[possessed_test_index]
+		test_state["alien_possessed"] = true
+		test_state["bark"] = 0.0
+		test_state["speed"] = 0.0
+		test_state["dir"] = Vector3.ZERO
+		test_state["wander"] = 1.0
+		dogs[possessed_test_index] = test_state
+		var bark_before_aggro = bark_pulses.size()
+		_update_dogs(0.2)
+		if bark_pulses.size() <= bark_before_aggro:
+			failures.append("target_possessed_dog_aggressive_bark_missing")
+		freya.global_position = saved_freya_pos
+		status_timer = saved_scare_status_timer
+		freya_scare_status_cooldown = saved_scare_cooldown
+		freya_vomit_timer = saved_scare_vomit_timer
+		freya_eat_timer = saved_scare_eat_timer
+
+		test_state = dogs[possessed_test_index]
 		test_state["alien_possessed"] = true
 		var transfers_before = alien_transfers.size()
 		test_state["exorcism_latched"] = false
@@ -13256,7 +14095,7 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 		test_state["exorcism_latched"] = false
 		test_state["exorcism_progress"] = 0.0
 		test_state["alien_transfer_serial"] = -1
-		dogs[possessed_test_index] = test_state
+		dogs[possessed_test_index] = saved_dog_state_snapshot
 		test_dog.global_position = saved_dog_pos
 
 	var occupation_test_index = -1
@@ -13376,13 +14215,24 @@ func _append_alien_validation_failures(failures: Array[String]) -> void:
 				failures.append("target_alien_pee_exposure_not_persistent")
 			_weaken_alien_building(occupation_test_index, ALIEN_BUILDING_WEAKEN_TIME * 2.0)
 			weakened = buildings[occupation_test_index]
-			if absf(float(weakened.get("alien_integrity", 1.0)) - ALIEN_BUILDING_MIN_INTEGRITY) > 0.001:
-				failures.append("target_alien_integrity_floor_bad")
-			if not bool(weakened.get("alien_occupied", false)):
-				failures.append("target_alien_future_retake_hook_bypassed")
+			if bool(weakened.get("alien_occupied", false)):
+				failures.append("target_alien_hold_not_broken")
+			if absf(float(weakened.get("alien_integrity", 1.0))) > 0.001:
+				failures.append("target_alien_integrity_not_cleared")
+			if int(weakened.get("alien_occupant_count", -1)) != 0:
+				failures.append("target_alien_occupants_not_cleared")
+			if not bool(weakened.get("enterable", false)):
+				failures.append("target_depossessed_building_not_enterable")
+			var cleared_visual: Node3D = weakened.get("alien_visual_root", null)
+			if cleared_visual != null and is_instance_valid(cleared_visual) and not cleared_visual.is_queued_for_deletion():
+				failures.append("target_alien_visual_not_cleared")
 			_update_minimap_dynamic(0.0)
-			if minimap == null or minimap.alien_buildings.is_empty():
-				failures.append("target_alien_minimap_visual_missing")
+			if minimap != null:
+				var weakened_footprint: Rect2 = weakened.get("footprint", Rect2())
+				for alien_rect in minimap.alien_buildings:
+					if alien_rect is Rect2 and (alien_rect as Rect2) == weakened_footprint:
+						failures.append("target_depossessed_building_still_on_minimap")
+						break
 			if alien_visual != null and is_instance_valid(alien_visual):
 				alien_visual.queue_free()
 			weakened["alien_occupied"] = false
@@ -13792,6 +14642,7 @@ func _run_targeted_validation_checks() -> bool:
 	_append_alien_validation_failures(failures)
 	_append_army_collar_validation_failures(failures)
 	_append_mailbox_claim_validation_failures(failures)
+	_append_building_claim_validation_failures(failures)
 
 	if store_building_indices.is_empty():
 		failures.append("target_no_store_buildings")
@@ -14140,7 +14991,7 @@ func _run_targeted_validation_checks() -> bool:
 	_apply_freya_home_focus_visuals()
 
 	if failures.is_empty():
-		print("TARGET_OK: enterable-building-program+pharmacy-immunity+infinite-grocery-food+dog-armor+dog-park-training+all-dog-origin-possession+bark-library+smaller-imp+readable-army-collars+mailbox-claim+alien-collision+home-bowl+building-lock+visual validations passed")
+		print("TARGET_OK: enterable-building-program+pharmacy-immunity+infinite-grocery-food+dog-armor+dog-park-training+all-dog-origin-possession+bark-library+smaller-imp+readable-army-collars+mailbox-claim+building-claim+alien-collision+home-bowl+building-lock+visual validations passed")
 		return true
 	else:
 		push_error("TARGET_FAIL: " + ", ".join(failures))
@@ -14182,6 +15033,12 @@ func _run_headless_smoke_checks() -> bool:
 	var metabolism_saved_social = freya_social
 	var metabolism_saved_vomit_timer = freya_vomit_timer
 	var metabolism_saved_eat_timer = freya_eat_timer
+	var metabolism_saved_dog_possession: Array[bool] = []
+	for metabolism_dog_index in range(dogs.size()):
+		var metabolism_dog_state: Dictionary = dogs[metabolism_dog_index]
+		metabolism_saved_dog_possession.append(bool(metabolism_dog_state.get("alien_possessed", false)))
+		metabolism_dog_state["alien_possessed"] = false
+		dogs[metabolism_dog_index] = metabolism_dog_state
 	freya_vomit_timer = 0.0
 	freya_eat_timer = 0.0
 	Input.action_release("move_right")
@@ -14216,6 +15073,11 @@ func _run_headless_smoke_checks() -> bool:
 	freya_social = metabolism_saved_social
 	freya_vomit_timer = metabolism_saved_vomit_timer
 	freya_eat_timer = metabolism_saved_eat_timer
+	for metabolism_dog_index in range(dogs.size()):
+		var metabolism_restore_state: Dictionary = dogs[metabolism_dog_index]
+		if metabolism_dog_index < metabolism_saved_dog_possession.size():
+			metabolism_restore_state["alien_possessed"] = metabolism_saved_dog_possession[metabolism_dog_index]
+		dogs[metabolism_dog_index] = metabolism_restore_state
 
 	# Poop-eating check
 	var test_poop = Node3D.new()
@@ -14590,6 +15452,17 @@ func _run_headless_smoke_checks() -> bool:
 	var movement_sidewalk_samples = 0
 	var movement_grass_samples = 0
 	var movement_total_samples = 0
+	var movement_saved_states: Array[Dictionary] = []
+	for movement_dog_index in range(dogs.size()):
+		var movement_state: Dictionary = dogs[movement_dog_index]
+		movement_saved_states.append(movement_state.duplicate())
+		movement_state["alien_possessed"] = false
+		movement_state["flee_timer"] = 0.0
+		movement_state["wander"] = 0.0
+		if not bool(movement_state.get("park", false)):
+			movement_state["pref_surface"] = "sidewalk"
+			movement_state["pref_timer"] = 0.0
+		dogs[movement_dog_index] = movement_state
 	for step in range(40):
 		_update_dogs(0.2)
 		for d in dogs:
@@ -14611,6 +15484,8 @@ func _run_headless_smoke_checks() -> bool:
 			failures.append("nonpark_sidewalk_usage_low_%.3f" % sidewalk_ratio)
 		if grass_ratio < 0.003:
 			failures.append("nonpark_grass_venturing_low")
+	for movement_restore_index in range(movement_saved_states.size()):
+		dogs[movement_restore_index] = movement_saved_states[movement_restore_index]
 	if not _nonpark_dogs_distributed():
 		failures.append("nonpark_distribution_uneven")
 
@@ -15337,9 +16212,9 @@ func _create_objectives_overlay() -> void:
 	objectives_panel.anchor_right = 0.5
 	objectives_panel.anchor_bottom = 0.5
 	objectives_panel.offset_left = -250.0
-	objectives_panel.offset_top = -122.0
+	objectives_panel.offset_top = -154.0
 	objectives_panel.offset_right = 250.0
-	objectives_panel.offset_bottom = 122.0
+	objectives_panel.offset_bottom = 154.0
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.07, 0.1, 0.9)
 	panel_style.border_color = Color(0.74, 0.86, 0.92, 0.75)
@@ -15364,7 +16239,7 @@ func _create_objectives_overlay() -> void:
 	objectives_list_label = Label.new()
 	objectives_list_label.text = _objectives_text()
 	objectives_list_label.position = Vector2(16.0, 42.0)
-	objectives_list_label.size = Vector2(470.0, 186.0)
+	objectives_list_label.size = Vector2(470.0, 250.0)
 	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objectives_list_label.add_theme_font_size_override("font_size", 15)
 	objectives_panel.add_child(objectives_list_label)
@@ -15388,15 +16263,20 @@ func _objectives_text() -> String:
 	var hydrants_claimed = _claimed_fire_hydrant_count()
 	var hydrants_done = hydrants_claimed >= OBJECTIVE_HYDRANT_TARGET
 	var hydrants_state = "[DONE]" if hydrants_done else "[ ]"
+	var buildings_claimed = _controlled_building_count()
+	var buildings_total = _claimable_building_total()
+	var buildings_done = buildings_total > 0 and buildings_claimed >= buildings_total
+	var buildings_state = "[DONE]" if buildings_done else "[ ]"
 	return (
 		"- %s Puke on another dog\n" % puke_state
 		+ "- %s Claim 10 light poles (%d/%d)\n" % [poles_state, poles_claimed, OBJECTIVE_CLAIM_TARGET]
 		+ "- %s Claim 10 trees (%d/%d)\n" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
 		+ "- %s Claim 8 fire hydrants (%d/%d)\n" % [hydrants_state, hydrants_claimed, OBJECTIVE_HYDRANT_TARGET]
-		+ "- Trust Freya's unease; hold X to bark near suspicious dogs\n"
+		+ "- %s Own every building (%d/%d)\n" % [buildings_state, buildings_claimed, buildings_total]
+		+ "- Hold X to bark back at possessed dogs and stand ground\n"
 		+ "- Expelled aliens: %d | Free aliens: %d/%d\n" % [alien_expulsion_count, free_aliens.size(), MAX_FREE_ALIENS]
 		+ "- Alien buildings: %d | Occupants inside: %d\n" % [_alien_occupied_building_count(), _alien_total_occupant_count()]
-		+ "- Hold R beside an alien wall to weaken its hold"
+		+ "- Hold R inside an eligible clean building to claim it"
 	)
 
 func _create_stats_overlay() -> void:
@@ -15573,7 +16453,7 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(controls_scroll)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat / use bowls / pick up a stick or building supply / give a supply to a freed dog\nV: Drop carried stick\nHold R: Claim trees, poles, fire hydrants, and mailboxes\nHold R by an alien wall: Weaken its hold\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold C near dogs: Socialize at a Hunger cost; possessed dogs also raise Vomit\nHold X near dogs: Expel an alien or scare a real dog away\nApproach free aliens: Make them flee to the nearest building\nTab (hold): Objectives\nEsc: Pause / resume"
+	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat / use bowls / pick up a stick or building supply / give a supply to a freed dog\nV: Drop carried stick\nHold R: Claim trees, poles, fire hydrants, mailboxes, and eligible building interiors\nHold R by an alien wall: Weaken its hold\nHold R near dumpster: Search dumpster\nSpace: Vomit (when meter is full)\nHold C near dogs: Socialize at a Hunger cost; possessed dogs also raise Vomit\nHold X near dogs: Aggressively bark, stand ground, expel an alien, or scare a real dog away\nApproach free aliens: Make them flee to the nearest building\nTab (hold): Objectives\nEsc: Pause / resume"
 	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
@@ -15598,7 +16478,7 @@ func _create_pause_menu() -> void:
 	pause_howto_panel.add_child(howto_scroll)
 
 	var howto_text = Label.new()
-	howto_text.text = "You are Freya, the world's best dog, on a mission to protect and claim this neighborhood. Hunger barely changes while Freya rests; walking raises it faster, and running or taking sustained actions raises it faster still. Hold R beside a tree, pole, fire hydrant, or mailbox to pee on and claim it; claimed targets get Freya's ring and minimap marker, and can be reclaimed from aliens. Some ordinary-looking dogs secretly carry aliens. They never look different, but Freya automatically crouches, shivers, and tucks her tail when one is close. Hold X near a suspicious dog: a possessed dog is cleansed, while a real dog flees from the wrong guess. Hold C to socialize at a Hunger cost; socializing with a possessed dog also raises Vomit, and after enough time a real dog joins Freya's army and receives a camouflage collar. Every clean building is enterable. The home and grocery bowls reset Hunger to zero; pharmacy medicine makes a freed dog immune to possession; police armor visibly protects a freed dog; the clinic's future use is undecided. Press F to use these services and again beside a freed dog to give carried supplies. Alien occupation locks any building. Occupied retail storefronts also reinforce nearby alien buildings and generate at most eight free aliens across the map. Approach a free alien to send it fleeing to the nearest building. Ryah Diane's crying protects Freya's home. Hold R beside an alien wall to permanently weaken its hold."
+	howto_text.text = "You are Freya, the world's best dog, on a mission to protect and claim this neighborhood. Hunger barely changes while Freya rests; walking raises it faster, and running or taking sustained actions raises it faster still. Hold R beside a tree, pole, fire hydrant, or mailbox to pee on and claim it; claimed targets get Freya's ring and minimap marker, and can be reclaimed from aliens. Freya owns her home by default. To claim another building, Freya or her allies must first mark everything around it, and it must connect to Freya territory on the same block or a north/south/east/west neighboring block. Then hold R inside for 10 seconds; interrupted building progress slowly fades. Some ordinary-looking dogs secretly carry aliens. They never look different, but Freya automatically crouches, shivers, and tucks her tail when one is close. If a possessed dog gets too close, it aggressively barks and scares Freya into running away. Hold X to bark back, stand ground, and cleanse a possessed dog; a real dog flees from the wrong guess. Hold C to socialize at a Hunger cost; socializing with a possessed dog also raises Vomit, and after enough time a real dog joins Freya's army and receives a camouflage collar. Every clean building is enterable. The home and grocery bowls reset Hunger to zero; pharmacy medicine makes a freed dog immune to possession; police armor visibly protects a freed dog; the clinic's future use is undecided. Press F to use these services and again beside a freed dog to give carried supplies. Alien occupation locks any building. Occupied retail storefronts also reinforce nearby alien buildings and generate at most eight free aliens across the map. Approach a free alien to send it fleeing to the nearest building. Ryah Diane's crying protects Freya's home. Hold R beside an alien wall to break its hold. Freya wins by owning every building."
 	howto_text.custom_minimum_size = Vector2(482, 420)
 	howto_text.autowrap_mode = TextServer.AUTOWRAP_WORD
 	howto_text.add_theme_font_size_override("font_size", 16)

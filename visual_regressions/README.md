@@ -12,7 +12,7 @@ relationships called out by the visual audit.
 
 ## Intro and Startup References
 
-- [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, now under a brighter, welcoming early-evening sky; `Watch Intro` remains focused and `Skip To Game` remains available in the dark menu panel.
+- [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, now under a brighter, welcoming early-evening sky; `Watch Intro` remains focused, with `Skip To Game` and `Settings` available in the dark menu panel.
 - [intro_01_establishing.png](intro_01_establishing.png) — Earth through the hero UFO bridge with exactly Aliens A, B, and silent C.
 - [intro_02_a_question_runes.png](intro_02_a_question_runes.png) — Alien A's speech bubble during the initial rune reveal.
 - [intro_02_a_question_morph.png](intro_02_a_question_morph.png) — the same bubble midway through visible rune-to-English transformation.
@@ -44,7 +44,7 @@ relationships called out by the visual audit.
 - [building_grocery_inside.png](building_grocery_inside.png) — produce/meat fixtures and permanent dog-food point.
 - [building_police_inside.png](building_police_inside.png) — police lockers and dog-armor rack.
 - [building_clinic_inside.png](building_clinic_inside.png) — furnished medical interior with intentionally unassigned gameplay role.
-- [home_outside.png](home_outside.png) — Freya's home exterior, transparent windows, yard identity with a claimable mailbox, and roof connection.
+- [home_outside.png](home_outside.png) — Freya's already-controlled home exterior, transparent windows, subtle Freya-territory tint, yard identity with a claimable mailbox, and roof connection.
 - [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane.
 - [post_intro_food_tutorial.png](post_intro_food_tutorial.png) — the first controllable home moment with Freya fully hungry, her first-person eat-first guidance, and the pulsing arrow/ring identifying her bowl.
 - [first_exit_leashed.png](first_exit_leashed.png) — Freya's first post-meal exit frames three temporary people and their city dogs connected by clearly visible leashes on the street-side sidewalk.

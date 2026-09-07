@@ -45,7 +45,7 @@ thin scene shells whose scripts construct most runtime content.
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
 | Residential shells/roofs | `godot/scripts/building_factory.gd` | Hollow procedural residential walls, transparent openings, ground/upper-floor separation, materials, roofs, porches, and metrics; Main owns interiors, yards, and alien mutations |
 | Unplaced dog kennel archetype | `godot/scripts/kennel_factory.gd`, `godot/scripts/kennel_building.gd`, `godot/scripts/kennel_concept.gd`, `godot/scenes/KennelConcept.tscn` | Reusable clean/possessed visuals, canonical voxel dogs, six initially possessed/de-possessable captives, entry-once dialogue, possessed-dog spawn handshake, partial-cleanse forfeiture, lifetime cap of six, and isolated preview/validation |
-| Claims | `godot/scripts/claim_utils.gd`, `godot/scripts/main.gd` | Ownership constants, hold-`R` state, rings, weakening |
+| Claims | `godot/scripts/claim_utils.gd`, `godot/scripts/main.gd` | Ownership constants, hold-`R` object claims, building-claim eligibility/progress/decay, territory tint, Ryah stake markers, win condition, and alien-wall weakening |
 | Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data; Main owns state and synchronization |
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |

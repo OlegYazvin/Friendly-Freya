@@ -14,6 +14,38 @@ Every sound event must load and play only its explicitly mapped asset. If that
 file is missing or fails to load or play, the event is silent. Never synthesize,
 procedurally generate, substitute, or select another sound as a fallback.
 
+## Title Card Theme
+
+### Distributed source file
+
+- `menu/title_card_theme_8bit.wav`
+
+### Source
+
+- User-recorded file outside the repository:
+  `/data/projects/Audio Recordings/Recording for Freya Title Card.wav`
+
+### License
+
+- Original recording supplied by the project owner for Friendly Freya.
+
+### Derived file
+
+`menu/title_card_theme_8bit.wav` is currently a Stable Audio 3 audio-to-audio
+render of the project-owner recording. The build duplicates the original
+8.51-second performance once as a 17.02-second reference bed, runs Stable Audio
+3 Small-Music through the optimized TFLite CPU path with an upbeat NES/chiptune
+title-screen prompt, then saves a Godot-friendly 44.1 kHz, 16-bit PCM WAV.
+
+The generated model output was produced with Stable Audio 3 Small-Music. Use of
+the model weights is governed by the Stability AI Community License; the model
+card also notes the bundled T5Gemma text-conditioning component and its terms.
+
+The rejected Magenta/MusicRNN MIDI-continuation experiment is not used for the
+distributed asset. Candidate details and alternate generated WAVs are documented
+in
+[`docs/audio/TITLE_CARD_THEME.md`](../../../docs/audio/TITLE_CARD_THEME.md).
+
 ## Dog Barks
 
 ### Distributed source files

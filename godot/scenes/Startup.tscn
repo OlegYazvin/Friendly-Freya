@@ -56,7 +56,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="MenuPanel" type="PanelContainer" parent="MenuCenter"]
-custom_minimum_size = Vector2(540, 370)
+custom_minimum_size = Vector2(540, 500)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBox_menu")
 
@@ -106,3 +106,72 @@ layout_mode = 2
 focus_mode = 2
 theme_override_font_sizes/font_size = 23
 text = "Skip To Game"
+
+[node name="SettingsButton" type="Button" parent="MenuCenter/MenuPanel/Margin/Choices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 54)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 21
+text = "Settings"
+
+[node name="SettingsPanel" type="PanelContainer" parent="MenuCenter/MenuPanel/Margin/Choices"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(420, 126)
+layout_mode = 2
+
+[node name="SettingsMargin" type="MarginContainer" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 12
+
+[node name="SettingsStack" type="VBoxContainer" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SettingsTitle" type="Label" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 1, 0.91, 1)
+theme_override_font_sizes/font_size = 18
+text = "Audio"
+horizontal_alignment = 1
+
+[node name="VolumeRow" type="HBoxContainer" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MasterVolumeLabel" type="Label" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack/VolumeRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.77, 0.82, 0.94, 1)
+theme_override_font_sizes/font_size = 16
+text = "Volume"
+
+[node name="MasterVolumeSlider" type="HSlider" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack/VolumeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+value = 0.85
+
+[node name="MasterVolumeValueLabel" type="Label" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack/VolumeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.56, 1)
+theme_override_font_sizes/font_size = 16
+text = "85%"
+horizontal_alignment = 2
+
+[node name="SettingsBackButton" type="Button" parent="MenuCenter/MenuPanel/Margin/Choices/SettingsPanel/SettingsMargin/SettingsStack"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Back"
