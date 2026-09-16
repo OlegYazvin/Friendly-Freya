@@ -12,6 +12,8 @@ const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
+const SightlineCutaway = preload("res://scripts/sightline_cutaway.gd")
+const GAMEPLAY_CAMERA_FOV = 40.0
 const FAMILY_BARK_AUDIO_PATH = "res://assets/audio/barks/bark_real_01.wav"
 const FAMILY_LOUD_BARK_AUDIO_PATH = "res://assets/audio/barks/aggressive_bark_01.wav"
 const FAMILY_PILL_REVEAL_POSITION = Vector3(0.0, 1.09, -0.4)
@@ -584,6 +586,10 @@ var possessed_dog_tutorial_label: Label
 var possessed_dog_tutorial_button: Button
 var first_exit_abduction_active = false
 var first_exit_abduction_completed = false
+var first_exit_abduction_pending = false
+# Playback history must never be the switch for core gameplay behavior.
+var possessed_dog_behavior_enabled = true
+var post_intro_meal_exit_required = true
 var first_exit_abduction_static = false
 var first_exit_abduction_time = 0.0
 var first_exit_abduction_root: Node3D
@@ -597,6 +603,8 @@ var first_exit_freya_possession_effect: Node3D
 var first_exit_immunity_burst: Node3D
 var first_exit_freya_immunity_confirmed = false
 var first_exit_abduction_center = Vector3.ZERO
+var first_exit_camera_start = Vector3.ZERO
+var sightline_cutaway = SightlineCutaway.new()
 var suburban_yard_root: Node3D
 var facade_clearance_rects: Array[Rect2] = []
 var suburban_yard_detail_count = 0
@@ -622,6 +630,8 @@ var alien_model_preview_node: Node3D
 var army_collar_preview_nodes: Array[Node3D] = []
 var blocking_building_rects: Array[Rect2] = []
 var blocking_building_grid: Dictionary = {}
+var store_wall_grid: Dictionary = {}
+var occupied_building_grid: Dictionary = {}
 var static_obstacle_grid: Dictionary = {}
 var store_walk_blockers: Array[Rect2] = []
 
@@ -738,6 +748,11 @@ var strength_value_label: Label
 var unease_label: Label
 var status_label: Label
 var status_timer = 0.0
+var status_priority = 0
+var status_panel: PanelContainer
+var territory_label: Label
+var victory_panel: PanelContainer
+var victory_continue_button: Button
 var post_intro_meal_panel: Panel
 var post_intro_meal_label: Label
 var objectives_panel: Panel
@@ -852,6 +867,7 @@ func _ready() -> void:
 	perf_benchmark_enabled = OS.get_environment("FREYA_PERF_BENCHMARK") == "1"
 	perf_profile_gameplay = OS.get_environment("FREYA_PERF_PROFILE_GAMEPLAY") == "1"
 	var run_headless_checks = OS.has_feature("server") or DisplayServer.get_name() == "headless"
+	var run_scene_checks = run_headless_checks and not bool(get_tree().get_meta("freya_flow_validation", false))
 	if perf_benchmark_enabled:
 		print("PERF_BENCHMARK_ENABLED")
 	if run_headless_checks or not OS.get_environment("FREYA_VISUAL_VIEW").is_empty() or not OS.get_environment("FREYA_ALIEN_VIEW").is_empty() or not family_view.is_empty():
@@ -860,6 +876,9 @@ func _ready() -> void:
 		rng.seed = 20260831
 	else:
 		rng.randomize()
+	var requested_seed = OS.get_environment("FREYA_WORLD_SEED")
+	if requested_seed.is_valid_int():
+		rng.seed = int(requested_seed)
 	_configure_input()
 	AudioPreferencesScript.load_and_apply_master_volume()
 	_create_render_setup()
@@ -904,15 +923,17 @@ func _ready() -> void:
 	_update_ui()
 	if family_intro_requested:
 		_begin_family_intro(family_view)
+	elif not run_scene_checks and OS.get_environment("FREYA_VISUAL_VIEW").is_empty() and OS.get_environment("FREYA_ALIEN_VIEW").is_empty():
+		_initialize_skipped_intro_gameplay()
 
 	var checks_failed = false
-	if run_headless_checks or OS.get_environment("FREYA_SMOKE") == "1":
+	if run_scene_checks or OS.get_environment("FREYA_SMOKE") == "1":
 		if not _run_headless_smoke_checks():
 			checks_failed = true
-	if run_headless_checks or OS.get_environment("FREYA_VALIDATE") == "1":
+	if run_scene_checks or OS.get_environment("FREYA_VALIDATE") == "1":
 		if not _run_targeted_validation_checks():
 			checks_failed = true
-	if run_headless_checks:
+	if run_scene_checks:
 		if not family_intro_active:
 			_begin_family_intro("family_home", true)
 		if not _run_family_intro_validation():
@@ -922,6 +943,11 @@ func _ready() -> void:
 
 func _configure_alien_visual_view() -> void:
 	var visual_view = OS.get_environment("FREYA_VISUAL_VIEW").strip_edges().to_lower()
+	if not visual_view.is_empty() or not OS.get_environment("FREYA_ALIEN_VIEW").is_empty():
+		# Static review views must not open an incidental dog-threat tutorial over
+		# their subject. Ordinary watch/skip readiness is initialized separately.
+		possessed_dog_tutorial_seen = true
+		possessed_dog_behavior_enabled = false
 	if visual_view == "pause_menu":
 		_toggle_pause_menu(1)
 		return
@@ -1021,6 +1047,13 @@ func _configure_alien_visual_view() -> void:
 		freya.global_position = Vector3(outside.x, 0.0, outside.y)
 		post_intro_meal_tutorial_completed = true
 		_apply_freya_home_focus_visuals()
+		# Match the real post-family doorway camera before seeking into the first
+		# transition; a fresh Camera3D otherwise starts at the world origin.
+		camera_focus = freya.global_position + Vector3.UP * 0.95
+		camera_orbit_angle = 0.0 if bool(home.get("front_is_south", true)) else PI
+		camera_zoom_target = 10.8
+		camera_planar_distance = camera_zoom_target
+		_update_camera(0.0)
 		var view_times = {
 			"first_exit_leashed": 0.35,
 			"first_exit_abduction": 2.15,
@@ -1219,6 +1252,10 @@ func _process(delta: float) -> void:
 		return
 	if possessed_dog_tutorial_active:
 		return
+	if victory_panel != null and victory_panel.visible:
+		if Input.is_action_just_pressed("menu"):
+			_acknowledge_victory()
+		return
 	if Input.is_action_just_pressed("menu"):
 		_toggle_pause_menu()
 	if pause_menu_open:
@@ -1232,7 +1269,9 @@ func _process(delta: float) -> void:
 	world_time += delta
 	status_timer = max(0.0, status_timer - delta)
 	if status_timer <= 0.0:
+		status_priority = 0
 		status_label.text = _carried_supply_status()
+		_update_status_presentation()
 
 	_update_camera_orbit_input(delta)
 	if not dog_park_training_preview_kind.is_empty():
@@ -1277,6 +1316,7 @@ func _profile_gameplay_update(delta: float) -> void:
 	world_time += delta
 	status_timer = max(0.0, status_timer - delta)
 	var started = Time.get_ticks_usec()
+	var section_started = started
 	_update_camera_orbit_input(delta)
 	if not dog_park_training_preview_kind.is_empty():
 		_update_dog_park_training_preview(delta)
@@ -1284,15 +1324,33 @@ func _profile_gameplay_update(delta: float) -> void:
 		_update_dog_park_training(delta)
 	else:
 		_update_freya(delta)
+	section_started = Time.get_ticks_usec()
 	_update_store_focus(delta)
+	_perf_profile_mark("store_focus", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_dogs(delta)
+	_perf_profile_mark("dogs", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_freya_alien_discomfort(delta)
+	_perf_profile_mark("freya_alien_discomfort", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_alien_transfers(delta)
+	_perf_profile_mark("alien_transfers", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_free_aliens(delta)
+	_perf_profile_mark("free_aliens", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_ryah_diane(delta)
+	_perf_profile_mark("ryah_diane", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_ryah_alien_crying(delta)
+	_perf_profile_mark("ryah_alien_crying", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_alien_reinforcement_fields()
+	_perf_profile_mark("alien_reinforcement_fields", section_started)
+	section_started = Time.get_ticks_usec()
 	_update_alien_building_visuals(delta)
+	_perf_profile_mark("alien_building_visuals", section_started)
 	_perf_profile_mark("movement", started)
 
 	started = Time.get_ticks_usec()
@@ -1531,7 +1589,7 @@ func _create_render_setup() -> void:
 	add_child(fill)
 
 	camera_node = Camera3D.new()
-	camera_node.fov = 40.0
+	camera_node.fov = GAMEPLAY_CAMERA_FOV
 	camera_node.near = 0.1
 	camera_node.far = 220.0
 	add_child(camera_node)
@@ -3670,8 +3728,13 @@ func _add_emissive_room_light(
 	fixture_material: Material,
 	pool_material: Material
 ) -> void:
-	_add_home_box(parent, "InteriorLightCanopy", Vector3(0.28, 0.07, 0.28), Vector3(position.x, 2.45, position.z), fixture_material)
-	_add_home_box(parent, "InteriorLightStem", Vector3(0.045, 0.24, 0.045), Vector3(position.x, 2.31, position.z), fixture_material)
+	var fixture = Node3D.new()
+	fixture.name = "CeilingFixture"
+	fixture.set_meta("sightline_group", true)
+	fixture.set_meta("ceiling_attachment", true)
+	parent.add_child(fixture)
+	_add_home_box(fixture, "InteriorLightCanopy", Vector3(0.28, 0.07, 0.28), Vector3(position.x, 2.45, position.z), fixture_material)
+	_add_home_box(fixture, "InteriorLightStem", Vector3(0.045, 0.24, 0.045), Vector3(position.x, 2.31, position.z), fixture_material)
 	var pendant = MeshInstance3D.new()
 	pendant.name = "InteriorLightPendant"
 	var pendant_mesh = SphereMesh.new()
@@ -3683,7 +3746,7 @@ func _add_emissive_room_light(
 	pendant.position = Vector3(position.x, 2.16, position.z)
 	pendant.material_override = fixture_material
 	pendant.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(pendant, true)
+	fixture.add_child(pendant, true)
 	var pool = MeshInstance3D.new()
 	pool.name = "InteriorLightPool"
 	var pool_mesh = CylinderMesh.new()
@@ -4242,6 +4305,8 @@ func _begin_family_intro(view_id: String = "", force_static: bool = false) -> vo
 		push_error("Could not start the family intro inside Freya's live home.")
 		return
 	get_tree().paused = false
+	possessed_dog_behavior_enabled = false
+	first_exit_abduction_pending = true
 	var home: Dictionary = buildings[freya_home_index]
 	var interior_rect: Rect2 = home.get("home_interior_rect", Rect2())
 	if interior_rect.size.x <= 0.0 or interior_rect.size.y <= 0.0:
@@ -4941,12 +5006,24 @@ func _apply_family_intro_camera(time_seconds: float, scene: Dictionary) -> void:
 		camera_node.global_position = family_focus_point + Vector3(-4.9, 4.7, family_front_sign * 6.1) + drift
 		camera_node.fov = 39.0
 	camera_node.look_at(target, Vector3.UP)
+	var subjects: Array[Vector3] = [freya.global_position + Vector3(0, 0.15, 0), freya.head_world_position(), ryah_diane_node.global_position, ryah_diane_node.global_position + Vector3.UP * 1.2]
+	for corner in [Vector3(0.65, 0.05, 0.65), Vector3(-0.65, 0.05, 0.65), Vector3(0.65, 0.05, -0.65), Vector3(-0.65, 0.05, -0.65)]:
+		subjects.append(freya.global_position + corner)
+	for actor in [family_gene, family_zoe]:
+		if actor != null and actor.visible:
+			subjects.append(actor.global_position)
+			subjects.append(actor.global_position + Vector3.UP * 2.4)
+	if family_dropped_pills != null and family_dropped_pills.visible:
+		subjects.append(family_dropped_pills.global_position)
+	_fit_cinematic_subjects(subjects, 0.66 if family_dialogue_panel.visible else 0.87)
+	_update_cinematic_sightlines(subjects)
 
 
 func _finish_family_intro() -> void:
 	if not family_intro_active:
 		return
 	family_intro_active = false
+	sightline_cutaway.restore()
 	family_intro_requested = false
 	if freya != null:
 		freya.scale = family_freya_stage_scale
@@ -4979,6 +5056,7 @@ func _finish_family_intro() -> void:
 	camera_orbit_angle = 0.0 if family_front_sign > 0.0 else PI
 	camera_zoom_target = 10.8
 	camera_planar_distance = camera_zoom_target
+	camera_node.fov = GAMEPLAY_CAMERA_FOV
 	camera_focus = freya.global_position + Vector3(0.0, 0.95, 0.0)
 	_apply_freya_home_focus_visuals()
 	_update_camera(0.0)
@@ -4988,7 +5066,25 @@ func _finish_family_intro() -> void:
 	if not post_intro_meal_tutorial_active:
 		_show_status("Freya protected Ryah Diane. Keep her safe!", 2.2)
 
-func _start_post_intro_meal_tutorial(play_barks: bool = true) -> void:
+func _initialize_skipped_intro_gameplay() -> void:
+	# Skip enters a fresh playable neighborhood. Start beside food at the existing
+	# 100% Hunger, with optional guidance and no mandatory cinematic/exit gate.
+	possessed_dog_behavior_enabled = true
+	first_exit_abduction_pending = false
+	var home: Dictionary = buildings[freya_home_index]
+	var interior: Rect2 = home.get("home_interior_rect", Rect2())
+	var start = _family_find_walkable_point(freya_home_bowl_position + Vector2(0.8, 0.8), interior, home)
+	freya.global_position = Vector3(start.x, 0.0, start.y)
+	camera_orbit_angle = 0.0 if bool(home.get("front_is_south", true)) else PI
+	camera_zoom_target = 10.8
+	camera_planar_distance = camera_zoom_target
+	camera_focus = freya.global_position + Vector3(0.0, 0.95, 0.0)
+	_apply_freya_home_focus_visuals()
+	_update_camera(0.0)
+	_update_roof_occlusion(0.0)
+	_start_post_intro_meal_tutorial(false, false)
+
+func _start_post_intro_meal_tutorial(play_barks: bool = true, require_meal_before_exit: bool = true) -> void:
 	if post_intro_meal_tutorial_completed or post_intro_meal_tutorial_active:
 		return
 	if freya == null or not is_instance_valid(freya) or freya_home_bowl_node == null or not is_instance_valid(freya_home_bowl_node):
@@ -5007,6 +5103,7 @@ func _start_post_intro_meal_tutorial(play_barks: bool = true) -> void:
 		return
 
 	freya_hunger = 100.0
+	post_intro_meal_exit_required = require_meal_before_exit
 	post_intro_meal_tutorial_active = true
 	post_intro_meal_reminder_timer = 0.0
 	post_intro_meal_reminder_cooldown = 0.0
@@ -5072,6 +5169,8 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 	var stage_layout = _first_exit_dog_walker_layout()
 	if stage_layout.size() < FIRST_EXIT_DOG_WALKER_COUNT:
 		push_warning("The first-exit dog-walker abduction could not find enough sidewalk staging space.")
+		first_exit_abduction_pending = false
+		possessed_dog_behavior_enabled = true
 		return
 	var available_dog_indices: Array[int] = []
 	for dog_index in range(dogs.size()):
@@ -5084,6 +5183,8 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 				break
 	if available_dog_indices.size() < FIRST_EXIT_DOG_WALKER_COUNT:
 		push_warning("The first-exit dog-walker abduction could not find enough city dogs.")
+		first_exit_abduction_pending = false
+		possessed_dog_behavior_enabled = true
 		return
 
 	first_exit_abduction_root = Node3D.new()
@@ -5149,6 +5250,7 @@ func _begin_first_exit_abduction(start_time: float = 0.0, force_static: bool = f
 	if pause_menu_layer != null:
 		pause_menu_layer.visible = false
 	first_exit_abduction_active = true
+	first_exit_camera_start = camera_node.global_position
 	first_exit_abduction_static = force_static
 	first_exit_abduction_time = clampf(start_time, 0.0, FIRST_EXIT_TOTAL_DURATION - 0.001)
 	_apply_first_exit_abduction_time(first_exit_abduction_time)
@@ -5206,7 +5308,9 @@ func _first_exit_dog_walker_layout() -> Array:
 				var walk_direction_2d = Vector2.RIGHT if along_x else Vector2.DOWN
 				if pair_index % 2 == 1:
 					walk_direction_2d = -walk_direction_2d
-				var dog_2d = owner_2d + walk_direction_2d * 0.82
+				# Keep each pair in its own lane even when alternate walkers face the
+				# opposite direction; opposing offsets made adjacent dogs overlap.
+				var dog_2d = owner_2d + (Vector2.RIGHT if along_x else Vector2.DOWN) * 0.82
 				nearest_home_distance = minf(nearest_home_distance, _point_distance_to_rect(dog_2d, home_fp))
 				candidate_layout.append({
 					"owner": Vector3(owner_2d.x, 0.0, owner_2d.y),
@@ -5418,15 +5522,61 @@ func _apply_first_exit_abduction_time(time_seconds: float) -> void:
 	if outward.length_squared() < 0.001:
 		outward = Vector3.FORWARD
 	outward = outward.normalized()
+	if not first_exit_abduction_pairs.is_empty():
+		# View the line of walkers from across its sidewalk. Using only the vector
+		# from home to their group looked down the line on corner-lot layouts,
+		# stacking owners in front of the other dogs.
+		var along: Vector3 = first_exit_abduction_pairs[0].walk_direction
+		var sidewalk_normal = Vector3(-along.z, 0.0, along.x).normalized()
+		if sidewalk_normal.dot(outward) < 0.0:
+			sidewalk_normal = -sidewalk_normal
+		outward = sidewalk_normal
 	var lateral = Vector3(-outward.z, 0.0, outward.x)
 	var camera_settle = clampf(time_seconds / 0.55, 0.0, 1.0)
 	var camera_target = first_exit_abduction_center + Vector3(0.0, 0.78, 0.0)
 	if time_seconds >= FIRST_EXIT_FREYA_TARGET_START:
 		camera_target = camera_target.lerp(freya.global_position + Vector3(0.0, 0.82, 0.0), 0.43)
 	var desired_camera = first_exit_abduction_center + outward * 5.7 + lateral * 3.6 + Vector3.UP * 4.35
-	camera_node.global_position = camera_node.global_position.lerp(desired_camera, camera_settle)
+	var immunity_shot = time_seconds >= FIRST_EXIT_FREYA_TARGET_START
+	if immunity_shot:
+		# The ricochet is Freya's story beat. Give it a close shot rather than
+		# keeping her tiny behind the now-possessed dogs across the road.
+		camera_target = freya.global_position + Vector3.UP * 0.9
+		desired_camera = freya.global_position + outward * 5.2 + lateral * 2.6 + Vector3.UP * 3.5
+	camera_node.global_position = first_exit_camera_start.lerp(desired_camera, camera_settle)
 	camera_node.fov = 45.0 if time_seconds >= FIRST_EXIT_FREYA_TARGET_START else 43.0
 	camera_node.look_at(camera_target, Vector3.UP)
+	var subjects: Array[Vector3] = [freya.global_position + Vector3.UP * 0.12, freya.head_world_position()]
+	for pair in first_exit_abduction_pairs:
+		if immunity_shot:
+			break
+		var dog_base: Vector3 = pair.dog_base
+		subjects.append(dog_base + Vector3.UP * 0.15)
+		subjects.append(dog_base + Vector3.UP * 1.1)
+		subjects.append(dogs[pair.dog_index].node.head_world_position())
+		# Include the near-side paws/tail envelope, not just the actor's center.
+		# Perspective otherwise clipped the closest large dog at the letterbox.
+		for corner in [Vector3(0.8, 0.05, 0.8), Vector3(-0.8, 0.05, 0.8), Vector3(0.8, 0.05, -0.8), Vector3(-0.8, 0.05, -0.8)]:
+			subjects.append(dog_base + corner)
+		if time_seconds < FIRST_EXIT_OWNER_VANISH_TIME:
+			subjects.append(pair.owner.global_position + Vector3.UP * 1.3)
+			subjects.append(pair.owner.global_position + Vector3.UP * 1.8)
+			subjects.append(pair.owner.global_position + Vector3.UP * 2.6)
+		elif time_seconds < FIRST_EXIT_FREYA_TARGET_START:
+			subjects.append(dog_base + Vector3.UP * 2.8)
+		if pair.possession.visible:
+			var effect_radius = 0.65 * pair.possession.scale.x
+			for offset in [camera_node.global_basis.x, -camera_node.global_basis.x, Vector3.UP]:
+				subjects.append(pair.possession.global_position + offset * effect_radius)
+	if first_exit_freya_possession_effect != null and first_exit_freya_possession_effect.visible:
+		# A stable envelope prevents the camera from chasing the bouncing effect.
+		var away = freya.global_position - first_exit_abduction_center
+		away.y = 0.0
+		away = away.normalized()
+		subjects.append(freya.head_world_position() + Vector3.UP * 3.8)
+		subjects.append(freya.head_world_position() + away * 3.4 + Vector3.UP * 3.8)
+	_fit_cinematic_subjects(subjects, 0.66 if first_exit_thought_panel.visible else 0.87)
+	_update_cinematic_sightlines(subjects)
 
 
 func _apply_first_exit_possession_energy(effect: Node3D, time_seconds: float, start: float, impact: float, end: float, target: Vector3, phase: float) -> void:
@@ -5489,7 +5639,10 @@ func _finish_first_exit_abduction() -> void:
 	if not first_exit_abduction_active:
 		return
 	first_exit_abduction_active = false
+	sightline_cutaway.restore()
 	first_exit_abduction_completed = true
+	first_exit_abduction_pending = false
+	possessed_dog_behavior_enabled = true
 	first_exit_abduction_static = false
 	for pair in first_exit_abduction_pairs:
 		if not (pair is Dictionary):
@@ -5518,6 +5671,7 @@ func _finish_first_exit_abduction() -> void:
 	if pause_menu_layer != null:
 		pause_menu_layer.visible = true
 	camera_focus = freya.global_position + Vector3(0.0, 0.95, 0.0)
+	camera_node.fov = GAMEPLAY_CAMERA_FOV
 	_update_camera(0.0)
 	_update_roof_occlusion(0.0)
 
@@ -5861,6 +6015,8 @@ func _is_inside_freya_home(p: Vector2) -> bool:
 	return interior_rect.size.x > 0.0 and interior_rect.size.y > 0.0 and interior_rect.grow(0.1).has_point(p)
 
 func _apply_freya_home_focus_visuals() -> void:
+	sightline_cutaway.restore()
+	occlusion_update_timer = 0.0
 	var inside = false
 	if freya != null and is_instance_valid(freya):
 		inside = _is_inside_freya_home(Vector2(freya.global_position.x, freya.global_position.z))
@@ -6022,9 +6178,10 @@ func _build_suburban_yard_details() -> void:
 			_add_yard_sphere(suburban_yard_root, "PorchPlant", planter_pos + Vector3(0.0, 0.27, 0.0), 0.18, hedge_mats[(building_index + 1) % hedge_mats.size()])
 			detail_count += 2
 		var plaque_z = front_z + front_sign * 0.105
-		_add_home_box(suburban_yard_root, "HouseNumberPlaque", Vector3(0.48, 0.22, 0.035), Vector3(center_x + 0.78, 1.72, plaque_z), yard_trim_mat)
+		var facade: Node3D = freya_home_cutaway_walls.get("front") if is_home else building.get("node")
+		_add_home_box(facade, "HouseNumberPlaque", Vector3(0.48, 0.22, 0.035), facade.to_local(Vector3(center_x + 0.78, 1.72, plaque_z)), yard_trim_mat)
 		for glyph_index in range(3):
-			_add_home_box(suburban_yard_root, "HouseNumberGlyph", Vector3(0.045, 0.13, 0.018), Vector3(center_x + 0.64 + float(glyph_index) * 0.14, 1.72, plaque_z + front_sign * 0.028), yard_metal_mat)
+			_add_home_box(facade, "HouseNumberGlyph", Vector3(0.045, 0.13, 0.018), facade.to_local(Vector3(center_x + 0.64 + float(glyph_index) * 0.14, 1.72, plaque_z + front_sign * 0.028)), yard_metal_mat)
 		detail_count += 4
 
 		var mailbox_side = -1.0 if building_index % 2 == 0 else 1.0
@@ -7246,6 +7403,7 @@ func _build_store_interiors() -> void:
 			bulb.mesh = bulb_mesh
 			bulb.position = Vector3(lerpf(x0 + 0.8, x1 - 0.8, t), STORE_INTERIOR_WALL_HEIGHT - 0.26, z0 + inner_d * 0.5)
 			bulb.material_override = light_mat
+			bulb.set_meta("ceiling_attachment", true)
 			interior_root.add_child(bulb)
 
 		var wall_t = float(layout.get("wall_t", STORE_WALL_THICKNESS))
@@ -7333,6 +7491,7 @@ func _build_store_interiors() -> void:
 			else:
 				produce_fixtures.append(fixture_rect)
 
+		var back_wall_group: Node3D = null
 		for wall_rect in wall_visuals:
 			var residential_shell_owns_walls = building_type in [BUILDING_TYPE_RESIDENCE_RANCH, BUILDING_TYPE_RESIDENCE_FAMILY, BUILDING_TYPE_RESIDENCE_WALKUP]
 			if residential_shell_owns_walls:
@@ -7349,14 +7508,20 @@ func _build_store_interiors() -> void:
 			if has_override_shell:
 				# Keep interior and exterior wall visuals aligned but non-coplanar to avoid shimmer.
 				interior_wall_rect = _inset_store_visual_rect(interior_wall_rect, 0.03)
-			_add_store_wall_box(interior_root, interior_wall_rect, wall_mat, STORE_INTERIOR_WALL_HEIGHT)
+			var wall_group = Node3D.new()
+			wall_group.name = "InteriorWallWithTrim"
+			wall_group.set_meta("sightline_group", true)
+			interior_root.add_child(wall_group)
+			if wall_rect == layout.get("back_wall", Rect2()):
+				back_wall_group = wall_group
+			_add_store_wall_box(wall_group, interior_wall_rect, wall_mat, STORE_INTERIOR_WALL_HEIGHT)
 			var trim_rect = _inset_store_visual_rect(interior_wall_rect, 0.02)
 			if trim_rect.size.x > 0.03 and trim_rect.size.y > 0.03:
-				_add_store_wall_box(interior_root, trim_rect, wall_trim_mat, 0.11)
+				_add_store_wall_box(wall_group, trim_rect, wall_trim_mat, 0.11)
 			var lower_band_rect = _inset_store_visual_rect(interior_wall_rect, 0.01)
 			var upper_band_rect = _inset_store_visual_rect(interior_wall_rect, 0.014)
-			_add_store_wall_band(interior_root, lower_band_rect, wall_band_mat, 0.58, 0.08)
-			_add_store_wall_band(interior_root, upper_band_rect, wall_trim_mat, 1.74, 0.06)
+			_add_store_wall_band(wall_group, lower_band_rect, wall_band_mat, 0.58, 0.08)
+			_add_store_wall_band(wall_group, upper_band_rect, wall_trim_mat, 1.74, 0.06)
 
 		var poster_count = clampi(int(round(inner_w / 2.8)), 1, 3)
 		for pi in range(poster_count):
@@ -7369,7 +7534,13 @@ func _build_store_interiors() -> void:
 			var poster_z = z0 + wall_t * 0.45 if front_is_south else z1 - wall_t * 0.45
 			poster.position = Vector3(poster_x, 1.42, poster_z)
 			poster.material_override = poster_mat
-			interior_root.add_child(poster)
+			if back_wall_group != null:
+				back_wall_group.add_child(poster)
+			else:
+				# Residential posters belong to the shell that supports them.
+				var shell: Node3D = b.get("node", null)
+				shell.add_child(poster)
+				poster.global_position = Vector3(poster_x, 1.42, poster_z)
 
 		for fixture in produce_fixtures:
 			_add_store_stand(interior_root, fixture, shelf_mat, wall_trim_mat, 1.02)
@@ -7759,8 +7930,12 @@ func _store_reachable_points(
 func _rebuild_walkability_cache() -> void:
 	blocking_building_rects.clear()
 	blocking_building_grid.clear()
+	store_wall_grid.clear()
+	occupied_building_grid.clear()
 	store_walk_blockers.clear()
 	for b in buildings:
+		if bool(b.get("alien_occupied", false)):
+			_index_collision_rect(occupied_building_grid, b.get("footprint", Rect2()))
 		var rect: Rect2 = b.get("collision_rect", b["footprint"])
 		if not bool(b.get("enterable", false)):
 			blocking_building_rects.append(rect)
@@ -7784,6 +7959,29 @@ func _rebuild_walkability_cache() -> void:
 			for wall in blockers:
 				if wall is Rect2:
 					store_walk_blockers.append(wall)
+					_index_collision_rect(store_wall_grid, wall)
+
+func _index_collision_rect(grid: Dictionary, rect: Rect2) -> void:
+	var first = Vector2i(floori(rect.position.x / COLLISION_GRID_SIZE), floori(rect.position.y / COLLISION_GRID_SIZE))
+	var last = Vector2i(floori(rect.end.x / COLLISION_GRID_SIZE), floori(rect.end.y / COLLISION_GRID_SIZE))
+	for x in range(first.x, last.x + 1):
+		for y in range(first.y, last.y + 1):
+			var cell = Vector2i(x, y)
+			if not grid.has(cell):
+				grid[cell] = []
+			grid[cell].append(rect)
+
+func _point_in_collision_grid(grid: Dictionary, point: Vector2, pad: float) -> bool:
+	# Broad phase only: preserve the exact grow/has_point collision test and all
+	# simulation timing. Include every cell touched by the mover's padded point.
+	var first = Vector2i(floori((point.x - pad) / COLLISION_GRID_SIZE), floori((point.y - pad) / COLLISION_GRID_SIZE))
+	var last = Vector2i(floori((point.x + pad) / COLLISION_GRID_SIZE), floori((point.y + pad) / COLLISION_GRID_SIZE))
+	for x in range(first.x, last.x + 1):
+		for y in range(first.y, last.y + 1):
+			for rect in grid.get(Vector2i(x, y), []):
+				if (rect as Rect2).grow(pad).has_point(point):
+					return true
+	return false
 
 func _rebuild_static_obstacle_grid() -> void:
 	static_obstacle_grid.clear()
@@ -9669,16 +9867,7 @@ func _point_in_dog_park_fence(p: Vector2, pad: float) -> bool:
 	return false
 
 func _point_in_occupied_store(p: Vector2, pad: float = 0.0) -> bool:
-	for store_index in enterable_building_indices:
-		if store_index < 0 or store_index >= buildings.size():
-			continue
-		var store: Dictionary = buildings[store_index]
-		if not bool(store.get("alien_occupied", false)):
-			continue
-		var footprint: Rect2 = store.get("footprint", Rect2())
-		if footprint.grow(pad).has_point(p):
-			return true
-	return false
+	return _point_in_collision_grid(occupied_building_grid, p, pad)
 
 func _point_in_building(p: Vector2, pad: float) -> bool:
 	for b in buildings:
@@ -9705,10 +9894,7 @@ func _point_in_blocking_building(p: Vector2, pad: float) -> bool:
 	return false
 
 func _point_in_store_wall(p: Vector2, pad: float) -> bool:
-	for rect in store_walk_blockers:
-		if rect.grow(pad).has_point(p):
-			return true
-	return false
+	return _point_in_collision_grid(store_wall_grid, p, pad)
 
 func _point_in_tree_trunk(p: Vector2, extra_radius: float) -> bool:
 	for t in trees:
@@ -9883,11 +10069,9 @@ func _update_freya(delta: float) -> void:
 	_increase_freya_hunger(delta, HUNGER_RUN_PER_SEC if running else HUNGER_WALK_PER_SEC)
 	var speed = _compute_freya_move_speed(running)
 
-	if _move_freya_with_collisions(move_dir, speed, delta):
-		freya.update_motion(delta, post_intro_meal_turnaround_direction, false, false)
-		return
-
-	freya.update_motion(delta, move_dir, running, false)
+	var before_move = freya.global_position
+	var turned_back = _move_freya_with_collisions(move_dir, speed, delta)
+	freya.update_ground_motion(delta, freya.global_position - before_move, post_intro_meal_turnaround_direction if turned_back else move_dir, running and not turned_back)
 
 func _increase_freya_hunger(delta: float, rate_per_second: float) -> void:
 	if delta <= 0.0 or rate_per_second <= 0.0:
@@ -10165,7 +10349,7 @@ func _claim_input_reserved_for_dog_bark(target: Dictionary) -> bool:
 func _nearest_possessed_dog_threat(max_radius: float) -> Dictionary:
 	if freya == null or not is_instance_valid(freya):
 		return {"found": false}
-	if not first_exit_abduction_completed:
+	if not possessed_dog_behavior_enabled:
 		return {"found": false}
 	var freya_in_park = dog_park.grow(-0.05).has_point(Vector2(freya.global_position.x, freya.global_position.z))
 	var best_distance = max_radius
@@ -10211,10 +10395,11 @@ func _force_freya_flee_from_possessed_dog(delta: float, threat: Dictionary) -> b
 	freya_move_dir = away
 	_increase_freya_hunger(delta, HUNGER_WALK_PER_SEC)
 	var speed = _compute_freya_move_speed(false) * FREYA_POSSESSED_DOG_FLEE_SPEED_MULT
+	var before_move = freya.global_position
 	if _move_freya_with_collisions(away, speed, delta):
-		freya.update_motion(delta, post_intro_meal_turnaround_direction, false, false)
+		freya.update_ground_motion(delta, freya.global_position - before_move, post_intro_meal_turnaround_direction, false)
 		return true
-	freya.update_motion(delta, away, false, false)
+	freya.update_ground_motion(delta, freya.global_position - before_move, away, false)
 	if freya_scare_status_cooldown <= 0.0 and status_timer <= 0.2:
 		_show_status("Freya is scared — hold R to bark back!", 0.85)
 		freya_scare_status_cooldown = FREYA_POSSESSED_DOG_SCARE_STATUS_COOLDOWN
@@ -10235,18 +10420,19 @@ func _update_post_intro_meal_turnaround(delta: float) -> bool:
 	freya_move_dir = turn_direction
 	_increase_freya_hunger(delta, HUNGER_IDLE_PER_SEC)
 
-	var next = freya.global_position + turn_direction * POST_INTRO_MEAL_TURNAROUND_SPEED * delta
+	var before_move = freya.global_position
+	var next = before_move + turn_direction * POST_INTRO_MEAL_TURNAROUND_SPEED * delta
 	var home: Dictionary = buildings[freya_home_index] if freya_home_index >= 0 and freya_home_index < buildings.size() else {}
 	var interior_rect: Rect2 = home.get("home_interior_rect", Rect2())
 	var next_2d = Vector2(next.x, next.z)
 	if interior_rect.grow(-0.02).has_point(next_2d) and _is_walkable(next.x, next.z, FREYA_COLLISION_RADIUS):
 		freya.global_position.x = next.x
 		freya.global_position.z = next.z
-	freya.update_motion(delta, turn_direction, false, false)
+	freya.update_ground_motion(delta, freya.global_position - before_move, turn_direction, false)
 	return true
 
 func _try_block_post_intro_home_exit(candidate: Vector2, attempted_direction: Vector3) -> bool:
-	if not post_intro_meal_tutorial_active or freya == null or not is_instance_valid(freya):
+	if not post_intro_meal_tutorial_active or not post_intro_meal_exit_required or freya == null or not is_instance_valid(freya):
 		return false
 	if freya_home_index < 0 or freya_home_index >= buildings.size():
 		return false
@@ -10305,6 +10491,7 @@ func _update_dogs(delta: float) -> void:
 	var claim_swarm = _active_building_claim_swarm()
 
 	for i in range(dogs.size()):
+		var dog_started = Time.get_ticks_usec() if perf_profile_gameplay else 0
 		var state: Dictionary = dogs[i]
 		var dog: Node3D = state.get("node", null)
 		if dog == null or not is_instance_valid(dog):
@@ -10362,12 +10549,16 @@ func _update_dogs(delta: float) -> void:
 			dir = _choose_dog_direction(dog.global_position, drive_surface, in_park)
 			state["wander"] = rng.randf_range(0.8, 2.6)
 
+		if perf_profile_gameplay:
+			_perf_profile_mark("dog_decisions", dog_started)
+			dog_started = Time.get_ticks_usec()
 		var speed = float(state["speed"]) * (DOG_FLEE_SPEED_MULT if is_fleeing else 1.0)
 		if is_swarming_claim:
 			speed *= BUILDING_CLAIM_SWARM_SPEED_MULT
 			if aggressive_social and dog.global_position.distance_to(freya.global_position) <= SOCIALIZE_RANGE:
 				speed *= 0.48
-		var next: Vector3 = dog.global_position + dir * speed * delta
+		var before_move = dog.global_position
+		var next: Vector3 = before_move + dir * speed * delta
 		var next_surface = _surface_at(Vector2(next.x, next.z))
 		var next_inside_park = (not in_park) or dog_park.grow(-0.18).has_point(Vector2(next.x, next.z))
 		if next_inside_park and _dog_respects_home_calm_zone(state, Vector2(next.x, next.z)) and _is_walkable(next.x, next.z, DOG_COLLISION_RADIUS) and next_surface != "road":
@@ -10393,6 +10584,9 @@ func _update_dogs(delta: float) -> void:
 			if current_surface == "grass":
 				state["wander"] = minf(float(state["wander"]), 0.18)
 
+		if perf_profile_gameplay:
+			_perf_profile_mark("dog_collision", dog_started)
+			dog_started = Time.get_ticks_usec()
 		var near: float = dog.global_position.distance_to(freya.global_position)
 		var in_social_range = near < SOCIALIZE_RANGE
 		if friendly_social and (not is_fleeing) and in_social_range:
@@ -10402,13 +10596,16 @@ func _update_dogs(delta: float) -> void:
 			near = float(sniff_result.get("near", near))
 			in_social_range = near < SOCIALIZE_RANGE
 
-		dog.update_motion(delta, dir, is_fleeing, false)
+		dog.update_ground_motion(delta, dog.global_position - before_move, dir, is_fleeing)
 		state["dir"] = dir
 
+		if perf_profile_gameplay:
+			_perf_profile_mark("dog_animation", dog_started)
+			dog_started = Time.get_ticks_usec()
 		var friendly_interacting = friendly_social and (not is_fleeing) and in_social_range
 		var aggressive_interacting = aggressive_social and in_social_range
 		var dog_can_reach_freya = (not in_park) or dog_park.grow(-0.05).has_point(Vector2(freya.global_position.x, freya.global_position.z))
-		var possessed_aggro_barking = first_exit_abduction_completed and dog_can_reach_freya and bool(state.get("alien_possessed", false)) and (not friendly_interacting) and (not aggressive_interacting) and near <= POSSESSED_DOG_AGGRO_BARK_RADIUS
+		var possessed_aggro_barking = possessed_dog_behavior_enabled and dog_can_reach_freya and bool(state.get("alien_possessed", false)) and (not friendly_interacting) and (not aggressive_interacting) and near <= POSSESSED_DOG_AGGRO_BARK_RADIUS
 		if aggressive_interacting:
 			aggressive_interaction_active = true
 		if friendly_interacting:
@@ -10447,7 +10644,11 @@ func _update_dogs(delta: float) -> void:
 				state["bark"] = rng.randf_range(0.52, 0.96)
 
 		state = _update_exorcism_for_dog(state, i, delta, aggressive_social, in_social_range)
-		if friendly_interacting and not bool(state.get("army_aligned", false)):
+		if bool(state.get("alien_possessed", false)) and not bool(state.get("army_aligned", false)):
+			# Pre-cleanse contact still costs Hunger and raises Vomit, but cannot
+			# bank recruitment. Existing army membership remains independent.
+			state["socialization_progress"] = 0.0
+		elif friendly_interacting and not bool(state.get("army_aligned", false)):
 			var progress = minf(DOG_ARMY_ALIGN_TIME, float(state.get("socialization_progress", 0.0)) + delta)
 			state["socialization_progress"] = progress
 			if progress >= DOG_ARMY_ALIGN_TIME:
@@ -10456,8 +10657,10 @@ func _update_dogs(delta: float) -> void:
 					dog.call("set_army_aligned", true)
 				_queue_bark_sequence(false, rng.randi_range(2, 3), BARK_CATEGORY_EXCITED_SOCIAL)
 				_queue_bark_sequence(true, rng.randi_range(2, 3), BARK_CATEGORY_EXCITED_SOCIAL)
-				_show_status("A real dog joined Freya's army.", 1.25)
+				_show_status("A real dog joined Freya's army.", 2.5, 2)
 		dogs[i] = state
+		if perf_profile_gameplay:
+			_perf_profile_mark("dog_interaction", dog_started)
 
 	if friendly_interaction_active:
 		_increase_freya_hunger(delta, SOCIALIZATION_HUNGER_PER_SEC)
@@ -10494,11 +10697,13 @@ func _update_exorcism_for_dog(
 	state["exorcism_latched"] = true
 	if bool(state.get("alien_possessed", false)):
 		state["alien_possessed"] = false
+		if not bool(state.get("army_aligned", false)):
+			state["socialization_progress"] = 0.0
 		state["alien_expelled"] = true
 		state["alien_transfer_serial"] = alien_transfer_serial
 		_spawn_alien_transfer(dog.head_world_position(), dog_index)
 		alien_expulsion_count += 1
-		_show_status("An alien fled that dog toward the buildings!", 1.35)
+		_show_status("An alien fled that dog toward the buildings!", 2.5, 2)
 	else:
 		var away = dog.global_position - freya.global_position
 		away.y = 0.0
@@ -10506,7 +10711,7 @@ func _update_exorcism_for_dog(
 			away = Vector3.RIGHT.rotated(Vector3.UP, rng.randf_range(0.0, TAU))
 		state["flee_direction"] = away.normalized()
 		state["flee_timer"] = DOG_WRONG_GUESS_FLEE_TIME
-		_show_status("That was a real dog — Freya scared it away.", 1.35)
+		_show_status("That was a real dog — Freya scared it away.", 1.8, 1)
 	return state
 
 func _nearest_random_alien_building(origin: Vector2, excluded_indices: Array = []) -> int:
@@ -11431,7 +11636,8 @@ func _update_passive_social_dance(
 	var move2 = drive.normalized()
 	var move3 = Vector3(move2.x, 0.0, move2.y)
 
-	var next = freya.global_position + move3 * FREYA_SOCIAL_DANCE_SPEED * delta
+	var before_move = freya.global_position
+	var next = before_move + move3 * FREYA_SOCIAL_DANCE_SPEED * delta
 	var moved = false
 	if _is_walkable(next.x, freya.global_position.z, FREYA_COLLISION_RADIUS):
 		freya.global_position.x = next.x
@@ -11443,7 +11649,7 @@ func _update_passive_social_dance(
 		return
 
 	freya_move_dir = move3
-	freya.update_motion(delta, move3, false, false)
+	freya.update_ground_motion(delta, freya.global_position - before_move, move3, false)
 	var spin_dir = Vector3(tangent.x, 0.0, tangent.y)
 	if freya.has_method("force_face_direction"):
 		freya.call("force_face_direction", spin_dir, delta * 6.0)
@@ -12064,7 +12270,16 @@ func _check_victory_condition() -> void:
 	if controlled < total:
 		return
 	freya_victory_complete = true
-	_show_status("Victory! Freya owns the whole map!", 5.0)
+	_show_status("Victory! Freya owns the whole map!", 5.0, 3)
+	if victory_panel != null:
+		victory_panel.show()
+		victory_continue_button.grab_focus()
+	_update_territory_feedback()
+
+func _acknowledge_victory() -> void:
+	if victory_panel != null:
+		victory_panel.hide()
+	_update_territory_feedback()
 
 func _alien_building_wall_point(building_index: int, origin: Vector2) -> Vector2:
 	if building_index < 0 or building_index >= buildings.size():
@@ -12828,7 +13043,7 @@ func _update_claiming(delta: float) -> void:
 		if Input.is_action_just_pressed("claim"):
 			var blocked_reason = str(target.get("blocked_reason", ""))
 			if not blocked_reason.is_empty():
-				_show_status(blocked_reason, 1.2)
+				_show_status(blocked_reason + " Hold Tab to inspect nearby marks and territory connections.", 4.0, 1)
 			else:
 				_show_status("No tree, pole, hydrant, mailbox, building, alien wall, or dumpster in range", 0.95)
 		return
@@ -13653,6 +13868,8 @@ func _store_index_containing_freya() -> int:
 	return -1
 
 func _apply_store_focus_visuals() -> void:
+	sightline_cutaway.restore()
+	occlusion_update_timer = 0.0
 	var inside_store = false
 	var active_idx = -1
 	if freya != null and active_store_index >= 0 and active_store_index < buildings.size():
@@ -13708,7 +13925,7 @@ func _update_store_focus(delta: float) -> void:
 			_apply_freya_home_focus_visuals()
 			if inside_home_now:
 				_show_status("Freya's home — Ryah Diane is inside", 1.35)
-			elif was_inside_home and post_intro_meal_tutorial_completed and not first_exit_abduction_completed:
+			elif was_inside_home and post_intro_meal_tutorial_completed and first_exit_abduction_pending:
 				_begin_first_exit_abduction()
 	if store_idx == active_store_index:
 		return
@@ -15668,16 +15885,33 @@ func _run_targeted_validation_checks() -> bool:
 		camera_node.global_position = cam_pos
 		freya.global_position = blocked_pos
 		_update_roof_occlusion(0.25)
-		if outlined_freya_meshes.is_empty():
-			failures.append("target_ghost_outline_not_shown")
+		var hidden_cutaway: Dictionary = sightline_cutaway.hidden.duplicate()
+		var roof_cut_away = ob.roof_parts.any(func(part): return not part.visible)
+		if hidden_cutaway.is_empty() and not roof_cut_away:
+			failures.append("target_building_cutaway_not_shown")
+		sightline_cutaway.restore()
+		for node in hidden_cutaway:
+			if is_instance_valid(node) and node.visible != hidden_cutaway[node]:
+				failures.append("target_building_cutaway_not_restored")
 		freya.global_position = clear_pos
 		_update_roof_occlusion(0.25)
 		if not outlined_freya_meshes.is_empty():
 			failures.append("target_ghost_outline_not_cleared")
 		freya.global_position = blocked_pos
 		_update_roof_occlusion(0.25)
-		if outlined_freya_meshes.is_empty():
-			failures.append("target_ghost_outline_not_restored")
+		if sightline_cutaway.hidden.is_empty() and not ob.roof_parts.any(func(part): return not part.visible):
+			failures.append("target_building_cutaway_not_reapplied")
+
+	# Buildings now cut away; the ghost fallback specifically covers remaining
+	# gameplay props. Exercise a real tree trunk instead of a removed roof box.
+	if not trees.is_empty():
+		var tree_pos: Vector2 = trees[0].pos
+		camera_node.global_position = Vector3(tree_pos.x - 3.0, 1.1, tree_pos.y)
+		for blocked in [true, false, true]:
+			freya.global_position = Vector3(tree_pos.x + (1.0 if blocked else -2.8), 0.0, tree_pos.y)
+			_update_roof_occlusion(0.25)
+			if outlined_freya_meshes.is_empty() == blocked:
+				failures.append("target_prop_ghost_transition_failed")
 
 	freya.global_position = saved_pos
 	camera_node.global_position = saved_cam_pos
@@ -16470,8 +16704,6 @@ func _collect_occlusion_candidate_indices(cam_pos: Vector3, target_pos: Vector3)
 func _freya_occluded_by_buildings(cam_pos: Vector3, freya_pos: Vector3, candidate_indices: Array = []) -> bool:
 	var freya_pos_2d = Vector2(freya_pos.x, freya_pos.z)
 	var inside_active_store = _is_inside_store_interior(active_store_index, freya_pos_2d)
-	if inside_active_store:
-		return false
 	var samples: Array[Vector3] = [
 		freya_pos + Vector3(0.0, 0.16, 0.0),
 		freya_pos + Vector3(0.0, 0.54, 0.0),
@@ -16553,6 +16785,76 @@ func _near_enterable_doorway(building: Dictionary, p: Vector2, margin: float = 1
 		closest = inside + segment * t
 	return p.distance_to(closest) <= margin
 
+func _fit_cinematic_subjects(subjects: Array[Vector3], safe_bottom: float) -> void:
+	if subjects.is_empty():
+		return
+	var viewport_size = get_viewport().get_visible_rect().size
+	var vertical = tan(deg_to_rad(camera_node.fov * 0.5))
+	var horizontal = vertical * viewport_size.x / viewport_size.y
+	var slopes = Vector4(-0.84 * horizontal, 0.84 * horizontal, (1.0 - 2.0 * safe_bottom) * vertical, 0.76 * vertical)
+	var local_subjects: Array[Vector3] = []
+	var minimum_retreat = 0.0
+	for subject in subjects:
+		var point = camera_node.to_local(subject)
+		local_subjects.append(point)
+		minimum_retreat = maxf(minimum_retreat, point.z + 0.3)
+	# Intersect the permitted pan interval for every subject at its own depth.
+	# A screen-center pan at Freya's depth overshot the closer walkers. Solve the
+	# perspective constraints directly, retreating only until all intervals meet.
+	var retreat = minimum_retreat
+	var limits = _cinematic_pan_bounds(local_subjects, retreat, slopes)
+	if limits.x > limits.y or limits.z > limits.w:
+		var low = retreat
+		retreat = maxf(1.0, retreat)
+		for expansion in range(20):
+			limits = _cinematic_pan_bounds(local_subjects, retreat, slopes)
+			if limits.x <= limits.y and limits.z <= limits.w:
+				break
+			retreat *= 2.0
+		for iteration in range(16):
+			var middle = (low + retreat) * 0.5
+			limits = _cinematic_pan_bounds(local_subjects, middle, slopes)
+			if limits.x <= limits.y and limits.z <= limits.w:
+				retreat = middle
+			else:
+				low = middle
+		limits = _cinematic_pan_bounds(local_subjects, retreat, slopes)
+	var pan = Vector3((limits.x + limits.y) * 0.5, (limits.z + limits.w) * 0.5, retreat)
+	camera_node.global_position += camera_node.global_basis * pan
+
+func _cinematic_pan_bounds(points: Array[Vector3], retreat: float, slopes: Vector4) -> Vector4:
+	var limits = Vector4(-INF, INF, -INF, INF)
+	for point in points:
+		var depth = -point.z + retreat
+		limits.x = maxf(limits.x, point.x - slopes.y * depth)
+		limits.y = minf(limits.y, point.x - slopes.x * depth)
+		limits.z = maxf(limits.z, point.y - slopes.w * depth)
+		limits.w = minf(limits.w, point.y - slopes.z * depth)
+	return limits
+
+func _clear_subject_sightlines(subjects: Array[Vector3]) -> void:
+	# The helper's cached rendered bounds include canopies/eaves that extend
+	# beyond the collision footprints used by the older roof-only cutaway.
+	for building in buildings:
+		for key in ["node", "store_shell_root", "detail_batch_root", "store_interior_root", "alien_visual_root"]:
+			sightline_cutaway.clear_sightlines(building.get(key, null), camera_node.global_position, subjects)
+	sightline_cutaway.clear_sightlines(freya_home_exterior_root, camera_node.global_position, subjects)
+	sightline_cutaway.clear_sightlines(freya_home_interior_root, camera_node.global_position, subjects)
+	if family_intro_active:
+		sightline_cutaway.clear_sightlines(family_far_wall, camera_node.global_position, subjects)
+
+func _update_cinematic_sightlines(subjects: Array[Vector3]) -> void:
+	sightline_cutaway.restore()
+	_clear_occlusion_outlines()
+	sightline_cutaway.hide_ceiling_attachments(freya_home_interior_root)
+	for label_name in ["HomeInteriorExitLabel", "PostIntroBowlPointer"]:
+		sightline_cutaway.hide(freya_home_interior_root.get_node_or_null(label_name))
+	if ryah_diane_node != null:
+		sightline_cutaway.hide(ryah_diane_node.get_node_or_null("RyahDianeLabel"))
+	_clear_subject_sightlines(subjects)
+	for batch_name in ["BatchedForest", "BatchedStreetPoles", "BatchedFireHydrants", "BatchedDumpsters", "BatchedMailboxes", "BatchedSuburbanYards"]:
+		sightline_cutaway.clear_batched_sightlines(static_root.get_node_or_null(batch_name), camera_node.global_position, subjects)
+
 func _update_roof_occlusion(delta: float) -> void:
 	var cam_pos = camera_node.global_position
 	var freya_pos = freya.global_position
@@ -16564,8 +16866,14 @@ func _update_roof_occlusion(delta: float) -> void:
 	var move_eps_sq = OCCLUSION_MOVE_EPS * OCCLUSION_MOVE_EPS
 	var cam_moved = cam_pos.distance_squared_to(last_occlusion_cam_pos) > move_eps_sq
 	var freya_moved = freya_pos.distance_squared_to(last_occlusion_freya_pos) > move_eps_sq
-	if (not store_changed) and occlusion_update_timer > 0.0 and (not cam_moved) and (not freya_moved):
+	if delta > 0.0 and (not store_changed) and occlusion_update_timer > 0.0 and (not cam_moved) and (not freya_moved):
 		return
+	sightline_cutaway.restore()
+	if freya_inside_home:
+		_update_freya_home_cutaway_walls(true)
+		sightline_cutaway.hide_ceiling_attachments(freya_home_interior_root)
+	if store_idx_now >= 0:
+		sightline_cutaway.hide_ceiling_attachments(buildings[store_idx_now].get("store_interior_root", null))
 	occlusion_update_timer = OCCLUSION_UPDATE_INTERVAL
 	last_occlusion_cam_pos = cam_pos
 	last_occlusion_freya_pos = freya_pos
@@ -16587,14 +16895,17 @@ func _update_roof_occlusion(delta: float) -> void:
 
 		for part in roof_parts:
 			(part as Node3D).visible = not hide_roof
+	var subjects: Array[Vector3] = [freya.head_world_position(), freya_pos + Vector3.UP * 0.2]
+	for side in [Vector3(0.65, 0.5, 0), Vector3(-0.65, 0.5, 0), Vector3(0, 0.5, 0.65), Vector3(0, 0.5, -0.65)]:
+		subjects.append(freya_pos + side)
+	_clear_subject_sightlines(subjects)
 
 	_clear_occlusion_outlines()
-	var occluded_building = _freya_occluded_by_buildings(cam_pos, freya_pos, occlusion_candidates)
 	var occluded_props = _nonbuilding_blocks_view(cam_pos, freya_pos)
-	var ghost_freya = occluded_building
-	if ghost_freya:
+	# Building sightlines are already clear. Keep the ghost fallback for props
+	# that remain in gameplay, without reacting to now-hidden building boxes.
+	if occluded_props:
 		_apply_outline_recursive(freya, freya_ghost_material, outlined_freya_meshes)
-	if occluded_building or occluded_props:
 		_apply_nearby_object_outlines(3.0)
 
 func _create_ui() -> void:
@@ -16668,11 +16979,19 @@ func _create_ui() -> void:
 	unease_label.visible = false
 	panel.add_child(unease_label)
 
+	status_panel = PanelContainer.new()
+	status_panel.position = Vector2(16, 230)
+	status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status_panel.add_theme_stylebox_override("panel", _feedback_panel_style())
+	ui_layer.add_child(status_panel)
 	status_label = Label.new()
-	status_label.position = Vector2(16, 231)
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_label.add_theme_font_size_override("font_size", 18)
 	status_label.add_theme_color_override("font_color", Color(0.9, 0.95, 0.98, 0.95))
-	ui_layer.add_child(status_label)
+	status_panel.add_child(status_label)
+	_update_status_presentation()
+	_create_completion_feedback()
 
 	claim_meter_panel = Panel.new()
 	claim_meter_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -16704,12 +17023,15 @@ func _create_ui() -> void:
 
 	claim_meter_label = Label.new()
 	claim_meter_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	claim_meter_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	claim_meter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	claim_meter_label.add_theme_font_size_override("font_size", 14)
 	claim_meter_label.add_theme_color_override("font_color", Color(0.96, 0.99, 1.0, 0.98))
 	claim_wrap.add_child(claim_meter_label)
 
 	claim_meter_bar = TextureProgressBar.new()
+	# Allow the container to scale the texture instead of inheriting its 512px width.
+	claim_meter_bar.nine_patch_stretch = true
 	claim_meter_bar.custom_minimum_size = Vector2(0.0, 17.0)
 	claim_meter_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	claim_meter_bar.min_value = 0.0
@@ -17012,9 +17334,9 @@ func _create_objectives_overlay() -> void:
 	objectives_panel.anchor_right = 0.5
 	objectives_panel.anchor_bottom = 0.5
 	objectives_panel.offset_left = -250.0
-	objectives_panel.offset_top = -154.0
+	objectives_panel.offset_top = -240.0
 	objectives_panel.offset_right = 250.0
-	objectives_panel.offset_bottom = 154.0
+	objectives_panel.offset_bottom = 240.0
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.07, 0.1, 0.9)
 	panel_style.border_color = Color(0.74, 0.86, 0.92, 0.75)
@@ -17038,11 +17360,18 @@ func _create_objectives_overlay() -> void:
 
 	objectives_list_label = Label.new()
 	objectives_list_label.text = _objectives_text()
-	objectives_list_label.position = Vector2(16.0, 42.0)
-	objectives_list_label.size = Vector2(470.0, 250.0)
-	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	objectives_list_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	objectives_list_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	objectives_list_label.add_theme_font_size_override("font_size", 15)
-	objectives_panel.add_child(objectives_list_label)
+	var scroll = ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 16.0
+	scroll.offset_top = 42.0
+	scroll.offset_right = -16.0
+	scroll.offset_bottom = -16.0
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	objectives_panel.add_child(scroll)
+	scroll.add_child(objectives_list_label)
 
 func _update_objectives_overlay() -> void:
 	if objectives_panel == null:
@@ -17068,16 +17397,62 @@ func _objectives_text() -> String:
 	var buildings_done = buildings_total > 0 and buildings_claimed >= buildings_total
 	var buildings_state = "[DONE]" if buildings_done else "[ ]"
 	return (
-		"- %s Puke on another dog\n" % puke_state
+		"%s OWN EVERY BUILDING (%d/%d)\n" % [buildings_state, buildings_claimed, buildings_total]
+		+ "Hold Space inside eligible buildings to claim them.\n"
+		+ _nearby_building_claim_guidance()
+		+ "\nOther activities\n- %s Puke on another dog\n" % puke_state
 		+ "- %s Claim 10 light poles (%d/%d)\n" % [poles_state, poles_claimed, OBJECTIVE_CLAIM_TARGET]
 		+ "- %s Claim 10 trees (%d/%d)\n" % [trees_state, trees_claimed, OBJECTIVE_CLAIM_TARGET]
 		+ "- %s Claim 8 fire hydrants (%d/%d)\n" % [hydrants_state, hydrants_claimed, OBJECTIVE_HYDRANT_TARGET]
-		+ "- %s Own every building (%d/%d)\n" % [buildings_state, buildings_claimed, buildings_total]
 		+ "- Hold R to bark back at possessed dogs and stand ground\n"
 		+ "- Expelled aliens: %d | Free aliens: %d/%d\n" % [alien_expulsion_count, free_aliens.size(), MAX_FREE_ALIENS]
 		+ "- Alien buildings: %d | Occupants inside: %d\n" % [_alien_occupied_building_count(), _alien_total_occupant_count()]
-		+ "- Hold Space inside an eligible clean building to claim it"
 	)
+
+func _nearby_building_claim_guidance() -> String:
+	if freya_victory_complete:
+		return "Neighborhood complete! Keep exploring with Freya.\n"
+	var index = active_store_index
+	if index < 0:
+		var nearest = 5.0
+		var position_2d = Vector2(freya.global_position.x, freya.global_position.z)
+		for i in range(buildings.size()):
+			var distance = _point_distance_to_rect(position_2d, buildings[i].footprint)
+			if distance < nearest:
+				nearest = distance
+				index = i
+	if index < 0:
+		return "Inspect a building up close for its claim requirements.\n"
+	var status = _building_claim_status(index)
+	if _building_is_controlled_by_freya(index) or bool(buildings[index].get("alien_occupied", false)):
+		return str(status.reason) + "\n"
+	var missing: Dictionary = {}
+	var nearest_mark: Dictionary = {}
+	var distance = INF
+	var names = {CLAIM_TARGET_TREE: "trees", CLAIM_TARGET_LIGHT_POLE: "poles", CLAIM_TARGET_FIRE_HYDRANT: "hydrants", CLAIM_TARGET_MAILBOX: "mailboxes"}
+	for item in _building_surrounding_claimables(index):
+		if _entry_is_claimed_by(_claim_entry_for_target(item.type, item.index), CLAIM_OWNER_FREYA):
+			continue
+		var kind: String = names.get(item.type, "marks")
+		missing[kind] = int(missing.get(kind, 0)) + 1
+		var point = _claim_target_base_world_position(item.type, item.index)
+		var mark_distance = freya.global_position.distance_to(point)
+		if mark_distance < distance:
+			distance = mark_distance
+			nearest_mark = {"kind": kind, "point": point}
+	var parts: Array[String] = []
+	for kind in missing:
+		parts.append("%d %s" % [missing[kind], kind])
+	var guidance = "Nearby marks: %d/%d." % [status.surrounding_claimed, status.surrounding_total]
+	if not parts.is_empty():
+		guidance += " Still needed: " + ", ".join(parts) + "."
+		var screen_direction: Vector3 = camera_node.global_basis.inverse() * (nearest_mark.point - freya.global_position)
+		var direction = "right" if screen_direction.x >= 0.0 else "left"
+		if absf(screen_direction.y) > absf(screen_direction.x):
+			direction = "up" if screen_direction.y >= 0.0 else "down"
+		guidance += " Nearest: %s, %.0fm toward screen %s." % [nearest_mark.kind, distance, direction]
+	guidance += "\nTerritory connected.\n" if _building_has_adjacent_freya_control(index) else "\nConnection needed: claim a building in this block or a north/south/east/west neighbor.\n"
+	return guidance
 
 func _create_stats_overlay() -> void:
 	stats_panel = Panel.new()
@@ -17407,9 +17782,87 @@ func _make_value_label(panel: Panel, pos: Vector2) -> Label:
 	panel.add_child(l)
 	return l
 
-func _show_status(text: String, duration: float) -> void:
+func _show_status(text: String, duration: float, priority: int = 0) -> void:
+	if status_timer > 0.0 and priority < status_priority:
+		return
 	status_label.text = text
 	status_timer = duration
+	status_priority = priority
+	_update_status_presentation()
+
+func _feedback_panel_style() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.025, 0.06, 0.07, 0.94)
+	style.border_color = Color(0.63, 0.82, 0.8, 0.9)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(7)
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
+
+func _update_status_presentation() -> void:
+	if status_panel == null:
+		return
+	status_panel.visible = not status_label.text.is_empty()
+	var width = minf(520.0, get_viewport().get_visible_rect().size.x - 32.0)
+	# Supply the wrap width before asking the container for its minimum height.
+	# A newly shown label otherwise measures at zero width and creates a tall
+	# empty panel until the next HUD refresh corrects the container's layout.
+	status_label.size.x = maxf(1.0, width - status_panel.get_theme_stylebox("panel").get_minimum_size().x)
+	status_panel.size = Vector2(width, 0.0)
+
+func _create_completion_feedback() -> void:
+	var territory_panel = PanelContainer.new()
+	territory_panel.anchor_top = 1.0
+	territory_panel.anchor_bottom = 1.0
+	territory_panel.offset_left = 16.0
+	territory_panel.offset_top = -58.0
+	territory_panel.offset_right = 390.0
+	territory_panel.offset_bottom = -16.0
+	territory_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	territory_panel.add_theme_stylebox_override("panel", _feedback_panel_style())
+	ui_layer.add_child(territory_panel)
+	territory_label = Label.new()
+	territory_label.add_theme_font_size_override("font_size", 17)
+	territory_panel.add_child(territory_label)
+	_update_territory_feedback()
+
+	victory_panel = PanelContainer.new()
+	victory_panel.name = "NeighborhoodComplete"
+	victory_panel.anchor_left = 0.5
+	victory_panel.anchor_right = 0.5
+	victory_panel.anchor_top = 0.5
+	victory_panel.anchor_bottom = 0.5
+	victory_panel.offset_left = -240.0
+	victory_panel.offset_right = 240.0
+	victory_panel.offset_top = -110.0
+	victory_panel.offset_bottom = 110.0
+	victory_panel.add_theme_stylebox_override("panel", _feedback_panel_style())
+	victory_panel.z_index = 30
+	ui_layer.add_child(victory_panel)
+	var content = VBoxContainer.new()
+	content.add_theme_constant_override("separation", 20)
+	victory_panel.add_child(content)
+	var title = Label.new()
+	title.text = "Neighborhood complete!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	content.add_child(title)
+	var detail = Label.new()
+	detail.text = "Freya owns every building.\nRyah's neighborhood is yours to explore."
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	content.add_child(detail)
+	victory_continue_button = Button.new()
+	victory_continue_button.text = "Keep exploring"
+	victory_continue_button.pressed.connect(_acknowledge_victory)
+	content.add_child(victory_continue_button)
+	victory_panel.hide()
+
+func _update_territory_feedback() -> void:
+	if territory_label != null:
+		territory_label.text = "Neighborhood complete!  %d/%d buildings" % [_controlled_building_count(), _claimable_building_total()] if freya_victory_complete else "Neighborhood: %d/%d buildings  ·  Tab: goals" % [_controlled_building_count(), _claimable_building_total()]
 
 func _carried_supply_status() -> String:
 	var supplies: Array[String] = []
@@ -17426,6 +17879,8 @@ func _update_ui() -> void:
 	if hud_update_timer > 0.0:
 		return
 	hud_update_timer = HUD_UPDATE_INTERVAL
+	_update_status_presentation()
+	_update_territory_feedback()
 	hunger_bar.value = freya_hunger
 	vomit_bar.value = freya_vomit
 	social_bar.value = freya_social

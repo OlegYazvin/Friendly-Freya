@@ -14,6 +14,9 @@ sequence. The five-scene UFO segment runs in `IntroCutscene.tscn`; natural
 completion hands a one-shot request to `Main.tscn`, where the family segment
 runs inside the actual generated map home before control is released to Freya.
 Both halves use absolute-time timelines and deterministic regression views.
+`Space` / Next resolves the current text first, then advances on the next press.
+The UFO completion point is the end of its rune and morph phases, so English
+remains available even when advancing early.
 
 ## Editable Architecture
 
@@ -46,7 +49,9 @@ Main thresholds, and the relevant reviewed captures.
 - Visible UI: title, invasion prompt, `Watch Intro`, and `Skip To Game`.
 - Default focus: `Watch Intro`.
 - `Watch Intro` route: `IntroCutscene.tscn`.
-- `Skip To Game` route: `Main.tscn`.
+- `Skip To Game` route: `Main.tscn`, starting at the live home near the food
+  bowl with 100% Hunger, optional food guidance, an open exit, and dog behavior
+  enabled independently of cinematic history. UFO Escape uses the same route.
 - Selection behavior: both buttons immediately lock after either choice so two
   destination changes cannot race.
 - Edit point: presentation lives in `Startup.tscn`; route invariants and startup
@@ -175,6 +180,12 @@ Main thresholds, and the relevant reviewed captures.
 - Camera rule: the family sequence retains its original left-side perspective
   through Ryah's rescue; the added pill-eating/reaction beats cut to a lower
   profile angle so the floor spill and Freya's mouth remain visible.
+  Framing adjusts for the generated home and keeps subjects above dialogue.
+  Rendered walls, roof overhangs, fixtures, and individual batched foreground
+  props temporarily cut away when they obstruct a story subject. Gameplay
+  labels and ghost overlays are cleared during cinematics. Each handoff restores
+  scenery and the normal `40°` gameplay camera; the first-exit immunity bounce
+  receives its own Freya close shot.
 - Freya staging: Freya remains at least `1.4m` from Ryah and faces inward toward
   Ryah, Gene, and Zoe through the abduction. After saving Ryah she turns toward
   the dropped bottles, approaches them, and eats them.

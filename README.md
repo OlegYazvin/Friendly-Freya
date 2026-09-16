@@ -31,6 +31,7 @@ building claims, occupied buildings, and deterministic visual regression views.
 | [Building program](BUILDING_PROGRAM.md) | Enterable residences, pharmacy/grocery/police/clinic roles, occupation locks, and service rules | Current subsystem reference |
 | [Dog breed definitions](godot/BREEDS.md) | Breed schema, shared-rig policy, and army-collar rules | Current subsystem reference |
 | [Visual implementation record](VISUAL_RECOMMENDATIONS.md) | Completed visual audit recommendations and their validation expectations | Completed implementation record |
+| [De-jankification implementation](docs/DEJANKIFICATION.md) | Eleven gameplay/presentation fixes, rendered/input evidence, regression coverage, performance, and limits | Current implementation record |
 | [Visual regression catalog](visual_regressions/README.md) | What each deterministic PNG documents and how to regenerate it | Current capture reference |
 | [Model inventory and policy](godot/assets/models/README_MODELS.md) | Active/inactive model status, shared-dog rules, and provenance gaps | Current asset/release record |
 | [Audio attribution](godot/assets/audio/ATTRIBUTION.md) | Audio provenance, licenses, derived files, and exact intro mappings | Current legal/source record |

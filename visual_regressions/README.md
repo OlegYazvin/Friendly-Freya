@@ -10,6 +10,13 @@
 These deterministic reference views cover the geometry and visibility
 relationships called out by the visual audit.
 
+Camera cutaways use cached rendered mesh bounds, including roof overhangs and
+neighboring buildings. Removed wall attachments follow their supporting walls;
+ceiling fixtures disappear with the interior cutaway. Cinematic subjects are
+framed above dialogue, gameplay labels/ghost overlays are cleared, and temporary
+visibility is restored at handoff. Normal gameplay retains a prop-occlusion
+outline fallback.
+
 ## Intro and Startup References
 
 - [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, now under a brighter, welcoming early-evening sky; `Watch Intro` remains focused, with `Skip To Game` and `Settings` available in the dark menu panel.
@@ -120,6 +127,12 @@ generation and confirm framing, geometry, visibility, and UI readability before
 accepting it. Then run the validation command from the
 [run guide](../RUN_FRIENDLY_FREYA.md); a successful screenshot command alone is
 not a complete regression check.
+
+Both scripts launch through `godot/tests/capture_ready.gd` and wait for the
+requested scene's first rendered frames before taking the X11 screenshot. They
+fail on startup errors or a readiness timeout, rather than accepting Godot's
+splash screen after a fixed delay. Static world views suppress incidental
+possessed-dog tutorial popups; ordinary gameplay routes retain them.
 
 Deterministic headless validation and static-view modes use a fixed city seed;
 ordinary graphical play remains randomized. UFO captures seek through

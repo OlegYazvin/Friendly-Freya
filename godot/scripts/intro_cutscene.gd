@@ -116,7 +116,8 @@ func _intro_dialogue_complete_time(scene: Dictionary) -> float:
 		return float(scene.get("start", 0.0))
 	var scene_start = float(scene.get("start", 0.0))
 	var scene_end = float(scene.get("end", scene_start))
-	return clampf(scene_start + maxf(0.04, float(text.length()) / 27.0 - 0.16) + 0.02, scene_start, scene_end - 0.02)
+	# The bubble resolves runes, then morphs into English; it is not a typewriter.
+	return minf(scene_end - 0.02, scene_start + float(scene.get("rune_duration", 0.0)) + float(scene.get("morph_duration", 0.0)) + 0.02)
 
 
 func _advance_intro_scene() -> void:
@@ -885,10 +886,21 @@ func _validate_dialogue_advance_controls(failures: Array[String]) -> void:
 	var saved_static = static_view
 	static_view = false
 	transition_started = false
-	timeline_time = float(IntroTimeline.SCENES[1].get("start", 0.0)) + 0.02
-	_advance_intro_scene()
-	if timeline_time <= saved_time or timeline_time >= float(IntroTimeline.SCENES[2].get("start", IntroTimeline.TOTAL_DURATION)):
-		failures.append("intro_space_does_not_complete_line")
+	var saved_audio_events = played_audio_events.duplicate()
+	for line_index in range(1, 4):
+		var line: Dictionary = IntroTimeline.SCENES[line_index]
+		for phase_offset in [0.02, float(line.rune_duration) + float(line.morph_duration) * 0.5]:
+			timeline_time = float(line.start) + phase_offset
+			_advance_intro_scene()
+			if speech_text_label.text != str(line.english) or timeline_time >= float(line.end):
+				failures.append("intro_next_failed_to_resolve_%d" % line_index)
+			var event_count = played_audio_events.size()
+			_advance_intro_scene()
+			if absf(timeline_time - float(line.end) - 0.001) > 0.002:
+				failures.append("intro_next_failed_to_advance_%d" % line_index)
+			if played_audio_events.size() < event_count:
+				failures.append("intro_next_lost_audio_event_history")
+	played_audio_events = saved_audio_events
 	transition_started = saved_transition
 	static_view = saved_static
 	timeline_time = saved_time

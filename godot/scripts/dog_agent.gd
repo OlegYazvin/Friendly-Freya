@@ -1072,7 +1072,7 @@ func _find_first_skeleton(root: Node) -> Skeleton3D:
 			stack.append(c)
 	return null
 
-func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool, is_eating: bool = false) -> void:
+func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: bool, is_eating: bool = false, motion_scale: float = 1.0) -> void:
 	if _anim_player == null:
 		return
 
@@ -1107,21 +1107,32 @@ func _update_external_animation(is_moving: bool, is_running: bool, is_vomiting: 
 	elif is_eating:
 		_anim_player.speed_scale = 1.02
 	elif is_moving:
-		_anim_player.speed_scale = 1.38 if is_running else 1.0
+		_anim_player.speed_scale = (1.38 if is_running else 1.0) * motion_scale
 	else:
 		_anim_player.speed_scale = 0.85
 
-func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomiting: bool, is_eating: bool = false) -> void:
+func update_ground_motion(delta: float, displacement: Vector3, facing_intent: Vector3, is_running: bool) -> void:
+	var velocity = Vector3(displacement.x, 0.0, displacement.z) / maxf(delta, 0.0001)
+	var actual_speed = velocity.length()
+	# Numerical sliding at a blocked boundary should settle to idle. Facing still
+	# follows intent, so a wall bump can turn Freya without making her run in place.
+	var moving = actual_speed > 0.03
+	if not moving and facing_intent.length_squared() > 0.0001:
+		_face_direction(facing_intent.normalized(), delta)
+	var reference_speed = maxf(0.1, speed * (1.55 if is_running else 1.0))
+	update_motion(delta, velocity.normalized() if moving else Vector3.ZERO, is_running, false, false, clampf(actual_speed / reference_speed, 0.05, 2.0))
+
+func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomiting: bool, is_eating: bool = false, motion_scale: float = 1.0) -> void:
 	var is_moving := move_dir.length_squared() > 0.0001
 	if move_dir.length_squared() > 0.0001:
 		_face_direction(move_dir.normalized(), delta)
-		_step_time += delta * (10.5 if is_running else 7.2)
+		_step_time += delta * (10.5 if is_running else 7.2) * motion_scale
 	else:
 		_step_time += delta * 2.4
 		rotation.x = 0.0
 		rotation.z = 0.0
 
-	_update_external_animation(is_moving, is_running, is_vomiting, is_eating)
+	_update_external_animation(is_moving, is_running, is_vomiting, is_eating, motion_scale)
 	_enforce_hidden_leg_pose()
 
 	var stride_amp = 0.8 if is_running else 0.5

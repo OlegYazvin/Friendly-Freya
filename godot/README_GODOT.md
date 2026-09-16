@@ -5,8 +5,8 @@
 [Intro guide](../INTRO_CUTSCENE.md)
 
 This directory is the authoritative Godot source for Friendly Freya. The
-project targets Godot's `4.6` feature set and uses the OpenGL compatibility
-renderer. See the run guide for the editor version last used to validate it.
+project declares its feature target in `project.godot` and uses the OpenGL
+compatibility renderer. See the run guide for the editor version last used to validate it.
 
 The copies beneath `../Logs and Monitoring/` and any packaged `.exe`, `.pck`, or
 archive are historical build artifacts, not editable source.
@@ -40,20 +40,23 @@ Freya in a Northbrook-inspired brick town-center streetscape.
 
 - Startup: choose `Watch Intro`, `Skip To Game`, or `Settings`; `Watch Intro`
   has keyboard focus by default.
-- Intro: `Space`, `Esc`, or the on-screen button skips to gameplay.
+- Intro: `Space` / Next completes the current line, then advances the beat.
+  `Esc` / Skip To Game skips the current cinematic.
 - `WASD` or Arrow keys: move Freya; `Shift`: run.
 - `Q` / `E`: rotate the camera; mouse wheel: zoom.
 - `F`: eat nearby food or bones, use a dog-food bowl, pick up a stick, collect
-  pharmacy medicine or police armor, and give carried supplies to a freed dog;
+  pharmacy medicine or police armor, give carried supplies to a freed dog, or
+  use a park training obstacle from either end;
   `V`: drop a carried stick.
 - Hold `C` near a dog: socialize at a Hunger cost. A possessed dog also raises
-  Vomit; sustained socializing recruits a real dog into Freya's army.
-- Hold `X` near a dog: bark aggressively, stand ground against possessed dogs,
+  Vomit; only sustained socializing after cleansing recruits a dog into Freya's
+  army. Contact before cleansing earns no recruitment progress.
+- Hold `R` near a dog: bark aggressively, stand ground against possessed dogs,
   expel an alien, or scare a real dog away.
-- Hold `R`: claim trees, light poles, hydrants, mailboxes, and eligible building
+- Hold `Space`: claim trees, light poles, hydrants, mailboxes, and eligible building
   interiors; weaken an alien building beside its wall; or search a nearby
   dumpster.
-- `Space`: vomit when the Vomit meter is full.
+- `X`: vomit when the Vomit meter is full.
 - Hold `Tab`: show objectives and alien/building counts.
 - `Esc` during gameplay: pause. `Watch Intro` replays the cut-scene and begins a
   fresh game when it finishes or is skipped.
@@ -69,7 +72,9 @@ bindings are configured in `main.gd` under `_configure_input` and
   saving Ryah, Freya eats them, has a comic convulsion, and discovers her
   internal monologue. Freya then starts fully hungry, and an authored-bark
   thought prompt plus a pulsing bowl pointer keeps her inside until she eats.
-- On Freya's first exit, three temporary dog walkers appear farther down the
+- Skipping the intro starts Freya at home near her bowl at `100%` Hunger.
+  Food guidance is optional, the exit is open, and dog aggression is enabled.
+- On Freya's first exit after the family prologue, three temporary dog walkers appear farther down the
   street-side sidewalk with initially ordinary leashed city dogs. Alien beams
   abduct the people, visible possession energy turns the dogs aggressive, and
   the same energy targets Freya but bounces away. Freya recognizes
@@ -89,7 +94,7 @@ bindings are configured in `main.gd` under `_configure_input` and
 - Every roaming NPC dog begins secretly possessed. The three first-exit dogs
   are held ordinary on their leashes until the visible possession beat.
   Possession never changes dog appearance; the event and Freya's unease supply
-  the clues. After that reveal, possessed dogs bark aggressively and scare
+  the clues. After that reveal (or immediately on an intro-skip route), possessed dogs bark aggressively and scare
   Freya away unless the player holds `R` to bark back and stand ground.
 - Socialization costs Hunger and raises Vomit around a possessed dog. Recruited
   dogs wear a broad camouflage neck collar with no overhead indicator.
@@ -109,11 +114,13 @@ bindings are configured in `main.gd` under `_configure_input` and
 - Buildings track Freya ownership and alien occupant counts. Freya owns her
   home by default. Other clean buildings become claimable only after the nearby
   pee targets are marked and the building connects to Freya territory on the
-  same generated block or a cardinal-neighbor block. Holding `R` inside for 10
+  same generated block or a cardinal-neighbor block. Holding `Space` inside for 10
   seconds claims the building; partial building progress decays when interrupted.
   Claimed territory gets a subtle yellow ground tint and Ryah Diane's scribbly
-  Freya stake near the entrance. Owning every building is the win condition.
-- Alien architecture and minimap states are static, while holding `R` by an
+  Freya stake near the entrance. Owning every building is the win condition,
+  with an acknowledgment and persistent completion in the HUD and objectives.
+  Hold `Tab` near a building to inspect missing marks and its territory connection.
+- Alien architecture and minimap states are static, while holding `Space` by an
   occupied wall breaks its hold and makes the building enterable/claimable again.
 - Scent claims cover trees, light poles, hydrants, and residential mailboxes.
   Bones raise Strength; sticks can be carried and increase run speed.

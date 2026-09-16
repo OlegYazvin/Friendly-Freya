@@ -22,13 +22,18 @@ WASD / Arrow keys  Move Freya
 Shift              Run
 Q / E              Rotate camera
 Mouse wheel        Zoom
-F                  Eat, use the home bowl, or pick up a stick
+F                  Eat, collect/give supplies, pick up a stick, or train at the park
 V                  Drop a carried stick
 C (hold)           Socialize with a nearby dog
-X (hold)           Bark at a suspicious dog
-R (hold)           Claim an object or weaken an occupied building
-Space              Vomit when the meter is full
+R (hold)           Bark at a suspicious dog
+Space (hold)       Claim objects/buildings or weaken an occupied building
+X                  Vomit when the meter is full
 Tab (hold)         Show objectives
-Esc                Pause menu
+Esc                Pause menu (skip during cinematics)
+Space in intro     Complete the current line, then advance
 
 The pause menu contains the current full controls and How To Play guide.
+
+Skipping the intro starts Freya hungry near her home bowl with optional food
+guidance. Hold Tab near a building to inspect its scent-mark and territory
+requirements. Owning every building completes the neighborhood.

@@ -41,6 +41,7 @@ thin scene shells whose scripts construct most runtime content.
 | Family visuals | `godot/scripts/family_visual_factory.gd` | Gene, Zoe, pill bottles, transfer rings, bark waves |
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police services, interactions, AI, audio mappings, UI, and validation |
+| Render sightlines | `godot/scripts/sightline_cutaway.gd`, `godot/scripts/main.gd` | Temporary render-only occluder visibility, mesh bounds, camera safe framing; collision is unchanged |
 | Dogs and animation | `godot/scripts/dog_agent.gd`, `godot/scripts/main.gd` | DogAgent owns visuals/animation; Main owns definitions, spawn, state, and AI |
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
 | Residential shells/roofs | `godot/scripts/building_factory.gd` | Hollow procedural residential walls, transparent openings, ground/upper-floor separation, materials, roofs, porches, and metrics; Main owns interiors, yards, and alien mutations |
@@ -96,16 +97,22 @@ Use the wrapper rather than invoking individual validation flags manually:
 ./scripts/predeploy_size_checks.sh
 ```
 
-It runs four Godot processes and covers:
+After preparing imports, it runs six validation processes and covers:
 
 1. startup route/focus/selection locking;
 2. UFO intro timeline, cast, audio mapping, Earth, and fleet;
 3. the placement-ready, unplaced kennel contract and finite spawn cap;
 4. gameplay smoke checks, targeted gameplay/visual invariants, and the family
-   intro timeline/handoff.
+   intro timeline/handoff;
+5. input-driven route and de-jankification regressions, with explicitly staged
+   dog/collision/UI/endgame setups, in `godot/tests/dejank_flow.gd`;
+6. generated-layout framing and rendered-mesh occlusion checks in
+   `godot/tests/dejank_cameras.gd` across three seeds, all building types, four
+   camera orbits, and both zoom extremes. `sightline_cutaway.gd` owns reversible
+   render-only cutaways and cached static geometry bounds.
 
 Successful output contains `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
-`TARGET_OK`, and `FAMILY_INTRO_OK` before the wrapper reports
+`TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, and `DEJANK_CAMERA_OK` before the wrapper reports
 `Predeploy checks passed.`
 
 Deterministic visual output is a separate form of evidence. See
@@ -131,6 +138,7 @@ These are automation interfaces, not player settings.
 | `FREYA_KENNEL_VIEW` | Stage the clean, interior, or possessed kennel concept | `capture_visual_regressions.sh` |
 | `FREYA_CAPTURE_ONLY` | Limit gameplay/world capture output | `capture_visual_regressions.sh` |
 | `FREYA_INTRO_CAPTURE_ONLY` | Limit startup/intro capture output | `capture_intro_regressions.sh` |
+| `FREYA_WORLD_SEED` | Reproduce a generated layout using an integer seed | Direct development launch |
 | `FREYA_START_AT_HOME` | Development spawn override | Direct development launch |
 | `FREYA_INTRO_SHOW_SCENE_ID` | Show stable scene-ID overlays in the UFO or family intro | Direct development launch |
 | `FREYA_PERF_BENCHMARK` | Emit aggregate rendering/runtime metrics | Direct benchmark launch |
@@ -140,7 +148,7 @@ These are automation interfaces, not player settings.
 | `FREYA_EXPORT_GODOT_VERSION` | Override the build script's expected Godot version | Controlled release testing only |
 
 Headless validation and static-view modes use the fixed regression seed; normal
-graphical gameplay remains randomized.
+graphical gameplay remains randomized unless `FREYA_WORLD_SEED` is set.
 
 ## Change-to-Check Routing
 

@@ -43,12 +43,13 @@ do
 		continue
 	fi
 	log_file="$capture_tmp/$output_name.log"
+	ready_file="$capture_tmp/$output_name.ready"
 	if [ "$view" = "none" ]; then
-		host-spawn flatpak run org.godotengine.Godot --path "$godot_dir" "res://scenes/$scene_name" >"$log_file" 2>&1 &
+		host-spawn env FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	elif [ "$scene_name" = "Main.tscn" ]; then
-		host-spawn env FREYA_FAMILY_INTRO_VIEW="$view" flatpak run org.godotengine.Godot --path "$godot_dir" "res://scenes/$scene_name" >"$log_file" 2>&1 &
+		host-spawn env FREYA_FAMILY_INTRO_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	else
-		host-spawn env FREYA_INTRO_VIEW="$view" flatpak run org.godotengine.Godot --path "$godot_dir" "res://scenes/$scene_name" >"$log_file" 2>&1 &
+		host-spawn env FREYA_INTRO_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	fi
 	runner_pid=$!
 	window_id=""
@@ -64,16 +65,15 @@ do
 		cat "$log_file" >&2
 		exit 1
 	fi
-	if [ "$output_name" = "startup_menu" ]; then
-		# The full-resolution title artwork can keep Godot's splash visible longer
-		# than the lightweight intro scene on the older capture GPU.
-		sleep 5
-	elif [ "$scene_name" = "Main.tscn" ]; then
-		# Main builds the real procedural neighborhood and selected home before the
-		# family cutscene can seek to its deterministic checkpoint.
-		sleep 8
-	else
-		sleep 2
+	for attempt in $(seq 1 480); do
+		if [ -f "$ready_file" ]; then break; fi
+		if ! kill -0 "$runner_pid" 2>/dev/null; then break; fi
+		sleep 0.25
+	done
+	if [ ! -f "$ready_file" ] || grep -qE 'SCRIPT ERROR|Parse Error|ERROR:' "$log_file"; then
+		echo "The requested view did not render cleanly: $output_name" >&2
+		cat "$log_file" >&2
+		exit 1
 	fi
 	host-spawn wmctrl -ia "$window_id"
 	host-spawn xwd -id "$window_id" -silent -out "$capture_tmp/$output_name.xwd"

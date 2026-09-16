@@ -3,8 +3,8 @@
 [Documentation hub](README.md) · [Codebase map](docs/CODEBASE_MAP.md) ·
 [Godot overview and controls](godot/README_GODOT.md)
 
-Last verified: September 5, 2026 with Godot `4.7.2.stable.flathub`.
-The project declares the Godot `4.6` feature target in
+Last verified: September 16, 2026 with Godot `4.7.2.stable.flathub`.
+The project declares its feature target in
 [project.godot](godot/project.godot).
 
 Run commands from the repository root unless a section says otherwise.
@@ -76,13 +76,25 @@ It runs:
    roster and pharmacy/grocery/police services, all four bidirectional dog-park
    training interactions and Freya poses, the three bark pools and their
    no-repeat shuffle behavior, plus family-intro staging, dialogue, effects,
-   exact audio mapping, and handoff checks.
+   exact audio mapping, and handoff checks;
+5. input-driven skip/replay, food, rune/morph Next, recruitment, blocked gait,
+   spatial collision equivalence, claim bounds, feedback priority, and persistent
+   completion regressions in `godot/tests/dejank_flow.gd`;
+6. three generated layouts, cinematic transitions, all live building types,
+   both entrance sides, four camera orbits, and both zoom extremes in
+   `godot/tests/dejank_cameras.gd`, including actual rendered-mesh sightlines.
 
 Successful output includes `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
-`TARGET_OK`, and `FAMILY_INTRO_OK`, followed by `Predeploy checks passed.`
+`TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, and `DEJANK_CAMERA_OK`, followed
+by `Predeploy checks passed.`
 
 A passing command is required evidence, but visual changes also require an
 inspected deterministic capture.
+
+For additional staged camera evidence, run the camera script graphically with
+`FREYA_REVIEW_DIR` pointing to an existing directory. It saves the cinematic
+checkpoints and interior rotations while retaining the same assertions. The
+full natural watch/meal/exit route still requires input-driven review.
 
 ## Visual Regression Captures
 

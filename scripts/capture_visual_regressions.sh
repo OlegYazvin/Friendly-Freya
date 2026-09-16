@@ -67,7 +67,8 @@ do
 	if [ "$env_name" = "FREYA_KENNEL_VIEW" ]; then
 		scene_path=res://scenes/KennelConcept.tscn
 	fi
-	host-spawn env "$env_name=$view" flatpak run org.godotengine.Godot --path "$godot_dir" "$scene_path" >"$log_file" 2>&1 &
+	ready_file="$capture_tmp/$output_name.ready"
+	host-spawn env "$env_name=$view" FREYA_CAPTURE_SCENE="$scene_path" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	runner_pid=$!
 	window_id=""
 	for attempt in $(seq 1 40); do
@@ -82,9 +83,16 @@ do
 		cat "$log_file" >&2
 		exit 1
 	fi
-	# This project builds the full procedural neighborhood before its first frame.
-	# Allow the older target GPU enough time to clear Godot's startup splash.
-	sleep 8
+	for attempt in $(seq 1 480); do
+		if [ -f "$ready_file" ]; then break; fi
+		if ! kill -0 "$runner_pid" 2>/dev/null; then break; fi
+		sleep 0.25
+	done
+	if [ ! -f "$ready_file" ] || grep -qE 'SCRIPT ERROR|Parse Error|ERROR:' "$log_file"; then
+		echo "The requested view did not render cleanly: $output_name" >&2
+		cat "$log_file" >&2
+		exit 1
+	fi
 	host-spawn wmctrl -ia "$window_id"
 	host-spawn xwd -id "$window_id" -silent -out "$capture_tmp/$output_name.xwd"
 	ffmpeg -loglevel error -y -i "$capture_tmp/$output_name.xwd" "$output_dir/$output_name.png"

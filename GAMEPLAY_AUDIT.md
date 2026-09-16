@@ -57,8 +57,10 @@ Alien occupation should produce a stable architectural transformation. Neither t
 - A visible alien is a slightly smaller opaque voxel imp with a readable head, eyes, horns, fangs, arms, legs, feet, and tail—not a floating orb or transfer effect.
 - Roaming, fleeing, and expelled aliens use an articulated walk/run cycle and stay rooted at ground height.
 - Aliens use the same manual walkability, collision-radius, and axis-sliding
-  convention as Freya and the dogs. Alien movement additionally substeps fast
-  travel to prevent tunneling; Freya and dogs use one movement step per frame.
+  convention as Freya and the dogs. Alien and Freya movement substep fast
+  travel to prevent tunneling; NPC dogs use one movement step per frame.
+  Dog locomotion follows actual post-collision displacement, including Hunger
+  speed changes; intent can turn a stopped dog without playing a running gait.
   Characters do not gain a separate physics-only collision system.
 - Roaming aliens move briskly at 4.0 world units per second. A fleeing or building-bound alien moves at 5.8: faster than Freya's 4.6 walk, but slower than her 7.13 run.
 - Possession is the exception: after reaching a walkable contact point immediately outside a building, the alien may disappear into it and increment that building's occupant count. It never walks through the wall.
@@ -91,7 +93,7 @@ The data model should still distinguish a storefront's base function from its cu
 
 - **Implemented:** Every NPC dog begins possessed, independently from appearance.
 - **Implemented:** Freya becomes uneasy near possessed dogs without directly identifying them.
-- **Implemented:** Close possessed dogs bark aggressively and scare Freya into fleeing unless the player holds `R` to make her bark back and stand ground. This aggression stays disabled until the first-exit possession reveal, and dog-park threats do not project through the fence.
+- **Implemented:** Close possessed dogs bark aggressively and scare Freya into fleeing unless the player holds `R` to make her bark back and stand ground. On the watch-intro route, aggression stays disabled until the first-exit possession reveal; skipping the intro enables it immediately, and dog-park threats do not project through the fence.
 - **Implemented:** A short aggressive bark expels possession and creates a visible alien transfer.
 - **Implemented:** Expelled aliens choose among nearby available buildings.
 - **Implemented:** Aliens cannot enter or target Freya and Ryah Diane's home; any expelled alien originating inside is placed safely outside and routed elsewhere.
@@ -182,7 +184,7 @@ are proposed conceptual fields. Each field is labeled by implementation status.
 - **Current:** `army_aligned`: whether the dog has joined Freya's army.
 - **Current:** `flee_timer`: temporary response after a wrong exorcism guess.
 - **Future:** `repossess_resistance`: protection gained from Freya's support actions.
-- **Current:** `socialization_progress`: recruitment progress, paused or blocked by full Hunger.
+- **Current:** `socialization_progress`: post-cleanse recruitment progress, paused by full Hunger. Unrecruited possessed dogs cannot bank progress; cleansing starts recruitment at zero without changing existing army membership.
 - **Current:** `possession_immune`: permanent protection granted by pharmacy medicine after cleansing.
 - **Current:** `has_dog_armor`: whether the dog wears the police-station armor visual.
 

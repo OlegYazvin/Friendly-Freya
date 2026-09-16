@@ -29,15 +29,20 @@ fi
 run_scene_validation() {
 	scene_path=$1
 	shift
+	entry_flag=""
+	quit_flag="--quit"
+	case "$scene_path" in
+		*.gd) entry_flag="--script"; quit_flag="" ;;
+	esac
 	case "$launcher_kind" in
 		direct)
-			env "$@" "$godot_bin" --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			env "$@" "$godot_bin" --headless --path "$PROJECT_PATH" $entry_flag "$scene_path" $quit_flag
 			;;
 		flatpak)
-			env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" $entry_flag "$scene_path" $quit_flag
 			;;
 		host_spawn)
-			host-spawn env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" "$scene_path" --quit
+			host-spawn env "$@" flatpak run org.godotengine.Godot --headless --path "$PROJECT_PATH" $entry_flag "$scene_path" $quit_flag
 			;;
 	esac
 }
@@ -70,4 +75,8 @@ run_scene_validation res://scenes/KennelConcept.tscn FREYA_KENNEL_VALIDATE=1
 
 echo "Running Friendly Freya gameplay checks (smoke + targeted validation)..."
 run_scene_validation res://scenes/Main.tscn FREYA_VALIDATE=1 FREYA_SMOKE=1
+echo "Running Friendly Freya input and de-jankification regressions..."
+run_scene_validation res://tests/dejank_flow.gd
+echo "Running Friendly Freya generated-layout camera regressions..."
+run_scene_validation res://tests/dejank_cameras.gd
 echo "Predeploy checks passed."
