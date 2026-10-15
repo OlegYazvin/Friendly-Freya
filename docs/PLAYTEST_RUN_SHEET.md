@@ -1,9 +1,9 @@
-# Friendly Freya Playtest Run Sheet
+# Friendly Freya Playtest Note Guide
 
 [Documentation hub](../README.md) · [Game completion plan](GAME_COMPLETION_PLAN.md) ·
 [Run guide](../RUN_FRIENDLY_FREYA.md)
 
-**Status:** Ready for external observation. The current review build passed an
+**Status:** Ready for informal player feedback. An earlier review build passed an
 exported Windows EXE start-to-credits route, and local graphical measurements
 are recorded. Five unfamiliar-player tests, a measured minimum-Windows-PC
 performance floor, focused accessibility, and graphical Windows
@@ -24,32 +24,37 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015l-Windows-x86_64.zip`
-(SHA-256 `571eb1652f5a29b8afd52e8477c8c2fbce4d33145a2d8c020752d44c1a41415e`).
+Current local review package: `dist/Friendly-Freya-review-20261015m-Windows-x86_64.zip`
+(SHA-256 `d797428bea62c9098b174a641910d54a508ba2e46e96173ba3a46c6526e4094a`).
 Verify it against the adjacent `.sha256` file before testing.
-The extracted review-l PCK passed a short headless performance-entry check;
+The extracted review-m PCK passed a short headless performance-entry check with
+two complete five-second windows;
 the earlier review-k PCK passed a warmed graphical 1280×720 sample on Linux.
-A source live-input route
-at the same controller commit reached chapter 2 with two protected allies and
-five claimed sites. The earlier review-f PCK passed a local Linux input route
-through credits. The earlier
-[review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+A source live-input route at an earlier review commit reached chapter 2 with
+two protected allies and five claimed sites. The earlier review-f PCK passed a
+local Linux input route through credits. The earlier
+[review-l Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
 passed its exported EXE route through credits and Keep Exploring, with three
 chapters, six lodge rescues, and 18 claimed sites. The review evidence is
 tracked in [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
 Graphical manual checks remain open.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
-`.pck`. Record the exact build label and SHA-256 manifest. Each of five players
-should start a new game without reading project documentation or receiving
-control coaching. Ask them to think aloud. Record the PC's Windows version,
-CPU, GPU, RAM, display size, and input device. Test the target PC at 1280×720
-or its native 1920×1080, using one recorded size for each uninterrupted blind
-session. Do the instrumented two-resolution performance run separately. After
-the blind session, repeat a short UI readability check at 960×540. Keep the
-game save and a screen recording if the player agrees.
+`.pck`. Record the exact build label and SHA-256 manifest. Aim for five people
+who have not played before. Let them start a new game without project documents
+or control coaching; they can simply play and tell the owner what they think.
+No player needs to fill out a form. If someone observes a session, the prompts
+below can help them jot down useful moments; otherwise, record the comments the
+players volunteer and any issue they can reproduce. Send those comments back
+in whatever format is easiest; a game moment or screenshot helps locate an
+issue but is optional. Note the PC's Windows
+version, CPU, GPU, RAM, display size, and input device once. Test at 1280×720
+or native 1920×1080, using one size for each uninterrupted session. Do the
+instrumented two-resolution performance run separately. After a blind session,
+check readability briefly at 960×540 if the player is willing. Keep the game
+save or a screen recording only with the player's agreement.
 
-Use the same observation sheet for every player:
+Optional observer prompts (not a player questionnaire):
 
 | Field | Observation |
 | --- | --- |
@@ -78,17 +83,17 @@ Use the same observation sheet for every player:
 | One moment that was fun; one that felt repetitive or unfair | |
 
 Let the player try to recover from confusion before giving a hint. If a hint is
-needed, note the exact point, what the player tried, and the hint. Do not count
-the hinted step as independently understood. After the run, ask whether the
-player could name the next useful action at each chapter transition and whether
-they would want to play another route.
+needed, note the point, what they tried, and the hint. Do not count a hinted
+step as independently understood. Ask only natural follow-up questions if the
+player is comfortable, such as what they would do next and whether they would
+play another route.
 
 ## Focused Windows release checks
 
 On the user-selected HP Victus minimum Windows PC, record Windows build, actual
 hardware configuration, graphics driver, power mode, and active GPU. With the
 laptop plugged in and the dedicated RTX 4060 active, run the unprofiled
-135-second full-pack stress scenario by double-clicking `RunPerformanceQA.cmd`
+full-pack stress scenario for at least 135 seconds by double-clicking `RunPerformanceQA.cmd`
 from the extracted review ZIP, as described in the
 [run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample). Keep
 the dated summary and full logs. The runner measures each size separately and

@@ -103,10 +103,16 @@ try {
                 $pair = $entry -split '=', 2
                 if ($pair.Count -eq 2) { $values[$pair[0]] = $pair[1] }
             }
-            foreach ($required in @('avg_fps', 'min_5s_fps', 'p95_frame_ms', 'p99_frame_ms')) {
+            foreach ($required in @('seconds', 'windows', 'avg_fps', 'min_5s_fps', 'p95_frame_ms', 'p99_frame_ms')) {
                 if (-not $values.ContainsKey($required)) {
                     throw ('Result marker has no {0} field.' -f $required)
                 }
+            }
+            $reportedSeconds = [double]::Parse($values['seconds'], [Globalization.CultureInfo]::InvariantCulture)
+            $completedWindows = [int]::Parse($values['windows'], [Globalization.CultureInfo]::InvariantCulture)
+            $minimumWindows = [int][Math]::Ceiling($SampleSeconds / 5.0)
+            if ($reportedSeconds -lt $SampleSeconds -or $completedWindows -lt $minimumWindows) {
+                throw ('Sample ended early: {0}s and {1} completed five-second windows; expected at least {2}s and {3} windows.' -f $reportedSeconds, $completedWindows, $SampleSeconds, $minimumWindows)
             }
             $worstFps = [double]::Parse($values['min_5s_fps'], [Globalization.CultureInfo]::InvariantCulture)
             $status = 'PASS'

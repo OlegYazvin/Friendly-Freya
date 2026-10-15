@@ -274,7 +274,8 @@ host-spawn env FREYA_WORLD_SEED=20260831 flatpak run org.godotengine.Godot \
 The harness stages a late-game roster of 22 recruited dogs (three active), two
 occupied storefront generators, and the still-possessed kennel. It drives
 movement beside one storefront while normal gameplay updates run. After a
-15-second warm-up, it samples 135 seconds and prints five-second FPS, scene
+15-second warm-up, it samples at least 135 seconds, finishing a complete final
+five-second window, and prints five-second FPS, scene
 population, node and draw-call counts, engine memory, Linux process RSS, and
 frame-time percentiles. The stress controller disables game saving. This is a
 reproducible local stress diagnostic, not a release gate by itself; measure the natural
@@ -285,7 +286,7 @@ configuration before testing. On that PC, run the unprofiled stress sample
 plugged in with the dedicated GPU at 1280×720 and native 1920×1080, then
 observe the exported EXE during a natural full-pack route. Record average and
 worst five-second FPS, frame-time percentiles, memory, and graphics settings
-in the [playtest sheet](docs/PLAYTEST_RUN_SHEET.md). The target is a floor of
+in the [playtest note guide](docs/PLAYTEST_RUN_SHEET.md). The target is a floor of
 30 FPS in every five-second window on this machine; 960×540 remains a
 readability candidate pending manual review.
 
@@ -397,12 +398,12 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
-review-l PCK passed exact-content export, checksum, and a short headless
+review-m PCK passed exact-content export, checksum, and a short headless
 performance-entry check; review-k passed a warmed graphical 1280×720 sample
-on Linux. A
-source live-input route at the same controller commit passed the chapter-2
+on Linux. An earlier
+source live-input route passed the chapter-2
 checkpoint with two protected allies and five claimed sites. The
-[review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+[review-l Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
 passed export, EXE startup, packaged performance entry, and the full headless
 campaign route with credits and Keep Exploring markers. Graphical playtesting
 and sustained performance measurement on the HP Victus remain open.

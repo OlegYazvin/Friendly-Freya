@@ -3,7 +3,7 @@
 [Documentation hub](../README.md) · [Current gameplay audit](../GAMEPLAY_AUDIT.md) ·
 [Building program](../BUILDING_PROGRAM.md) · [Kennel concept](../KENNEL_CONCEPT.md) ·
 [Codebase map](CODEBASE_MAP.md) · [Run and validation guide](../RUN_FRIENDLY_FREYA.md) ·
-[Playtest run sheet](PLAYTEST_RUN_SHEET.md)
+[Playtest note guide](PLAYTEST_RUN_SHEET.md)
 
 **Status:** The three-chapter campaign and ending are implemented, October 15,
 2026. The "What exists today" table records the baseline at planning time.
@@ -14,7 +14,7 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The [review-k Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+The [review-l Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
 passed export, EXE startup, performance entry, credits, and Keep Exploring.
 The source suite, inspected captures, ZIP checksum, and local exported checks
 also passed. Release publication was skipped.
@@ -28,11 +28,12 @@ also passed. Release publication was skipped.
    mid-chapter Resume, a lodge rescue, chapter-2 ally protection, the final
    signal, credits, Keep Exploring, and Replay Story cancellation. Verify a
    future-version save is preserved rather than overwritten. Run the focused
-   keyboard-only accessibility pass in the [run sheet](PLAYTEST_RUN_SHEET.md).
+   keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md).
 3. Observe five players who have not seen the project, without control
    coaching. Record where they lose the route, why they choose pack and
    protection tactics, time to each chapter, and what feels rewarding or
-   repetitive. Use the [run sheet](PLAYTEST_RUN_SHEET.md).
+   repetitive. Players can give informal feedback; the [note guide](PLAYTEST_RUN_SHEET.md)
+   has optional prompts for whoever observes or receives their comments.
 4. Fix the three most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
@@ -72,7 +73,9 @@ hardware floor.
   the live full-pack scenario without touching the campaign save, samples
   windowed 1280×720 and fullscreen 1920×1080 separately, verifies the actual
   display sizes, and writes frame-time, five-second FPS, memory, and hardware
-  logs. The HP result is still pending.
+  logs. The stress sampler finishes its last complete five-second window and
+  reports the count; the Windows runner rejects an early or incomplete sample.
+  The HP result is still pending.
 - Chapter 2 follows five connected highlighted sites, asks the player to
   protect two real allies with medicine or armor, and adds a warned imp threat.
   Its seeded alien hold carries a visible scent-relay marker; the objectives
@@ -349,13 +352,14 @@ hardware floor.
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. The route
   is headless and automated; it does not replace a graphical player run.
 - The current local Windows review ZIP,
-  `dist/Friendly-Freya-review-20261015k-Windows-x86_64.zip`, was exported with
+  `dist/Friendly-Freya-review-20261015m-Windows-x86_64.zip`, was exported with
   Godot 4.7.2 and verified against SHA-256
-  `dbc9068cbf4bcf482edd8f0d0a8c3487136d375b3e1e448c0113ae8d6b20b798`.
+  `d797428bea62c9098b174a641910d54a508ba2e46e96173ba3a46c6526e4094a`.
   Exported-PCK validation reported `RELEASE_CONTENT_OK` for the ending scene,
   active dog model, 24 recorded barks, all 32 exact cue mappings, and the bundled
-  normal-input campaign QA and performance routes. The extracted review-k PCK
-  passed a six-second headless performance-entry smoke and, after a five-second
+  normal-input campaign QA and performance routes. The extracted review-m PCK
+  passed a short headless performance-entry smoke with two complete five-second
+  reporting windows. The earlier review-k PCK passed, after a five-second
   warm-up, a 20-second graphical 1280×720 sample on the local Intel HD 4600.
   The graphical sample held the requested client size, moved Freya, and spawned
   kennel dogs, but averaged 22.4 FPS on that older GPU. A six-second cold-start
@@ -364,11 +368,11 @@ hardware floor.
   A local live-input route at commit `be0398d` reached the chapter-2 checkpoint
   with all six lodge dogs rescued, 8/8 chapter-1 sites, 5/5 chapter-2 sites,
   and two separately recruited and protected clean allies. The post-refinement
-  `./scripts/predeploy_size_checks.sh` suite passed. The matching
-  [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
-  passed export, EXE startup/performance-entry smoke, and the full headless
-  campaign route. Its log records three chapters, six lodge rescues, 18
-  claimed sites, three allies, `NATURAL_ROUTE_CREDITS_OK`,
+  `./scripts/predeploy_size_checks.sh` suite passed. The subsequent
+  [Windows review-l run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
+  at commit `06856aa` passed export, EXE startup/performance-entry smoke, and
+  the full headless campaign route. Its log records three chapters, six lodge
+  rescues, 18 claimed sites, three allies, `NATURAL_ROUTE_CREDITS_OK`,
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`.
   A local Linux headless run of the earlier
   review-f extracted PCK secured chapter 1 at 8/8 sites and six lodge

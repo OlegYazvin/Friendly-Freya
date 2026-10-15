@@ -60,7 +60,8 @@ On the nominated Windows test PC, plug in the laptop, select the dedicated GPU,
 close other games, and double-click RunPerformanceQA.cmd in this folder. The
 runner opens the exported game at 1280x720 windowed and 1920x1080 fullscreen.
 It checks that the actual game image matches each requested size. Each run has a
-15-second warm-up and a 135-second live stress sample. Do not minimize the
+15-second warm-up and at least 135 seconds of live stress, finishing the last
+complete five-second FPS window. Do not minimize the
 game during the sample. The runner writes a summary and both full logs to a
 dated performance-qa folder beside the EXE. It reports the worst five-second
 FPS window against the 30 FPS target and samples Windows process memory. The

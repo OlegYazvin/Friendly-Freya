@@ -21,6 +21,7 @@ var warmup_seconds := WARMUP_SECONDS
 var sample_seconds := SAMPLE_SECONDS
 var frame_ms: Array[float] = []
 var window_frames := 0
+var completed_windows := 0
 var window_start_usec := 0
 var window_process_ms := 0.0
 var game_process_start_usec := 0
@@ -307,13 +308,16 @@ func _run() -> void:
 		if float(now_usec - window_start_usec) / 1000000.0 >= REPORT_SECONDS:
 			var seconds := float(now_usec - window_start_usec) / 1000000.0
 			_report(scene, elapsed, float(window_frames) / seconds)
+			completed_windows += 1
 			window_frames = 0
 			window_process_ms = 0.0
 			game_process_total_usec = 0
 			game_process_frames = 0
 			window_start_usec = now_usec
-		if elapsed >= sample_seconds:
-			break
+			# Finish the final complete reporting window. Otherwise a slowdown
+			# after the last report can be omitted from min_5s_fps.
+			if elapsed >= sample_seconds:
+				break
 	_stop_movement()
 	frame_ms.sort()
 	var count := frame_ms.size()
@@ -326,8 +330,8 @@ func _run() -> void:
 	print("PERF_STRESS_DISPLAY phase=end window=%dx%d stable=%s" % [
 		final_display_size.x, final_display_size.y, "false" if display_size_changed else "true"
 	])
-	print("PERF_STRESS_RESULT seconds=%.1f avg_fps=%.1f game_process_ms=%.2f min_5s_fps=%.6f max_5s_fps=%.1f p95_frame_ms=%.1f p99_frame_ms=%.1f p1_fps=%.1f mem_start_mb=%.1f mem_end_mb=%.1f mem_peak_mb=%.1f rss_start_mb=%.1f rss_end_mb=%.1f rss_peak_mb=%.1f world_advanced=%.1f kennel_spawns=%d dog_growth=%d furthest_freya_m=%.2f" % [
-		elapsed_seconds, float(count) / elapsed_seconds,
+	print("PERF_STRESS_RESULT seconds=%.1f windows=%d avg_fps=%.1f game_process_ms=%.2f min_5s_fps=%.6f max_5s_fps=%.1f p95_frame_ms=%.1f p99_frame_ms=%.1f p1_fps=%.1f mem_start_mb=%.1f mem_end_mb=%.1f mem_peak_mb=%.1f rss_start_mb=%.1f rss_end_mb=%.1f rss_peak_mb=%.1f world_advanced=%.1f kennel_spawns=%d dog_growth=%d furthest_freya_m=%.2f" % [
+		elapsed_seconds, completed_windows, float(count) / elapsed_seconds,
 		float(total_game_process_usec) / maxf(1.0, float(total_game_process_frames)) / 1000.0,
 		window_min_fps, window_max_fps, p95_ms, p99_ms,
 		1000.0 / maxf(p99_ms, 0.001), memory_start_mb, memory_end_mb, memory_peak_mb,

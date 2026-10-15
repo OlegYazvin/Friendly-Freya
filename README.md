@@ -28,7 +28,7 @@ recorded action sounds, and deterministic visual regression views.
 | [Godot overview](godot/README_GODOT.md) | Controls and implemented gameplay at a glance | Current product reference |
 | [Gameplay audit and direction](GAMEPLAY_AUDIT.md) | Canonical gameplay rules, implementation status, and explicitly future work | Living design document |
 | [Game completion plan](docs/GAME_COMPLETION_PLAN.md) | Release scope, three implemented chapters, remaining production gates, and playtest criteria | Plan in progress |
-| [Playtest run sheet](docs/PLAYTEST_RUN_SHEET.md) | Five unfamiliar-player observations and minimum-Windows-machine release checks | Ready for external testing |
+| [Playtest note guide](docs/PLAYTEST_RUN_SHEET.md) | Optional observer notes and minimum-Windows-machine release checks | Ready for informal feedback |
 | [Intro cut-scene guide](INTRO_CUTSCENE.md) | Exact UFO/family timelines, edit surfaces, handoff rules, and intro checks | Current subsystem reference |
 | [Dog kennel concept](KENNEL_CONCEPT.md) | Live lodge placement, rescue contract, entry promise, and finite possessed-dog spawning | Current subsystem reference |
 | [Building program](BUILDING_PROGRAM.md) | Enterable residences, pharmacy/grocery/police/clinic roles, occupation locks, and service rules | Current subsystem reference |
