@@ -308,10 +308,10 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 - **Implemented:** Occupied storefronts exclusively generate free-roaming aliens, capped at eight map-wide.
 - **Implemented:** Approaching Freya makes a free alien flee to the nearest building, where it increments the occupant count.
 - **Implemented:** Alien roaming, fleeing, and expelled-alien travel use grounded character collision; possession begins only from a reachable exterior wall point, and Ryah's home is forbidden navigation space.
-- **Implemented:** Free imps seek vulnerable real dogs, allow 4.5 seconds after
-  the contact warning to bark or guard, and possess on success without changing
-  dog cosmetics. The scripted chapter-2 ambush keeps its bark-or-guard warning
-  visible when the chapter starts.
+- **Implemented:** Free imps seek vulnerable real dogs, keep the contact warning
+  visible through the 4.5-second bark-or-guard window, and possess on success
+  without changing dog cosmetics. The scripted chapter-2 ambush keeps its
+  bark-or-guard warning visible when the chapter starts.
 - **Implemented:** Bark and assigned pack defense interrupt; armor absorbs one
   attempt, immunity blocks targeting, and a failed approach has a cooldown.
 

@@ -96,6 +96,68 @@ func check_status_dwell(s: Node) -> void:
 	root.size = original_size
 	await frames(2)
 
+func check_imp_warning_through_response(s: Node) -> void:
+	var original_size = root.size
+	root.size = Vector2i(800, 450)
+	await frames(3)
+	check(not s.dogs.is_empty(), "no clean dog for live imp-warning test")
+	if s.dogs.is_empty():
+		root.size = original_size
+		return
+	# Keep this disposable scene focused on one undefended dog and one imp.
+	s.store_building_indices.clear()
+	s._clear_free_aliens()
+	var target: Dictionary = s.dogs[0].duplicate()
+	var dog: Node3D = target.get("node", null)
+	check(dog != null and is_instance_valid(dog), "live imp-warning target has no dog node")
+	if dog == null or not is_instance_valid(dog):
+		root.size = original_size
+		return
+	var park: Vector2 = s.dog_park.get_center()
+	var dog_position = Vector3(park.x, 0.0, park.y)
+	dog.global_position = dog_position
+	target["alien_possessed"] = false
+	target["possession_immune"] = false
+	target["has_dog_armor"] = false
+	target["army_aligned"] = false
+	target["speed"] = 0.0
+	target["dir"] = Vector3.ZERO
+	target["wander"] = 999.0
+	target["pref_timer"] = 999.0
+	target["flee_timer"] = 0.0
+	s.dogs = [target]
+	s.freya.global_position = dog_position + Vector3(1.4, 0.0, 0.0)
+	s.freya_inside_home = false
+	s.post_intro_meal_tutorial_active = false
+	var imp = Node3D.new()
+	s.add_child(imp)
+	imp.global_position = dog_position + Vector3(0.3, 0.0, 0.0)
+	s.free_aliens.append({
+		"node": imp,
+		"phase": "seek_dog",
+		"dog_target_index": 0,
+		"dog_transfer_timer": 0.0,
+		"interrupt_progress": 0.0
+	})
+	await frames(3)
+	check(s.free_aliens.size() == 1 and str(s.free_aliens[0].get("phase", "")) == "dog_transfer", "live imp did not begin transferring to the dog")
+	check(s.status_label.text == THREAT_NOTICE, "live dog contact did not show the bark-or-guard warning")
+	await tap(KEY_G)
+	check(s.objectives_pinned and s.objectives_status_panel.visible, "G did not pin the live imp warning")
+	await create_timer(3.25).timeout
+	check(s.free_aliens.size() == 1 and not bool(s.dogs[0].get("alien_possessed", false)), "imp transfer resolved before the late response window")
+	check(s.status_timer > 0.0 and s.status_label.text == THREAT_NOTICE, "bark-or-guard warning vanished before transfer finished")
+	check(s.objectives_status_panel.visible and s.objectives_status_label.text == THREAT_NOTICE, "pinned goals hid the late imp warning")
+	check(root.get_visible_rect().encloses(s.objectives_status_panel.get_global_rect()), "late imp warning left the 800x450 viewport")
+	await key(KEY_R, true)
+	await create_timer(0.6).timeout
+	await key(KEY_R, false)
+	check(s.free_aliens.is_empty() and not bool(s.dogs[0].get("alien_possessed", false)), "R did not intercept the imp in the late response window")
+	check(s.status_label.text == "The imp was intercepted before it could take hold!" and s.objectives_status_label.text == s.status_label.text, "interception did not replace the imp warning in pinned goals")
+	await tap(KEY_G)
+	root.size = original_size
+	await frames(2)
+
 func run() -> void:
 	await open_scene("res://scenes/Startup.tscn")
 	current_scene.skip_to_game_button.grab_focus()
@@ -200,6 +262,9 @@ func run() -> void:
 	await open_scene("res://scenes/Main.tscn")
 	s = current_scene
 	await check_status_dwell(s)
+	await open_scene("res://scenes/Main.tscn")
+	s = current_scene
+	await check_imp_warning_through_response(s)
 	# Fresh skip for staged interaction/animation/UI regressions.
 	await open_scene("res://scenes/Main.tscn")
 	s = current_scene
@@ -353,7 +418,7 @@ func run() -> void:
 	check(s.territory_label.text.contains("Neighborhood complete!") and s._objectives_text().contains("Neighborhood complete!"), "completion disappears when status expires")
 	check(s.status_timer <= 0.0, "completion persistence test did not outlast temporary status")
 	if failures.is_empty():
-		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, claim bounds, readable status dwell, outcome priority, and persistent completion")
+		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, readable status dwell through live imp defense, outcome priority, and persistent completion")
 	else:
 		push_error("DEJANK_FLOW_FAIL: " + ", ".join(failures))
 	quit(0 if failures.is_empty() else 1)

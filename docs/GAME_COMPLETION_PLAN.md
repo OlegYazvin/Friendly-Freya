@@ -558,7 +558,23 @@ hardware floor.
   The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12013054384)
   records three secured chapters, six lodge rescues, two allies, 18 claimed
   sites, credits, and Keep Exploring without game errors or warnings. HP
-  audible, graphical, and sustained performance review remain open.
+  audible, graphical, and sustained performance review remain open. An
+  independent exported-PCK probe loaded, decoded, and accepted playback for
+  all 54 unique runtime-referenced audio paths in this build; the packaged
+  attribution matched source. Speaker loudness and mix still need listening.
+- A follow-up accessibility check found that the 4.5-second imp transfer
+  outlasted its 2.94-second bark-or-guard status message. The contact warning
+  now remains visible for the entire transfer window. A live-frame 800×450
+  regression pins goals, waits 3.25 seconds, confirms the dog can still be
+  defended and the warning is visible, then uses R to interrupt it. A separate
+  unopposed-transfer check confirms the result replaces the warning. Focused
+  checks and the full `./scripts/predeploy_size_checks.sh` suite passed. The
+  960×540 goals-status PNG was recaptured and inspected; its pixels matched
+  the checked-in baseline. The local
+  `dist/Friendly-Freya-review-20261015t-Windows-x86_64.zip` passed exported
+  content validation and SHA-256 verification against
+  `d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`.
+  Windows CI and HP review remain open for this build.
 
 ## The game to finish
 

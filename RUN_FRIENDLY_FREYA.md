@@ -89,7 +89,8 @@ It runs:
    `godot/tests/audio_actions.gd`;
 7. input-driven skip/replay, food, rune/morph Next, recruitment, blocked gait,
    spatial collision equivalence, claim bounds, readable occupation status at
-   800×450 and 960×540, feedback priority, and persistent completion
+   800×450 and 960×540, a late imp-transfer warning in pinned goals at
+   800×450, feedback priority, and persistent completion
    regressions in `godot/tests/dejank_flow.gd`;
 8. three generated layouts, cinematic transitions, all live building types,
    both entrance sides, four camera orbits, and both zoom extremes in
@@ -458,6 +459,11 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
+`review-20261015t` PCK passed exact-content export and its ZIP passed SHA-256
+verification against
+`d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`.
+It keeps the bark-or-guard warning visible for the full imp transfer window.
+The preceding local
 `review-20261015s` PCK passed exact-content export and its ZIP passed SHA-256
 verification against
 `bb4ab4419b608d8b4c22601fc64037311e48ed4ef75603b79ede2e33b34254f1`.

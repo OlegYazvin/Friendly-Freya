@@ -165,6 +165,7 @@ func _test_imp_transfer_window(scene: Node3D) -> bool:
 	_check(scene.free_aliens.size() == 1 and not bool(scene.dogs[0].get("alien_possessed", false)), "unopposed transfer completed before two seconds")
 	scene._update_free_aliens(2.5)
 	_check(scene.free_aliens.is_empty() and bool(scene.dogs[0].get("alien_possessed", false)), "unopposed imp transfer did not eventually resolve")
+	_check(scene.status_label.text == "The imp slipped into a dog. Watch Freya's senses.", "successful imp transfer did not replace its warning")
 	scene._clear_free_aliens()
 	dog.global_position = saved_dog_position
 	scene.dogs = saved_dogs

@@ -12771,7 +12771,7 @@ func _update_free_alien_dog_threat(alien: Dictionary, node: Node3D, delta: float
 		alien["phase"] = "dog_transfer"
 		alien["dog_transfer_timer"] = 0.0
 		alien["warning_pulse_timer"] = 0.0
-		_show_status("An imp is reaching for a dog — bark or guard it!", 1.5, 2)
+		_show_status("An imp is reaching for a dog — bark or guard it!", FREE_ALIEN_DOG_TRANSFER_TIME, 2)
 		action_audio.play("alien_warning", -7.0)
 	var transfer_timer = float(alien.get("dog_transfer_timer", 0.0)) + delta
 	var pulse_timer = float(alien.get("warning_pulse_timer", 0.0)) + delta
