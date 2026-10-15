@@ -24,22 +24,22 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-p Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12006173466).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-16-Windows-x86_64.zip`
+For the HP, download the [review-q Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12008369653).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-17-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`48d3c8a2bd49a6028f921e4e11348bc65ea006207f244f6d64b5b04e70910db1`),
+`c372b3dea33b2774a7a15cf1af439ec8a34037b1e61cf35532f7725547f0a902`),
 then extract that game ZIP. The Actions artifact expires October 29, 2026.
 
-Local alternative: `dist/Friendly-Freya-review-20261015p-Windows-x86_64.zip`
-(SHA-256 `bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`).
+Local alternative: `dist/Friendly-Freya-review-20261015q-Windows-x86_64.zip`
+(SHA-256 `8f7cc850f41de195a958193377dcf4b1c0ffd392dcc48810c15a5b562d8fcb8f`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
+[review-q Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12008431229)
-records three chapters, six lodge rescues, three allies, 18 claimed sites,
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12010605810)
+records three chapters, six lodge rescues, four allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-review-p PCK passed exact-content verification; the preceding review-o PCK
+review-q PCK passed exact-content verification; the preceding review-o PCK
 passed the press-once keyboard route.
 
 The review evidence is tracked in
@@ -50,8 +50,8 @@ Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
 `.pck`. Record the exact build label and SHA-256 manifest. Aim for five people
 who have not played before. Let them start a new game without project documents
 or control coaching; they can simply play and tell the owner what they think.
-No player needs to fill out a form. If someone observes a session, the prompts
-below can help them jot down useful moments; otherwise, record the comments the
+No player paperwork is required. The owner may use the optional observer notes
+below to jot down useful moments; otherwise, record the comments the
 players volunteer and any issue they can reproduce. Send those comments back
 in whatever format is easiest; a game moment or screenshot helps locate an
 issue but is optional. Note the PC's Windows version, CPU, GPU, RAM, display
@@ -65,7 +65,7 @@ If several players use the same Windows account, New Game can replace its
 single campaign save. Use separate Windows accounts or archive both the save
 and its `.bak` before the next session when an unfinished run should be kept.
 
-Optional observer prompts (not a player questionnaire):
+Optional owner observer notes (not a player questionnaire):
 
 | Field | Observation |
 | --- | --- |
@@ -123,10 +123,10 @@ Resume Game after a building claim, after a lodge cleanse, during chapter 2
 ally protection, and after the final result. Check that the restored dog, imp,
 claim, supply, and chapter states match what the player just saw. Try both
 ending choices. Keep one occupied storefront and a full active pack in view
-long enough to note frame rate, input delay, memory growth, and any sound that
-fails to play. Open pause with Escape, resume with Escape and the focused Enter
-button, then use Page Down and Page Up in both help panels with the keyboard
-alone.
+long enough to note visible stutter, input delay, and any sound that fails to
+play. Use the performance runner above for FPS and memory numbers. Open pause
+with Escape, resume with Escape and the focused Enter button, then use Page
+Down and Page Up in both help panels with the keyboard alone.
 
 On a separate QA save copy, verify that New Game, pause Restart Story, and
 ending Replay Story leave the existing save intact when canceled. Inject a
@@ -151,10 +151,11 @@ the chapter.
 
 ## Decision record
 
-After all five observations, list the three most common friction points and
-the seed or save that reproduces each technical issue. Record which routes
-players chose, whether the first chapter's proposed 30–45 minute duration was
-useful, and which claim/food/imp interactions felt repetitive or surprising.
+After the sessions, list up to three of the most common or severe friction
+points and the seed or save that reproduces each technical issue. Record which
+routes players chose, whether the first chapter's proposed 30–45 minute
+duration was useful, and which claim/food/imp interactions felt repetitive or
+surprising.
 Tune the required site count, travel, warning time, rewards, or wording based
 on those observations. A release candidate needs a clean Windows
 start-to-credits run, no known objective softlock, a completed accessibility

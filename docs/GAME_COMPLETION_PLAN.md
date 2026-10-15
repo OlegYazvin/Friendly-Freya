@@ -15,12 +15,12 @@ executable checks remain authoritative.
 ## Next release steps
 
 The local `review-20261015q` Windows ZIP passed export content and checksum
-checks after the complete source suite. The preceding
-[review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
+checks after the complete source suite. The matching
+[review-q Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736)
 passed source validation, export, EXE startup, the short performance entry,
-the keyboard Watch Intro opening, credits, and Keep Exploring. The updated
-audio source awaits its Windows CI review. Release publication remains gated
-by the checks below.
+the keyboard Watch Intro opening, credits, and Keep Exploring. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12008369653)
+is the HP review build. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -39,7 +39,7 @@ by the checks below.
    repetitive, confusing, or unfair, and collect any reported sticking point.
    If someone observes a session, the [note guide](PLAYTEST_RUN_SHEET.md)
    offers optional prompts and chapter timing notes.
-4. Fix the three most common or severe problems, then repeat affected
+4. Fix the most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
 
@@ -508,7 +508,17 @@ hardware floor.
   `dist/Friendly-Freya-review-20261015q-Windows-x86_64.zip` passed exported
   content validation and SHA-256 verification against
   `8f7cc850f41de195a958193377dcf4b1c0ffd392dcc48810c15a5b562d8fcb8f`.
-  Windows CI and HP audible/graphical review remain open for this build.
+  The [review-q Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736)
+  passed source validation, export, EXE startup, packaged stress entry, Watch
+  Intro, and the exported start-to-credits campaign at commit `84ac29e`. Its
+  [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12008369653)
+  contains `Friendly-Freya-manual-17-Windows-x86_64.zip`; its SHA-256 manifest
+  passed independent verification against
+  `c372b3dea33b2774a7a15cf1af439ec8a34037b1e61cf35532f7725547f0a902`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12010605810)
+  records three secured chapters, six lodge rescues, four allied dogs, 18
+  claimed sites, credits, and Keep Exploring without game errors or warnings.
+  HP audible and graphical review remain open for this build.
 
 ## The game to finish
 
