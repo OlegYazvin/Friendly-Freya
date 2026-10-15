@@ -211,7 +211,7 @@ const FREE_ALIEN_ROAM_RADIUS = 5.8
 const FREE_ALIEN_ROAM_SPEED = 4.0
 const FREE_ALIEN_DOG_SEEK_RADIUS = 4.5
 const FREE_ALIEN_DOG_TRANSFER_REACH = 0.92
-const FREE_ALIEN_DOG_TRANSFER_TIME = 1.65
+const FREE_ALIEN_DOG_TRANSFER_TIME = 4.5
 const FREE_ALIEN_DOG_RETRY_COOLDOWN = 8.0
 const IMP_BARK_INTERRUPT_RADIUS = 3.2
 const IMP_BARK_INTERRUPT_TIME = 0.42
@@ -14035,8 +14035,8 @@ func _start_campaign_chapter(next_chapter: int) -> void:
 	if next_chapter == 2:
 		_mark_chapter_relay_visual()
 	if next_chapter == 2:
-		_spawn_campaign_imp_near_ally()
 		_show_status("The lodge scent trail leads into the next block. Protect two allies and follow it!", 3.0, 2)
+		_spawn_campaign_imp_near_ally()
 	elif seeded_stronghold_index < 0:
 		_show_status("The final signal is clear. Bring a clean ally to guard its marked site!", 3.0, 2)
 	else:

@@ -534,6 +534,20 @@ hardware floor.
   `dist/Friendly-Freya-review-20261015r-Windows-x86_64.zip` passed exported
   content validation and SHA-256 verification against
   `7499c1b418aa11ff34c9e1148f68466cdfbcc9ba9694e23468b8a1c7ff626e7c`.
+  A later warning-timing fix supersedes this build for player review.
+- A focused keyboard-accessibility audit found that an imp could finish a dog
+  transfer in 1.65 seconds while its bark-or-guard instruction needed about
+  2.94 seconds to read. The contact warning now gives 4.5 seconds before an
+  unopposed transfer. Chapter 2's scripted ambush instruction also remains
+  visible instead of being replaced by a generic trail message in the same
+  frame. Runtime regressions cover an R interception after two seconds, an
+  eventual unopposed transfer, and the chapter-2 warning at 800×450. The full
+  `./scripts/predeploy_size_checks.sh` suite passed. The affected chapter-2
+  guide and scent-relay PNGs were recaptured and inspected; their rendered
+  pixels matched the checked-in baselines. The local
+  `dist/Friendly-Freya-review-20261015s-Windows-x86_64.zip` passed exported
+  content validation and SHA-256 verification against
+  `bb4ab4419b608d8b4c22601fc64037311e48ed4ef75603b79ede2e33b34254f1`.
   Windows CI and HP audible/graphical review remain open for this build.
 
 ## The game to finish

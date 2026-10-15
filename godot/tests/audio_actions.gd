@@ -107,6 +107,72 @@ func _test_lone_imp_bark(scene: Node3D) -> void:
 	imp.queue_free()
 
 
+func _stage_imp_at_dog(scene: Node3D, dog_position: Vector3) -> void:
+	var imp = Node3D.new()
+	scene.add_child(imp)
+	imp.global_position = dog_position + Vector3(0.3, 0.0, 0.0)
+	scene.free_aliens.append({
+		"node": imp,
+		"phase": "seek_dog",
+		"dog_target_index": 0,
+		"dog_transfer_timer": 0.0,
+		"interrupt_progress": 0.0
+	})
+
+
+func _test_imp_transfer_window(scene: Node3D) -> bool:
+	_check(not scene.dogs.is_empty(), "no dog available for the imp transfer test")
+	if scene.dogs.is_empty():
+		return false
+	var saved_dogs: Array = scene.dogs
+	var saved_stores: Array[int] = scene.store_building_indices.duplicate()
+	var saved_freya_position: Vector3 = scene.freya.global_position
+	var state: Dictionary = saved_dogs[0].duplicate()
+	var dog: Node3D = state.get("node", null)
+	_check(dog != null and is_instance_valid(dog), "imp transfer target has no live dog")
+	if dog == null or not is_instance_valid(dog):
+		return false
+	var saved_dog_position: Vector3 = dog.global_position
+	var park: Vector2 = scene.dog_park.get_center()
+	var dog_position = Vector3(park.x, 0.0, park.y)
+	dog.global_position = dog_position
+	scene.freya.global_position = dog_position + Vector3(1.4, 0.0, 0.0)
+	state["alien_possessed"] = false
+	state["possession_immune"] = false
+	state["has_dog_armor"] = false
+	state["army_aligned"] = false
+	scene.dogs = [state]
+	scene.store_building_indices.clear()
+	scene._clear_free_aliens()
+	_stage_imp_at_dog(scene, dog_position)
+	scene._update_free_aliens(0.01)
+	_check(scene.status_label.text == "An imp is reaching for a dog — bark or guard it!", "contact did not show the imp transfer warning")
+	scene._update_free_aliens(2.0)
+	_check(scene.free_aliens.size() == 1 and not bool(scene.dogs[0].get("alien_possessed", false)), "dog was transferred before the two-second reading window")
+	if scene.free_aliens.size() == 1:
+		Input.action_press("aggressive_social")
+		scene._update_free_aliens(0.22)
+		scene._update_free_aliens(0.22)
+		Input.action_release("aggressive_social")
+		_check(scene.free_aliens.is_empty() and not bool(scene.dogs[0].get("alien_possessed", false)), "R could not intercept the imp after two seconds")
+	scene._clear_free_aliens()
+	state = scene.dogs[0]
+	state["alien_possessed"] = false
+	scene.dogs[0] = state
+	_stage_imp_at_dog(scene, dog_position)
+	scene._update_free_aliens(0.01)
+	scene._update_free_aliens(2.0)
+	_check(scene.free_aliens.size() == 1 and not bool(scene.dogs[0].get("alien_possessed", false)), "unopposed transfer completed before two seconds")
+	scene._update_free_aliens(2.5)
+	_check(scene.free_aliens.is_empty() and bool(scene.dogs[0].get("alien_possessed", false)), "unopposed imp transfer did not eventually resolve")
+	scene._clear_free_aliens()
+	dog.global_position = saved_dog_position
+	scene.dogs = saved_dogs
+	scene.store_building_indices.append_array(saved_stores)
+	scene.freya.global_position = saved_freya_position
+	return true
+
+
 func _test_park_drill_reward(scene: Node3D) -> void:
 	_check(not scene.dog_park_training_items.is_empty(), "no park drill available")
 	if scene.dog_park_training_items.is_empty():
@@ -301,7 +367,8 @@ func _run() -> void:
 	_test_park_drill_reward(scene)
 	_test_short_recorded_eating_and_vomit(scene)
 	_test_story_and_captive_cues(scene)
+	_check(_test_imp_transfer_window(scene), "timed imp transfer test aborted")
 	await process_frame
 	if failures.is_empty():
-		print("AUDIO_ACTIONS_OK: recorded imp barks, captive whine, Ryah cry, pill landing, storefront emergence, drill reward, and short eating/vomit cues")
+		print("AUDIO_ACTIONS_OK: recorded imp barks, captive whine, Ryah cry, pill landing, storefront emergence, drill reward, short eating/vomit cues, and timed imp transfer defense")
 	quit(0 if failures.is_empty() else 1)

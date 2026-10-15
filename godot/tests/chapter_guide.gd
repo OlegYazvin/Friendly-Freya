@@ -135,7 +135,14 @@ func _run() -> void:
 	# The H simulation above refreshes the home focus from Freya's position.
 	# Stage the later-chapter UI as an outdoor play state.
 	scene.freya_inside_home = false
+	var imp_count_before: int = scene.free_aliens.size()
 	scene._start_campaign_chapter(2)
+	_check(scene.free_aliens.size() > imp_count_before, "chapter 2 did not stage an imp near the ally")
+	if scene.free_aliens.size() > imp_count_before:
+		_check(scene.status_label.text == "An imp has found Freya's pack. Guard the dog or bark at the imp!" and scene.status_priority == 2, "chapter 2 hid the actionable imp ambush instruction")
+		await process_frame
+		_check(scene.status_panel.visible and root.get_visible_rect().encloses(scene.status_panel.get_global_rect()), "chapter 2 ambush warning clipped at 800x450")
+		_check(scene.status_panel.get_global_rect().encloses(scene.status_label.get_global_rect()), "chapter 2 ambush text left its status background")
 	_check("M (medicine) or A (armor) on the minimap" in scene._chapter_guide_text(), "chapter 2 does not teach protection pickup")
 	scene.freya_carries_immunity_dose = true
 	_check("Press F beside an unprotected clean ally" in scene._chapter_guide_text(), "chapter 2 does not teach carried protection")

@@ -458,6 +458,11 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
+`review-20261015s` PCK passed exact-content export and its ZIP passed SHA-256
+verification against
+`bb4ab4419b608d8b4c22601fc64037311e48ed4ef75603b79ede2e33b34254f1`.
+It includes the longer imp-to-dog warning window and the visible chapter-2
+ambush instruction. The preceding local
 `review-20261015r` PCK passed exact-content export and its ZIP passed SHA-256
 verification against
 `7499c1b418aa11ff34c9e1148f68466cdfbcc9ba9694e23468b8a1c7ff626e7c`.
