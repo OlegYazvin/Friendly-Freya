@@ -45,7 +45,13 @@ N                  Continue the story after a chapter result
 Esc                Pause menu (skip during cinematics)
 Space in intro     Complete the current line, then advance
 
-The pause menu contains the current full controls and How To Play guide.
+The pause menu contains the current full controls and How To Play guide. In
+Pause > Controls, "Press once for long actions (Space/C)" is an optional
+keyboard setting. When enabled, press Space once to start a scent action or C
+once to socialize. Press the same key again, move, pause, or switch windows to
+stop. An action also stops on completion, a chapter result, or when its target
+is lost. The default remains hold-to-act. This preference persists when a
+campaign is resumed.
 
 Skipping the intro starts Freya hungry near her home bowl with eat-first
 guidance. Hold Tab or press G to see the highlighted sites, lodge rescue, ally,

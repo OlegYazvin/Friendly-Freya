@@ -11,6 +11,7 @@ const AlienVisualFactoryScript = preload("res://scripts/alien_visual_factory.gd"
 const FamilyIntroTimeline = preload("res://scripts/family_intro_timeline.gd")
 const FamilyVisualFactory = preload("res://scripts/family_visual_factory.gd")
 const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
+const InputPreferencesScript = preload("res://scripts/input_preferences.gd")
 const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const GameSaveScript = preload("res://scripts/game_save.gd")
 const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
@@ -841,8 +842,19 @@ var objective_puke_on_dog_complete = false
 var claim_meter_panel: Panel
 var claim_meter_label: Label
 var claim_meter_bar: TextureProgressBar
+var claim_meter_hint_label: Label
 var active_claim_target_type = CLAIM_TARGET_NONE
 var active_claim_target_index = -1
+var tap_to_claim_enabled = false
+var input_preferences_path = InputPreferencesScript.SETTINGS_PATH
+var tap_claim_active = false
+var tap_claim_target_type = CLAIM_TARGET_NONE
+var tap_claim_target_index = -1
+var tap_claim_start_position = Vector3.ZERO
+var tap_social_active = false
+var tap_social_dog_index = -1
+var tap_social_start_position = Vector3.ZERO
+var tap_social_target_possessed = false
 var freya_victory_complete = false
 var freya_scare_status_cooldown = 0.0
 var freya_claim_marker_animations: Array = []
@@ -893,6 +905,7 @@ var pause_controls_panel: Panel
 var pause_howto_panel: Panel
 var pause_controls_scroll: ScrollContainer
 var pause_howto_scroll: ScrollContainer
+var pause_tap_claim_checkbox: CheckButton
 var storefront_texture_cache: Dictionary = {}
 
 # The family prologue runs in this live gameplay scene so its house, furniture,
@@ -971,6 +984,8 @@ func _ready() -> void:
 		rng.seed = int(str(game_resume_pending["world_seed"]))
 	_configure_input()
 	AudioPreferencesScript.load_and_apply_master_volume()
+	var deterministic_input_review = run_headless_checks or get_tree().has_meta("freya_flow_validation") or not OS.get_environment("FREYA_VISUAL_VIEW").is_empty() or not OS.get_environment("FREYA_ALIEN_VIEW").is_empty()
+	tap_to_claim_enabled = false if deterministic_input_review else InputPreferencesScript.load_press_to_continue(input_preferences_path)
 	_create_render_setup()
 	_create_world_roots()
 	action_audio = ActionAudioScript.new()
@@ -1731,6 +1746,7 @@ func _process(delta: float) -> void:
 		if possessed_dog_tutorial_active:
 			return
 	_update_store_focus(delta)
+	_update_tap_social_input()
 	_update_dogs(delta)
 	_update_chapter_three_recovery()
 	_update_kennel(delta)
@@ -11195,6 +11211,8 @@ func _try_start_dog_park_training() -> bool:
 	freya_move_dir = Vector3.ZERO
 	if active_claim_target_type != CLAIM_TARGET_NONE and active_claim_target_index >= 0:
 		_reset_claim_progress(active_claim_target_type, active_claim_target_index)
+	_cancel_tap_claim(false)
+	_cancel_tap_social(false)
 	active_claim_target_type = CLAIM_TARGET_NONE
 	active_claim_target_index = -1
 	_stop_claim_pee_audio()
@@ -11773,12 +11791,98 @@ func _pack_assist_count(building_index: int) -> int:
 func _pack_assist_bonus_per_dog() -> float:
 	return 0.2 + freya_social * 0.003 + float(dog_park_training_completed.size()) * PACK_TRAINING_ASSIST_BONUS
 
+func _friendly_social_action_active() -> bool:
+	return tap_social_active if tap_to_claim_enabled else Input.is_action_pressed("friendly_social")
+
+func _social_dog_selected(dog_index: int) -> bool:
+	return not tap_to_claim_enabled or (tap_social_active and tap_social_dog_index == dog_index)
+
+func _cancel_tap_social(show_feedback: bool) -> void:
+	if not tap_social_active:
+		return
+	tap_social_active = false
+	tap_social_dog_index = -1
+	tap_social_target_possessed = false
+	if action_audio != null:
+		action_audio.stop_cue("dog_sniff")
+	if show_feedback:
+		_show_status("Socializing stopped. Tap C near a dog to start again.", 1.6)
+
+func _tap_social_interrupted() -> bool:
+	if freya == null or not is_instance_valid(freya):
+		return true
+	if freya_hunger >= 99.999:
+		return true
+	if tap_social_active and freya.global_position.distance_to(tap_social_start_position) > 0.18:
+		return true
+	for action in ["move_left", "move_right", "move_up", "move_down", "claim", "aggressive_social"]:
+		if Input.is_action_pressed(action):
+			return true
+	for action in ["eat", "vomit", "drop_stick", "pack_follow", "pack_guard", "pack_assist"]:
+		if Input.is_action_just_pressed(action):
+			return true
+	return false
+
+func _nearest_social_dog_index() -> int:
+	if freya == null or not is_instance_valid(freya):
+		return -1
+	var nearest = -1
+	var best_distance = SOCIALIZE_RANGE
+	var best_priority = 2
+	for dog_index in range(dogs.size()):
+		var state: Dictionary = dogs[dog_index]
+		var dog: Node3D = state.get("node", null)
+		if dog == null or not is_instance_valid(dog):
+			continue
+		var distance = dog.global_position.distance_to(freya.global_position)
+		if distance >= SOCIALIZE_RANGE:
+			continue
+		var priority = 1 if bool(state.get("army_aligned", false)) else 0
+		if priority > best_priority or (priority == best_priority and distance >= best_distance):
+			continue
+		nearest = dog_index
+		best_distance = distance
+		best_priority = priority
+	return nearest
+
+func _update_tap_social_input() -> void:
+	if not tap_to_claim_enabled:
+		return
+	if _is_dog_park_training_active():
+		_cancel_tap_social(false)
+		return
+	if tap_social_active:
+		if Input.is_action_just_pressed("friendly_social") or _tap_social_interrupted():
+			_cancel_tap_social(true)
+			return
+		if tap_social_dog_index < 0 or tap_social_dog_index >= dogs.size():
+			_cancel_tap_social(true)
+			return
+		var target: Node3D = dogs[tap_social_dog_index].get("node", null)
+		if target == null or not is_instance_valid(target) or target.global_position.distance_to(freya.global_position) >= SOCIALIZE_RANGE or bool(dogs[tap_social_dog_index].get("alien_possessed", false)) != tap_social_target_possessed:
+			_cancel_tap_social(true)
+		return
+	if not Input.is_action_just_pressed("friendly_social") or _tap_social_interrupted():
+		if Input.is_action_just_pressed("friendly_social") and freya_hunger >= 99.999:
+			_show_status("Freya is too hungry to socialize.", 1.5)
+		return
+	var dog_index = _nearest_social_dog_index()
+	if dog_index < 0:
+		_show_status("No dog close enough to socialize.", 1.2)
+		return
+	_cancel_tap_claim(false)
+	tap_social_active = true
+	tap_social_dog_index = dog_index
+	tap_social_start_position = freya.global_position
+	tap_social_target_possessed = bool(dogs[dog_index].get("alien_possessed", false))
+	_show_status("Socializing started. Tap C again or move to stop.", 4.4)
+
 func _update_dogs(delta: float) -> void:
 	pack_route_update_serial += 1
 	_update_pack_order_input()
 	dog_sniff_audio_cooldown = maxf(0.0, dog_sniff_audio_cooldown - delta)
 	var training_locked = _is_dog_park_training_active()
-	var friendly_requested = Input.is_action_pressed("friendly_social") and not training_locked
+	var friendly_requested = _friendly_social_action_active() and not training_locked
 	var aggressive_social = Input.is_action_pressed("aggressive_social") and not training_locked
 	if aggressive_social:
 		friendly_requested = false
@@ -11964,7 +12068,7 @@ func _update_dogs(delta: float) -> void:
 			dog_started = Time.get_ticks_usec()
 		var near: float = dog.global_position.distance_to(freya.global_position)
 		var in_social_range = near < SOCIALIZE_RANGE
-		if friendly_social and (not is_fleeing) and in_social_range:
+		if friendly_social and _social_dog_selected(i) and (not is_fleeing) and in_social_range:
 			var sniff_result = _apply_mutual_butt_sniff(dog, state, delta)
 			dir = sniff_result.get("dir", dir)
 			state = sniff_result.get("state", state)
@@ -11977,7 +12081,7 @@ func _update_dogs(delta: float) -> void:
 		if perf_profile_gameplay:
 			_perf_profile_mark("dog_animation", dog_started)
 			dog_started = Time.get_ticks_usec()
-		var friendly_interacting = friendly_social and (not is_fleeing) and in_social_range
+		var friendly_interacting = friendly_social and _social_dog_selected(i) and (not is_fleeing) and in_social_range
 		var aggressive_interacting = aggressive_social and in_social_range
 		var dog_can_reach_freya = (not in_park) or dog_park.grow(-0.05).has_point(Vector2(freya.global_position.x, freya.global_position.z))
 		var possessed_aggro_barking = possessed_dog_behavior_enabled and dog_can_reach_freya and bool(state.get("alien_possessed", false)) and (not friendly_interacting) and (not aggressive_interacting) and near <= POSSESSED_DOG_AGGRO_BARK_RADIUS
@@ -12040,6 +12144,8 @@ func _update_dogs(delta: float) -> void:
 				_queue_bark_sequence(true, rng.randi_range(2, 3), BARK_CATEGORY_EXCITED_SOCIAL)
 				_show_status("A real dog joined the reserve and guards here." if joins_reserve else "A real dog joined Freya's active squad.", 2.5, 2)
 		dogs[i] = state
+		if tap_to_claim_enabled and tap_social_active and i == tap_social_dog_index and bool(state.get("army_aligned", false)):
+			_cancel_tap_social(false)
 		if perf_profile_gameplay:
 			_perf_profile_mark("dog_interaction", dog_started)
 
@@ -13170,7 +13276,7 @@ func _update_freya_alien_discomfort(delta: float) -> void:
 func _active_building_claim_swarm() -> Dictionary:
 	if active_claim_target_type != CLAIM_TARGET_BUILDING or active_claim_target_index < 0:
 		return {"active": false}
-	if not Input.is_action_pressed("claim"):
+	if not _claim_action_active():
 		return {"active": false}
 	if active_claim_target_index >= buildings.size():
 		return {"active": false}
@@ -13261,7 +13367,7 @@ func _freya_is_idle_for_social_dance() -> bool:
 		return false
 	if freya_eat_timer > 0.0:
 		return false
-	if Input.is_action_pressed("claim"):
+	if _claim_action_active():
 		return false
 	var input_x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
 	var input_y = Input.get_action_strength("move_up") - Input.get_action_strength("move_down")
@@ -13982,6 +14088,8 @@ func _check_chapter_completion() -> void:
 		return
 	if campaign_chapter == 3 and (_chapter_real_ally_count() < 1 or not chapter_assisted_stronghold):
 		return
+	_cancel_tap_claim(false)
+	_cancel_tap_social(false)
 	chapter_complete = true
 	chapter_result_dismissed = false
 	if campaign_chapter == 3:
@@ -14228,14 +14336,14 @@ func _update_building_claim_decay(delta: float) -> void:
 	if delta <= 0.0:
 		return
 	var held_building_index = -1
-	if Input.is_action_pressed("claim") and freya != null and is_instance_valid(freya):
+	if _claim_action_active() and freya != null and is_instance_valid(freya):
 		var held_target = _building_claim_target_for_position(Vector2(freya.global_position.x, freya.global_position.z))
 		if bool(held_target.get("found", false)):
 			held_building_index = int(held_target.get("index", -1))
 	for building_index in range(buildings.size()):
 		if building_index == held_building_index:
 			continue
-		if active_claim_target_type == CLAIM_TARGET_BUILDING and active_claim_target_index == building_index and Input.is_action_pressed("claim"):
+		if active_claim_target_type == CLAIM_TARGET_BUILDING and active_claim_target_index == building_index and _claim_action_active():
 			continue
 		var building: Dictionary = buildings[building_index]
 		if _entry_is_claimed_by(building, CLAIM_OWNER_FREYA):
@@ -15119,7 +15227,7 @@ func _place_claim_pee_stream(start_pos: Vector3, end_pos: Vector3, radius: float
 
 func _update_claim_pee_effect(delta: float) -> void:
 	var can_stream = (
-		Input.is_action_pressed("claim")
+		_claim_action_active()
 		and active_claim_target_type != CLAIM_TARGET_NONE
 		and active_claim_target_index >= 0
 		and freya != null
@@ -15156,18 +15264,67 @@ func _update_claim_pee_effect(delta: float) -> void:
 	claim_pee_splash_node.scale = Vector3(splash_scale, 0.15, splash_scale)
 	claim_pee_splash_node.visible = true
 
+func _claim_action_active() -> bool:
+	return tap_claim_active if tap_to_claim_enabled else Input.is_action_pressed("claim")
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_cancel_tap_claim(false)
+		_cancel_tap_social(false)
+
+func _clear_tap_claim_state() -> void:
+	tap_claim_active = false
+	tap_claim_target_type = CLAIM_TARGET_NONE
+	tap_claim_target_index = -1
+
+func _cancel_tap_claim(show_feedback: bool) -> void:
+	if not tap_claim_active:
+		return
+	_reset_claim_progress(active_claim_target_type, active_claim_target_index)
+	_clear_tap_claim_state()
+	active_claim_target_type = CLAIM_TARGET_NONE
+	active_claim_target_index = -1
+	_stop_claim_pee_audio()
+	_hide_claim_pee_effect()
+	_hide_claim_meter()
+	if show_feedback:
+		_show_status("Marking stopped. Tap Space at a target to start again.", 1.6)
+
+func _tap_claim_interrupted() -> bool:
+	if freya == null or not is_instance_valid(freya):
+		return true
+	if tap_claim_active and freya.global_position.distance_to(tap_claim_start_position) > 0.18:
+		return true
+	for action in ["move_left", "move_right", "move_up", "move_down", "friendly_social", "aggressive_social"]:
+		if Input.is_action_pressed(action):
+			return true
+	for action in ["eat", "vomit", "drop_stick", "pack_follow", "pack_guard", "pack_assist"]:
+		if Input.is_action_just_pressed(action):
+			return true
+	return false
+
 func _update_claiming(delta: float) -> void:
 	_update_building_claim_decay(delta)
 	if _is_dog_park_training_active():
+		_cancel_tap_claim(false)
 		_reset_claim_progress(active_claim_target_type, active_claim_target_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
 		_stop_claim_pee_audio()
 		return
+	if tap_to_claim_enabled:
+		if tap_claim_active:
+			if Input.is_action_just_pressed("claim") or _tap_claim_interrupted():
+				_cancel_tap_claim(true)
+				return
+		elif Input.is_action_just_pressed("claim") and not _tap_claim_interrupted():
+			_cancel_tap_social(false)
+			tap_claim_active = true
+			tap_claim_start_position = freya.global_position
 	var prev_type = active_claim_target_type
 	var prev_index = active_claim_target_index
 
-	if not Input.is_action_pressed("claim"):
+	if not _claim_action_active():
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
@@ -15176,6 +15333,7 @@ func _update_claiming(delta: float) -> void:
 
 	var target = _find_nearest_claim_target()
 	if _claim_input_reserved_for_dog_bark(target):
+		_cancel_tap_claim(false)
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
@@ -15190,6 +15348,7 @@ func _update_claiming(delta: float) -> void:
 			var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
 			var dump_dist_sq = freya_pos.distance_squared_to(dump_pos)
 			if (not bool(target.get("found", false))) or dump_dist_sq < claim_dist_sq:
+				_cancel_tap_claim(false)
 				_reset_claim_progress(prev_type, prev_index)
 				active_claim_target_type = CLAIM_TARGET_NONE
 				active_claim_target_index = -1
@@ -15198,6 +15357,10 @@ func _update_claiming(delta: float) -> void:
 				return
 
 	if not bool(target.get("found", false)):
+		if tap_to_claim_enabled and tap_claim_target_type != CLAIM_TARGET_NONE:
+			_cancel_tap_claim(true)
+			return
+		_cancel_tap_claim(false)
 		_reset_claim_progress(prev_type, prev_index)
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
@@ -15212,6 +15375,14 @@ func _update_claiming(delta: float) -> void:
 
 	var target_type = int(target.get("type", CLAIM_TARGET_NONE))
 	var target_index = int(target.get("index", -1))
+	if tap_to_claim_enabled:
+		if tap_claim_target_type != CLAIM_TARGET_NONE and (tap_claim_target_type != target_type or tap_claim_target_index != target_index):
+			_cancel_tap_claim(true)
+			return
+		if tap_claim_target_type == CLAIM_TARGET_NONE:
+			_show_status("Marking started. Tap Space again or move to stop.", 2.5)
+		tap_claim_target_type = target_type
+		tap_claim_target_index = target_index
 	if prev_type != CLAIM_TARGET_NONE and (prev_type != target_type or prev_index != target_index):
 		_reset_claim_progress(prev_type, prev_index)
 
@@ -15226,6 +15397,7 @@ func _update_claiming(delta: float) -> void:
 			return
 		active_claim_target_type = CLAIM_TARGET_NONE
 		active_claim_target_index = -1
+		_clear_tap_claim_state()
 		_stop_claim_pee_audio()
 		_show_status("Alien hold broken — the building can be claimed.", 1.55)
 		return
@@ -15243,6 +15415,7 @@ func _update_claiming(delta: float) -> void:
 
 	active_claim_target_type = CLAIM_TARGET_NONE
 	active_claim_target_index = -1
+	_clear_tap_claim_state()
 	_stop_claim_pee_audio()
 	if target_type == CLAIM_TARGET_LIGHT_POLE:
 		if _claimed_light_pole_count() >= OBJECTIVE_CLAIM_TARGET:
@@ -15353,9 +15526,11 @@ func _update_claim_meter_overlay() -> void:
 	if active_claim_target_type == CLAIM_TARGET_NONE or active_claim_target_index < 0:
 		_hide_claim_meter()
 		return
-	if not Input.is_action_pressed("claim"):
+	if not _claim_action_active():
 		_hide_claim_meter()
 		return
+	claim_meter_panel.size.y = 100.0 if tap_to_claim_enabled else 68.0
+	claim_meter_hint_label.visible = tap_to_claim_enabled
 
 	var target_world = _claim_target_world_position(active_claim_target_type, active_claim_target_index)
 	if camera_node.is_position_behind(target_world):
@@ -19593,6 +19768,14 @@ func _create_ui() -> void:
 	claim_meter_bar.tint_progress = Color(1.0, 1.0, 1.0, 1.0)
 	claim_meter_bar.tint_over = Color(1.0, 1.0, 1.0, 1.0)
 	claim_wrap.add_child(claim_meter_bar)
+	claim_meter_hint_label = Label.new()
+	claim_meter_hint_label.position = Vector2(11.0, 70.0)
+	claim_meter_hint_label.size = Vector2(192.0, 17.0)
+	claim_meter_hint_label.text = "Space again or move to stop"
+	claim_meter_hint_label.add_theme_font_size_override("font_size", 12)
+	claim_meter_hint_label.add_theme_color_override("font_color", Color(0.78, 0.95, 0.94, 0.96))
+	claim_meter_hint_label.visible = false
+	claim_meter_panel.add_child(claim_meter_hint_label)
 
 	var minimap_panel = Panel.new()
 	minimap_panel.anchor_left = 1.0
@@ -19850,6 +20033,8 @@ func _create_possessed_dog_tutorial_ui() -> void:
 func _show_possessed_dog_tutorial() -> void:
 	if possessed_dog_tutorial_seen or possessed_dog_tutorial_active:
 		return
+	_cancel_tap_claim(false)
+	_cancel_tap_social(false)
 	possessed_dog_tutorial_seen = true
 	possessed_dog_tutorial_active = true
 	_hide_claim_meter()
@@ -20050,7 +20235,7 @@ func _objectives_text() -> String:
 	var buildings_total = _claimable_building_total()
 	var buildings_done = buildings_total > 0 and buildings_claimed >= buildings_total
 	var buildings_state = "[DONE]" if buildings_done else "[ ]"
-	return (
+	return _mode_adjusted_input_text(
 		_chapter_objectives_text()
 		+ "\nOptional neighborhood mastery\n"
 		+ "- %s Own every building (%d/%d)\n" % [buildings_state, buildings_claimed, buildings_total]
@@ -20287,14 +20472,22 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(controls_title)
 
 	pause_controls_scroll = ScrollContainer.new()
-	pause_controls_scroll.position = Vector2(12, 44)
-	pause_controls_scroll.size = Vector2(502, 208)
+	pause_controls_scroll.position = Vector2(12, 82)
+	pause_controls_scroll.size = Vector2(502, 170)
 	pause_controls_scroll.follow_focus = true
 	pause_controls_panel.add_child(pause_controls_scroll)
+	pause_tap_claim_checkbox = CheckButton.new()
+	pause_tap_claim_checkbox.text = "Press once for long actions (Space/C)"
+	pause_tap_claim_checkbox.tooltip_text = "Tap Space to mark or weaken, or C to socialize. Tap the same key again or move to stop."
+	pause_tap_claim_checkbox.position = Vector2(14, 45)
+	pause_tap_claim_checkbox.size = Vector2(488, 34)
+	pause_tap_claim_checkbox.button_pressed = tap_to_claim_enabled
+	pause_tap_claim_checkbox.toggled.connect(_on_press_to_continue_toggled)
+	pause_controls_panel.add_child(pause_tap_claim_checkbox)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\n- / = or mouse wheel: Zoom out / in\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nHold Space: Mark objects, claim eligible interiors, weaken alien walls\nSpace near dumpster: Search once\nHold R: Bark at dogs or interrupt a visible imp\nHold C near dogs: Socialize and recruit; possessed dogs raise Vomit\n1: Pack follows Freya\n2: Pack guards a nearby dog, or this spot\n3: Pack assists a nearby alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
-	controls.custom_minimum_size = Vector2(482, 420)
+	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\n- / = or mouse wheel: Zoom out / in\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nSpace: Mark objects, claim interiors, weaken alien walls\nSpace near dumpster: Search once\nR (hold): Bark at dogs or interrupt a visible imp\nC: Socialize and recruit; possessed dogs raise Vomit\nSpace and C hold by default. Turn on Press once above to tap once to start; tap again or move to stop.\n1: Pack follows Freya\n2: Pack guards a nearby dog, or this spot\n3: Pack assists a nearby alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
+	controls.custom_minimum_size = Vector2(482, 475)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
 	pause_controls_scroll.add_child(controls)
@@ -20320,8 +20513,8 @@ func _create_pause_menu() -> void:
 	var howto_text = Label.new()
 	howto_text.text = (
 		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Use Q/E to rotate the camera and -/= or the mouse wheel to zoom while exploring. Owning every building is an optional challenge.\n\n"
-		+ "Freya alone marks nearby trees, poles, hydrants and mailboxes with Space. A clean building can be claimed after its nearby objects are marked and it connects to Freya territory. Hold Space inside for 10 seconds. For an occupied building, first weaken its outer wall with Space, then claim the clean interior.\n\n"
-		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Hold C with a freed dog to recruit it. Use 1 to follow, 2 beside a clean dog to guard that dog (otherwise guard this spot), and 3 to assist a nearby building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
+		+ "Freya alone marks nearby trees, poles, hydrants and mailboxes with Space. A clean building can be claimed after its nearby objects are marked and it connects to Freya territory. Hold Space inside for 10 seconds, or turn on Press once for long actions in Pause > Controls and tap Space. For an occupied building, first weaken its outer wall with Space, then claim the clean interior. In Press once mode, tap C near a dog to socialize and recruit without holding; tap again or move to stop.\n\n"
+		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Use C with a freed dog to recruit it. Use 1 to follow, 2 beside a clean dog to guard that dog (otherwise guard this spot), and 3 to assist a nearby building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
 		+ "Visible imps may flee into buildings or try to take a vulnerable dog. Their transfer gives a warning: bark at the imp or send the pack to guard it. A full Vomit meter lets Freya interrupt imps with X. Pharmacy medicine makes a dog permanently immune; police armor absorbs one attempt. The clinic gives a care kit that frees a taken ally or calms a frightened dog. The home and grocery bowls reset Hunger. Take supplies with F and use them near a dog with F. On the minimap, M marks medicine, F food, A armor, and C clinic care.\n\n"
 		+ "The occupied dog lodge produces at most six possessed dogs. Cleanse it, bark at each captive, then press F to open each safe cage. Early cleansing does not prevent rescuing the dogs still inside. Ryah's home cannot be occupied. Save from the pause menu; Resume Game appears on the startup screen when a save exists."
 	)
@@ -20355,6 +20548,8 @@ func _toggle_pause_menu(force_state: int = -1, play_sound: bool = true) -> void:
 		open = force_state > 0
 	pause_menu_open = open
 	if open:
+		_cancel_tap_claim(false)
+		_cancel_tap_social(false)
 		objectives_pinned = false
 	if play_sound:
 		action_audio.play("button", -11.0)
@@ -20393,6 +20588,22 @@ func _on_pause_controls_pressed() -> void:
 		pause_controls_button.text = "Hide Controls" if pause_controls_panel.visible else "Controls"
 	if pause_howto_button != null:
 		pause_howto_button.text = "How To Play"
+	if pause_controls_panel.visible and pause_tap_claim_checkbox != null:
+		pause_tap_claim_checkbox.grab_focus()
+
+func _on_press_to_continue_toggled(enabled: bool) -> void:
+	var previous = tap_to_claim_enabled
+	if enabled == previous:
+		return
+	if not InputPreferencesScript.save_press_to_continue(enabled, input_preferences_path):
+		pause_tap_claim_checkbox.set_pressed_no_signal(previous)
+		_show_status("Could not save control setting.", 2.5, 2)
+		return
+	_cancel_tap_claim(false)
+	_cancel_tap_social(false)
+	tap_to_claim_enabled = enabled
+	action_audio.play("button", -11.0)
+	_show_status("Press once for Space and C enabled." if enabled else "Hold Space and C controls restored.", 2.5)
 
 func _on_pause_howto_pressed() -> void:
 	if pause_howto_panel == null:
@@ -20543,10 +20754,15 @@ func _make_value_label(panel: Panel, pos: Vector2) -> Label:
 func _show_status(text: String, duration: float, priority: int = 0) -> void:
 	if status_timer > 0.0 and priority < status_priority:
 		return
-	status_label.text = text
+	status_label.text = _mode_adjusted_input_text(text)
 	status_timer = duration
 	status_priority = priority
 	_update_status_presentation()
+
+func _mode_adjusted_input_text(text: String) -> String:
+	if not tap_to_claim_enabled:
+		return text
+	return text.replace("Hold Space", "Tap Space").replace("hold Space", "tap Space").replace("Hold C", "Tap C").replace("hold C", "tap C")
 
 func _feedback_panel_style() -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
@@ -20828,7 +21044,7 @@ func _update_chapter_guide() -> void:
 	var should_show = not chapter_guide_hidden and not text.is_empty() and not freya_inside_home and not family_intro_active and not first_exit_abduction_active and not possessed_dog_tutorial_active and not pause_menu_open and (objectives_panel == null or not objectives_panel.visible) and (chapter_complete_panel == null or not chapter_complete_panel.visible)
 	chapter_guide_panel.visible = should_show
 	if should_show:
-		chapter_guide_label.text = text
+		chapter_guide_label.text = _mode_adjusted_input_text(text)
 
 func _carried_supply_status() -> String:
 	var supplies: Array[String] = []

@@ -56,8 +56,8 @@ the English reference views show their fully readable held state.
 
 - [pause_menu.png](pause_menu.png) — the in-game pause menu with keyboard focus on Resume and `Restart Story` available alongside the normal gameplay controls.
 - [pause_restart.png](pause_restart.png) — the pause-menu restart warning, focused on `Keep Playing` while the current session remains paused.
-- [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including keyboard `-`/`=` zoom, the `G` goals pin, pack orders, and chapter continuation.
-- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, keyboard camera control, ally defense, services, and lodge rescue.
+- [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including the keyboard-focused optional press-once Space/C setting, keyboard `-`/`=` zoom, the `G` goals pin, pack orders, and chapter continuation.
+- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, optional press-once long actions, keyboard camera control, ally defense, services, and lodge rescue.
 - [chapter_guide.png](chapter_guide.png) — the enlarged first-chapter guidance panel suggests an optional first park drill before the initial territory action and can be hidden with `H`; the minimap shows `M` medicine, `F` food, `A` armor, and `C` clinic care, plus a cyan diamond for the next highlighted site.
 - [chapter_guide_2.png](chapter_guide_2.png) — at 960×540, the larger skippable `H` panel persists into chapter 2 and tells Freya where to collect ally protection and which dog can receive it.
 - [chapter_guide_3.png](chapter_guide_3.png) — at 960×540, after the final signal is cleared without pack help, the larger panel explains the recoverable clean-ally guard action at the signal site without clipping.

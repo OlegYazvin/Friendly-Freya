@@ -29,7 +29,8 @@ skipped.
    mid-chapter Resume, a lodge rescue, chapter-2 ally protection, the final
    signal, credits, Keep Exploring, and Replay Story cancellation. Verify a
    future-version save is preserved rather than overwritten. Run the focused
-   keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md).
+   keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md),
+   including the default holds and optional press-once Space/C controls.
 3. Observe five players who have not seen the project, without control
    coaching. Record where they lose the route, why they choose pack and
    protection tactics, time to each chapter, and what feels rewarding or
@@ -335,8 +336,8 @@ hardware floor.
   her required meal, walks out of the live home, advances the complete immunity
   thought with Space, and returns to ordinary play. A fixed-seed headless
   local run passed with `WATCH_INTRO_ROUTE_OK`. The route is in predeploy and
-  the exported Windows startup smoke; exported Windows results and graphical
-  player review still need to be recorded.
+  the exported Windows startup smoke; review-n passed the exported Windows
+  route, while graphical player review still needs to be recorded.
 - Accepted camera, goals, help scrolling, and volume controls now have a quiet
   click from the existing recorded CC0 button file. Repeated zoom and scroll
   inputs are throttled; a successful Quit finishes that exact recording after
@@ -417,6 +418,38 @@ hardware floor.
   contains `Friendly-Freya-manual-14-Windows-x86_64.zip` with verified SHA-256
   `8724dafe102dc98eb489af1edd6c844e7fb22f1b1ea28a51ba1074e5d6be1ea9`.
   The short CI stress entry is not a graphical HP performance result.
+- An optional saved "Press once for long actions (Space/C)" setting in Pause >
+  Controls now lets a player continue a scent mark, interior claim, alien-wall
+  weakening, or selected-dog socialization after releasing the key. A second
+  press, movement, another action, target loss, tutorial/training, pause, loss
+  of window focus, or a chapter result stops it; completion stops it
+  automatically. The default remains a physical
+  hold. A focused keyboard check passed a complete ten-second interior claim,
+  dog recruitment, target and action cancellation, dumpster and bark priority,
+  settings persistence, and 800×450/960×540 UI bounds. The full
+  `./scripts/predeploy_size_checks.sh` suite passed after the final focus-loss
+  and chapter-result guards; the affected pause captures were regenerated and
+  inspected. A player accessibility pass remains open.
+- The generated campaign reachability guard now tests ten fixed seeds with a
+  Freya-radius, 0.5m connected grid from the home entrance. Its focused run
+  passed 170 sequential chapter sites, 742 required mark approaches, 50
+  occupied walls, 170 entrances, and 60 lodge cages in about 153 seconds.
+  This strengthens procedural coverage; it is not proof that every random
+  layout is enjoyable or free of every route problem.
+- A final source audit found exact recorded cues for successful direct player
+  actions. All 32 mapped action cues and 33 other directly referenced audio
+  assets are present and decode; the runtime keeps a missing selected cue
+  silent. Headless checks skip playback, so the Windows review still needs a
+  listening pass on the Victus for audible output and mix.
+- The local `review-20261015o` Windows ZIP was exported from the updated source
+  with Godot 4.7.2 and verified against SHA-256
+  `225d39a0aba03362b8436a03ab15e3742b708eabb411a799f73c1197685e1fd4`.
+  Its PCK content check passed with the active model, 24 barks, 32 exact cue
+  mappings, and ending; the extracted PCK passed the press-once keyboard test.
+  The complete source predeploy suite passed after the final focus and chapter
+  guards. Updated Controls and How To Play PNGs were regenerated and inspected.
+  Exported Windows review of this exact revision is still pending; review-n is
+  the latest completed Windows CI route until that run finishes.
 
 ## The game to finish
 

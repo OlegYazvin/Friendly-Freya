@@ -135,8 +135,12 @@ that disposable QA copy; each must show its archive notice and block a route
 that cannot save. Never use a playtester’s sole campaign save for this check.
 
 In a focused accessibility pass, finish a chapter using the keyboard alone.
-Check that sustained scent holds and repeated actions remain physically
-manageable, text and subtitles stay on screen long enough to read, critical
+Try the default held Space/C controls and the optional "Press once for long
+actions (Space/C)" checkbox in Pause > Controls. Check that repeated actions
+remain physically manageable and that pressing again, moving, losing the target,
+pausing, and switching windows stop an active action. Check that text and
+subtitles stay on screen
+long enough to read, critical
 markers and status text remain legible at both supported window sizes, including
 while goals are pinned, and
 every audio cue needed for progress also has a visible or textual cue. Record

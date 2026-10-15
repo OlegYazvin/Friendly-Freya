@@ -107,9 +107,10 @@ It runs:
     panel bounds in `godot/tests/chapter_guide.gd`;
 12. the three connected chapter routes, mandatory holds, ally protection, pack
    assistance, and credits handoff in `godot/tests/campaign_flow.gd`;
-13. five generated seeds with all chapter entrances, required scent marks,
-    occupied wall approaches, lodge cages, and sequential territory connections
-    in `godot/tests/campaign_reachability.gd`;
+13. ten generated seeds with home-connected Freya-radius routes to all chapter
+    entrances, required scent marks, occupied wall approaches, and lodge cages,
+    plus sequential territory connections in
+    `godot/tests/campaign_reachability.gd`;
 14. occupied-building margin recovery for Freya and dogs, plus old-save and
     interior-exit checks, in `godot/tests/occupation_collision_recovery.gd`;
 15. five-seed doorway-connected routes to grocery, pharmacy, police, and clinic
@@ -127,8 +128,12 @@ It runs:
 21. `New Game: Watch Intro` through the UFO English dialogue hold, family
     dialogue hold, required meal, first-exit thought, and return to play using
     keyboard events in `godot/tests/watch_intro_route.gd`.
+22. optional press-once Space and C controls, persisted keyboard setting,
+    target lock, focus loss and other interruptions, recruitment completion,
+    and UI bounds at 800×450 and 960×540 in
+    `godot/tests/claim_input_toggle.gd`.
 
-Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KENNEL_OK`, `SMOKE_OK`,
+Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `CLAIM_INPUT_TOGGLE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`,
 `DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
 `CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
@@ -413,15 +418,15 @@ FREYA_EXPORTED_CAMPAIGN_QA=1 FREYA_NATURAL_CAMPAIGN=1 \
 The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
-review-f PCK passed this local Linux route on seed 20260831. The current
-review-m PCK passed exact-content export, checksum, and a short headless
-performance-entry check; review-k passed a warmed graphical 1280×720 sample
-on Linux. An earlier source live-input route passed the chapter-2
-checkpoint with two protected allies and five claimed sites. The
-[review-m Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
-passed export, EXE startup, packaged performance entry, and the full headless
-campaign route with credits and Keep Exploring markers. Graphical playtesting
-and sustained performance measurement on the HP Victus remain open.
+review-f PCK passed this local Linux route on seed 20260831. The local
+`review-20261015o` PCK passed exact-content export, ZIP checksum, and the
+packaged press-once keyboard test; the prior review-k PCK passed a warmed
+graphical 1280×720 sample on Linux. The
+[review-n Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
+passed export, EXE startup, packaged performance entry and Watch Intro, and
+the full headless campaign route with credits and Keep Exploring. The exact
+review-o revision still needs its Windows CI run. Graphical playtesting and
+sustained performance measurement on the HP Victus remain open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update

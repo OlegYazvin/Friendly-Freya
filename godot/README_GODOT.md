@@ -60,8 +60,14 @@ Freya in a Northbrook-inspired brick town-center streetscape.
   dog (otherwise her current spot), or assist at a nearby building. The first three eligible allies form the
   active squad; later recruits hold their own guard posts and defend nearby dogs.
 - Hold `Space`: claim trees, light poles, hydrants, mailboxes, and eligible building
-  interiors; weaken an alien building beside its wall; or search a nearby
-  dumpster.
+  interiors, or weaken an alien building beside its wall. Press Space once to
+  search a nearby dumpster.
+- Optional press-once controls: pause, open Controls, and enable **Press once for
+  long actions (Space/C)**. Tap Space at a specific mark or wall, or C near a dog,
+  to continue without holding the key. Tap the same key again or move to stop.
+  Leaving the selected target, starting another action, and pausing also stop.
+  The chosen mode persists across launches and saved-game resumes; it is off by
+  default. The claim meter shows the active tap-mode stop instruction.
 - `X`: vomit when the Vomit meter is full; the burst can interrupt nearby imps.
 - `H`: show or hide the current chapter's next-step guidance panel.
 - Hold `Tab` for temporary objectives, or press `G` to pin and unpin the goals

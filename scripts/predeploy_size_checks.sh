@@ -86,6 +86,8 @@ echo "Running Friendly Freya input and de-jankification regressions..."
 run_scene_validation res://tests/dejank_flow.gd
 echo "Running Friendly Freya keyboard camera zoom regression..."
 run_scene_validation res://tests/camera_keyboard_zoom.gd
+echo "Running Friendly Freya press-once long-action controls..."
+run_scene_validation res://tests/claim_input_toggle.gd
 echo "Running Friendly Freya generated-layout camera regressions..."
 run_scene_validation res://tests/dejank_cameras.gd
 echo "Running Friendly Freya save and resume regressions..."
