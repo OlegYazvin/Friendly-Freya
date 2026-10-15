@@ -3,16 +3,17 @@
 [Documentation hub](../README.md) · [Game completion plan](GAME_COMPLETION_PLAN.md) ·
 [Run guide](../RUN_FRIENDLY_FREYA.md)
 
-**Status:** Ready for external observation. Automated checks, including an
-exported Windows EXE start-to-credits route, pass, and local graphical
-measurements are recorded. Five unfamiliar-player tests, a measured
-minimum-Windows-PC performance floor, and graphical Windows start-to-credits
-QA remain open.
+**Status:** Ready for external observation. An earlier exported Windows EXE
+start-to-credits route passed, and local graphical measurements are recorded.
+The current review build still needs a passing Windows route. Five
+unfamiliar-player tests, a measured minimum-Windows-PC performance floor, and
+graphical Windows start-to-credits QA remain open.
 
-The proposed minimum Windows test PC is the HP Victus 16-r0073cl (HP product
-7N4X6UA#ABA). Its factory configuration is Windows 11 Home, Core i7-13700HX,
-GeForce RTX 4060 Laptop GPU with 8 GB video memory, 32 GB RAM, and a 16.1-inch
-1920×1080 display. These are the [HP model listing](https://support.hp.com/us-en/product/details/victus-by-hp-16.1-inch-gaming-laptop-pc-16-r0000/model/2101566991?sku=7N4X6UA)
+The user-selected minimum Windows test PC is the HP Victus 16-r0073cl (HP
+product 7N4X6UA#ABA). Its factory configuration is Windows 11 Home,
+Core i7-13700HX, GeForce RTX 4060 Laptop GPU with 8 GB video memory, 32 GB
+RAM, and a 16.1-inch 1920×1080 display. These are the
+[HP model listing](https://support.hp.com/us-en/product/details/victus-by-hp-16.1-inch-gaming-laptop-pc-16-r0000/model/2101566991?sku=7N4X6UA)
 and [HP-authored specification sheet](https://cdn.cs.1worldsync.com/syndication/mediaserverredirect/57144c439c7c79835145a69032b43a53/original.pdf)
 for the factory SKU; confirm the actual PC's installed OS, CPU, GPU, RAM, and
 display before recording a result. This is the stated test target, not a
@@ -23,15 +24,18 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015j-Windows-x86_64.zip`
-(SHA-256 `48f5396e29e0a7fe514b0c1719081bc55f35774abc851ff275795b963a6a98b1`).
+Current local review package: `dist/Friendly-Freya-review-20261015k-Windows-x86_64.zip`
+(SHA-256 `dbc9068cbf4bcf482edd8f0d0a8c3487136d375b3e1e448c0113ae8d6b20b798`).
 Verify it against the adjacent `.sha256` file before testing.
-The extracted review-j PCK passed a short exported performance-entry check
-headlessly and graphically at 1280×720 on Linux. The earlier review-f PCK
-passed a local Linux input route through credits; the earlier
+The extracted review-k PCK passed a short headless performance-entry check
+and a warmed graphical 1280×720 sample on Linux. A source live-input route
+at the same controller commit reached chapter 2 with two protected allies and
+five claimed sites. The earlier review-f PCK passed a local Linux input route
+through credits; the earlier
 [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
-passed its automated headless campaign route. Check the review-j Windows
-Actions result on [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
+passed its automated headless campaign route. Check the
+[review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+on [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
 before using this package for player tests. Graphical manual checks remain open.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
@@ -61,7 +65,7 @@ Use the same observation sheet for every player:
 | Time to lodge rescue and chapter 1 result | |
 | Time to chapters 2 and 3, credits, and return to exploration | |
 | Did the H next-step guide help with ally protection and the final signal? | |
-| If the final site was already owned, could the player find and guard its clean signal with an ally? | |
+| If encountered: after owning the final site, could the player find and guard its clean signal with an ally? | |
 | Could the player read the G-pinned goals, scroll them, and return to play? | |
 | Could the player read the chapter guide at the tested window size? | |
 | Missed prompt, wrong input, unclear marker, or stuck route | |
@@ -77,7 +81,7 @@ they would want to play another route.
 
 ## Focused Windows release checks
 
-On the proposed HP Victus minimum Windows PC, record Windows build, actual
+On the user-selected HP Victus minimum Windows PC, record Windows build, actual
 hardware configuration, graphics driver, power mode, and active GPU. With the
 laptop plugged in and the dedicated RTX 4060 active, run the unprofiled
 135-second full-pack stress scenario by double-clicking `RunPerformanceQA.cmd`
@@ -109,6 +113,16 @@ future-version primary save and, separately, a future-version backup only in
 that disposable QA copy; each must show its archive notice and block a route
 that cannot save. Never use a playtester’s sole campaign save for this check.
 
+In a focused accessibility pass, finish a chapter using the keyboard alone.
+Check that sustained scent holds and repeated actions remain physically
+manageable, text and subtitles stay on screen long enough to read, critical
+markers and status text remain legible at both supported window sizes, and
+every audio cue needed for progress also has a visible or textual cue. Record
+each barrier, the setting or design change needed, and a repeat result. In a
+separate prepared chapter-3 save, own the final signal site before assigning a
+guard, then verify the guide names the clean signal and guarding it completes
+the chapter.
+
 ## Decision record
 
 After all five observations, list the three most common friction points and
@@ -117,5 +131,6 @@ players chose, whether the first chapter's proposed 30–45 minute duration was
 useful, and which claim/food/imp interactions felt repetitive or surprising.
 Tune the required site count, travel, warning time, rewards, or wording based
 on those observations. A release candidate needs a clean Windows
-start-to-credits run, no known objective softlock, readable UI at the supported
-sizes, and a measured floor of at least 30 FPS on the stated minimum machine.
+start-to-credits run, no known objective softlock, a completed accessibility
+pass, readable UI at the supported sizes, a measured floor of at least 30 FPS
+on the stated minimum machine, and resolved severe or common playtest friction.

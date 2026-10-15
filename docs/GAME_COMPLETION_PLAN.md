@@ -13,10 +13,11 @@ code and executable checks remain authoritative.
 
 ## Next release steps
 
-1. Finish the current full validation suite, inspect the changed startup,
-   pause, pack, final-signal, and credits captures, then cut a new checksummed
-   Windows review ZIP. Repeat its exported startup, performance-entry, and
-   keyboard campaign checks in Windows Actions.
+1. Confirm the current [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+   finishes its exported keyboard route through credits and Keep Exploring.
+   The source suite, inspected startup/pause/pack/final-signal/credits captures,
+   checksum, and local exported performance-entry checks have passed for the
+   review-k package; retain the Windows job log as evidence.
 2. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
    1920×1080. Require every five-second window to reach 30 FPS, and check
@@ -226,7 +227,7 @@ hardware floor.
   accessibility review, and a natural graphical Windows start-to-credits QA
   run remain open.** The first chapter's 30–45 minute pacing is still a
   playtest hypothesis. Automated checks prove route and state transitions, not
-  fun. The proposed minimum Windows test PC is the HP Victus 16-r0073cl
+  fun. The user-selected minimum Windows test PC is the HP Victus 16-r0073cl
   (7N4X6UA#ABA): factory Windows 11 Home, Core i7-13700HX, GeForce RTX 4060
   Laptop GPU with 8 GB video memory, and 32 GB RAM, per the
   [HP model listing](https://support.hp.com/us-en/product/details/victus-by-hp-16.1-inch-gaming-laptop-pc-16-r0000/model/2101566991?sku=7N4X6UA)
@@ -337,18 +338,25 @@ hardware floor.
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. The route
   is headless and automated; it does not replace a graphical player run.
 - The current local Windows review ZIP,
-  `dist/Friendly-Freya-review-20261015j-Windows-x86_64.zip`, was exported with
+  `dist/Friendly-Freya-review-20261015k-Windows-x86_64.zip`, was exported with
   Godot 4.7.2 and verified against SHA-256
-  `48f5396e29e0a7fe514b0c1719081bc55f35774abc851ff275795b963a6a98b1`.
+  `dbc9068cbf4bcf482edd8f0d0a8c3487136d375b3e1e448c0113ae8d6b20b798`.
   Exported-PCK validation reported `RELEASE_CONTENT_OK` for the ending scene,
   active dog model, 24 recorded barks, all 32 exact cue mappings, and the bundled
-  normal-input campaign QA and performance routes. The extracted review-j PCK
-  passed a six-second headless performance-entry smoke and a graphical
-  1280×720 smoke on Linux. A 10-second warm-up plus 55-second graphical source
-  run on the local Intel HD 4600 reached all six kennel births, moved Freya,
-  preserved the requested display size, and exited cleanly after the harness
-  progress check was corrected for slow frames. These checks do not measure
-  sustained FPS on the HP.
+  normal-input campaign QA and performance routes. The extracted review-k PCK
+  passed a six-second headless performance-entry smoke and, after a five-second
+  warm-up, a 20-second graphical 1280×720 sample on the local Intel HD 4600.
+  The graphical sample held the requested client size, moved Freya, and spawned
+  kennel dogs, but averaged 22.4 FPS on that older GPU. A six-second cold-start
+  sample on the same machine tripped the progress guard after a slow first
+  frame; these checks do not measure sustained FPS on the selected HP.
+  A local live-input route at commit `be0398d` reached the chapter-2 checkpoint
+  with all six lodge dogs rescued, 8/8 chapter-1 sites, 5/5 chapter-2 sites,
+  and two separately recruited and protected clean allies. The post-refinement
+  `./scripts/predeploy_size_checks.sh` suite passed. The matching
+  [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+  has passed export and EXE startup/performance-entry smoke; its full campaign
+  route is pending.
   A local Linux headless run of the earlier
   review-f extracted PCK secured chapter 1 at 8/8 sites and six lodge
   rescues, recovered from an ally's re-possession to protect two in chapter 2
@@ -371,17 +379,15 @@ threat, make a choice, see a dog or place change because of it, and use that
 gain in the next encounter**. Its humor and domestic stakes should remain as
 important as the invasion.
 
-Ship a complete, replayable neighborhood chapter first: roughly **30–45
-minutes for a first successful run**, subject to playtesting. It should end
-with Ryah safe, the neighborhood's key alien generators shut down, a kennel
-rescue completed, and a clear lead toward Gene and Zoe. Then build two shorter
-chapters that vary the same core loop and resolve the parents' abduction. The
-existing 80-building map can support exploration and optional total ownership;
-claiming every one of its buildings should not be the mandatory story ending.
-
-This sequence is deliberate. A polished chapter with a real ending is a
-playable game. Adding more maps before its choices, pacing, and controls are
-fun would multiply unfinished work.
+The original scope decision was to ship a complete, replayable neighborhood
+chapter first, with roughly **30–45 minutes for a first successful run** as a
+playtest hypothesis. It would end with Ryah safe, key alien generators shut
+down, a kennel rescue, and a lead toward Gene and Zoe. Two shorter chapters
+would vary the same core loop and resolve the parents' abduction. All three
+chapters are now implemented; their pacing and clarity still need observation.
+The 80-building map supports optional total ownership without making it the
+story ending. This staged scope kept the first complete loop central to the
+design before expanding its content.
 
 ## Planning baseline: what existed and what was missing
 
@@ -604,6 +610,11 @@ minimum-PC performance, and player observation remain open under Gate 4.
 - Add remappable controls or an alternate input scheme, subtitle/text speed
   choices, contrast/readability options, and separate music/effects volume if
   playtests call for them. Keep the skip route and pause behavior reliable.
+- Complete a focused keyboard-only accessibility pass. Check whether sustained
+  scent holds and repeated actions are manageable, subtitles and prompts remain
+  long enough to read, markers retain contrast at the supported window sizes,
+  and every progress-critical sound has a visible or textual cue. Record barriers,
+  adjust the controls or presentation, and repeat the affected route.
 - Run long-session performance and memory checks with a full pack, occupied
   storefronts, and kennel production. Optimize measured bottlenecks; use a
   release target of at least 30 FPS on the stated HP Victus minimum test
@@ -622,7 +633,10 @@ minimum-PC performance, and player observation remain open under Gate 4.
 
 **Gate:** a clean start-to-credits Windows playthrough, a passing
 `./scripts/predeploy_size_checks.sh`, inspected visual captures, no known
-softlocks, and a documented performance floor on minimum hardware.
+softlocks, a completed accessibility pass, and a documented performance floor
+on minimum hardware. Five unfamiliar-player sessions must identify severe and
+common friction, with fixes and repeat observations showing that players can
+finish the route, understand their choices, and want to continue.
 
 ## How to tell whether it is fun
 
