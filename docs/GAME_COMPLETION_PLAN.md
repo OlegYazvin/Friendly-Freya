@@ -7,31 +7,33 @@
 
 **Status:** The three-chapter campaign and ending are implemented, October 15,
 2026. The "What exists today" table records the baseline at planning time.
-The implementation log below states what this pass added; the playtest,
-performance, accessibility, and Windows release gates remain open. Runtime
-code and executable checks remain authoritative.
+The implementation log below states what this pass added. The automated
+exported-Windows route passes; graphical Windows, minimum-PC performance,
+accessibility, and unfamiliar-player gates remain open. Runtime code and
+executable checks remain authoritative.
 
 ## Next release steps
 
-1. Confirm the current [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
-   finishes its exported keyboard route through credits and Keep Exploring.
-   The source suite, inspected startup/pause/pack/final-signal/credits captures,
-   checksum, and local exported performance-entry checks have passed for the
-   review-k package; retain the Windows job log as evidence.
-2. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
+The [review-k Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+passed export, EXE startup, performance entry, credits, and Keep Exploring.
+The source suite, inspected captures, ZIP checksum, and local exported checks
+also passed. Release publication was skipped.
+
+1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
    1920×1080. Require every five-second window to reach 30 FPS, and check
    text, input response, audio, and memory in natural play. Optimize and repeat
    only if measured results miss the target.
-3. Complete an ordinary graphical Windows start-to-credits run. Exercise
+2. Complete an ordinary graphical Windows start-to-credits run. Exercise
    mid-chapter Resume, a lodge rescue, chapter-2 ally protection, the final
    signal, credits, Keep Exploring, and Replay Story cancellation. Verify a
-   future-version save is preserved rather than overwritten.
-4. Observe five players who have not seen the project, without control
+   future-version save is preserved rather than overwritten. Run the focused
+   keyboard-only accessibility pass in the [run sheet](PLAYTEST_RUN_SHEET.md).
+3. Observe five players who have not seen the project, without control
    coaching. Record where they lose the route, why they choose pack and
    protection tactics, time to each chapter, and what feels rewarding or
    repetitive. Use the [run sheet](PLAYTEST_RUN_SHEET.md).
-5. Fix the three most common or severe problems, then repeat affected
+4. Fix the three most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
 
@@ -355,8 +357,10 @@ hardware floor.
   and two separately recruited and protected clean allies. The post-refinement
   `./scripts/predeploy_size_checks.sh` suite passed. The matching
   [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
-  has passed export and EXE startup/performance-entry smoke; its full campaign
-  route is pending.
+  passed export, EXE startup/performance-entry smoke, and the full headless
+  campaign route. Its log records three chapters, six lodge rescues, 18
+  claimed sites, three allies, `NATURAL_ROUTE_CREDITS_OK`,
+  `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`.
   A local Linux headless run of the earlier
   review-f extracted PCK secured chapter 1 at 8/8 sites and six lodge
   rescues, recovered from an ally's re-possession to protect two in chapter 2

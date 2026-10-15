@@ -3,11 +3,11 @@
 [Documentation hub](../README.md) · [Game completion plan](GAME_COMPLETION_PLAN.md) ·
 [Run guide](../RUN_FRIENDLY_FREYA.md)
 
-**Status:** Ready for external observation. An earlier exported Windows EXE
-start-to-credits route passed, and local graphical measurements are recorded.
-The current review build still needs a passing Windows route. Five
-unfamiliar-player tests, a measured minimum-Windows-PC performance floor, and
-graphical Windows start-to-credits QA remain open.
+**Status:** Ready for external observation. The current review build passed an
+exported Windows EXE start-to-credits route, and local graphical measurements
+are recorded. Five unfamiliar-player tests, a measured minimum-Windows-PC
+performance floor, focused accessibility, and graphical Windows
+start-to-credits QA remain open.
 
 The user-selected minimum Windows test PC is the HP Victus 16-r0073cl (HP
 product 7N4X6UA#ABA). Its factory configuration is Windows 11 Home,
@@ -31,12 +31,12 @@ The extracted review-k PCK passed a short headless performance-entry check
 and a warmed graphical 1280×720 sample on Linux. A source live-input route
 at the same controller commit reached chapter 2 with two protected allies and
 five claimed sites. The earlier review-f PCK passed a local Linux input route
-through credits; the earlier
-[Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
-passed its automated headless campaign route. Check the
+through credits. The matching
 [review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
-on [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
-before using this package for player tests. Graphical manual checks remain open.
+passed its exported EXE route through credits and Keep Exploring, with three
+chapters, six lodge rescues, and 18 claimed sites. The review evidence is
+tracked in [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
+Graphical manual checks remain open.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
 `.pck`. Record the exact build label and SHA-256 manifest. Each of five players

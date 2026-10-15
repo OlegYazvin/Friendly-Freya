@@ -396,12 +396,11 @@ review-f PCK passed this local Linux route on seed 20260831. The current
 review-k PCK passed exact-content export, checksum, a short headless
 performance-entry check, and a warmed graphical 1280×720 sample on Linux. A
 source live-input route at the same controller commit passed the chapter-2
-checkpoint with two protected allies and five claimed sites. The prior
-[Windows Actions run 38763215003](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38763215003)
-passed the automated campaign route. Check the
-[current review-k Windows Actions result](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
-for exported credits and Keep Exploring markers; graphical playtesting on the
-HP Victus remains open.
+checkpoint with two protected allies and five claimed sites. The
+[review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
+passed export, EXE startup, packaged performance entry, and the full headless
+campaign route with credits and Keep Exploring markers. Graphical playtesting
+and sustained performance measurement on the HP Victus remain open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
