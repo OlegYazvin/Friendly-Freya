@@ -84,7 +84,7 @@ func _process(delta: float) -> void:
 		return
 	if not static_view:
 		var previous_time = timeline_time
-		timeline_time = minf(IntroTimeline.TOTAL_DURATION, timeline_time + delta)
+		timeline_time = _auto_advance_target(timeline_time, delta)
 		_fire_crossed_audio_events(previous_time, timeline_time)
 	_apply_timeline_time(timeline_time)
 	_update_alien_idle_poses(delta)
@@ -136,6 +136,20 @@ func _intro_dialogue_complete_time(scene: Dictionary) -> float:
 	var scene_end = float(scene.get("end", scene_start))
 	# The bubble resolves runes, then morphs into English; it is not a typewriter.
 	return minf(scene_end - 0.02, scene_start + float(scene.get("rune_duration", 0.0)) + float(scene.get("morph_duration", 0.0)) + 0.02)
+
+
+func _auto_advance_target(from_time: float, delta: float) -> float:
+	var target_time = minf(IntroTimeline.TOTAL_DURATION, from_time + maxf(delta, 0.0))
+	for scene in IntroTimeline.SCENES:
+		if str(scene.get("english", "")).is_empty():
+			continue
+		# Stop inside the dialogue scene so its complete English bubble remains
+		# visible until the player presses Next. This also handles a long frame
+		# that crosses an entire scene without skipping a line.
+		var hold_time = float(scene["end"]) - 0.02
+		if from_time <= hold_time and target_time >= hold_time:
+			return hold_time
+	return target_time
 
 
 func _advance_intro_scene() -> void:
@@ -831,7 +845,7 @@ func _run_intro_validation() -> void:
 		failures.append("completion_route_missing")
 
 	if failures.is_empty():
-		print("INTRO_OK: 5 scenes, 3 aliens, rune translations, 6 authored SFX cues, Earth orbit, and 8-ship pullback validated")
+		print("INTRO_OK: 5 scenes, 3 player-held English lines, 6 authored SFX cues, Earth orbit, and 8-ship pullback validated")
 		call_deferred("_quit_after_validation", 0)
 	else:
 		push_error("INTRO_FAIL: " + ", ".join(failures))
@@ -905,8 +919,18 @@ func _validate_dialogue_advance_controls(failures: Array[String]) -> void:
 	static_view = false
 	transition_started = false
 	var saved_audio_events = played_audio_events.duplicate()
+	if absf(_auto_advance_target(0.0, IntroTimeline.TOTAL_DURATION) - (float(IntroTimeline.SCENES[1]["end"]) - 0.02)) > 0.001:
+		failures.append("intro_auto_skipped_first_dialogue")
 	for line_index in range(1, 4):
 		var line: Dictionary = IntroTimeline.SCENES[line_index]
+		var hold_time = float(line.end) - 0.02
+		if absf(_auto_advance_target(float(line.start), float(line.end) - float(line.start) + 5.0) - hold_time) > 0.001:
+			failures.append("intro_auto_dialogue_hold_missing_%d" % line_index)
+		if absf(_auto_advance_target(hold_time, 5.0) - hold_time) > 0.001:
+			failures.append("intro_auto_dialogue_hold_not_stable_%d" % line_index)
+		_apply_timeline_time(hold_time)
+		if speech_text_label.text != str(line.english) or current_scene_id != str(line.id):
+			failures.append("intro_auto_dialogue_not_readable_%d" % line_index)
 		for phase_offset in [0.02, float(line.rune_duration) + float(line.morph_duration) * 0.5]:
 			timeline_time = float(line.start) + phase_offset
 			_advance_intro_scene()
@@ -918,6 +942,9 @@ func _validate_dialogue_advance_controls(failures: Array[String]) -> void:
 				failures.append("intro_next_failed_to_advance_%d" % line_index)
 			if played_audio_events.size() < event_count:
 				failures.append("intro_next_lost_audio_event_history")
+	var fleet_start = float(IntroTimeline.SCENES[4]["start"]) + 0.001
+	if absf(_auto_advance_target(fleet_start, IntroTimeline.TOTAL_DURATION) - IntroTimeline.TOTAL_DURATION) > 0.001:
+		failures.append("intro_fleet_auto_completion_missing")
 	played_audio_events = saved_audio_events
 	transition_started = saved_transition
 	static_view = saved_static

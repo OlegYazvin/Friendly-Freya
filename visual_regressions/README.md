@@ -19,6 +19,9 @@ outline fallback.
 
 ## Intro and Startup References
 
+The three translated UFO lines remain on screen until the player presses Next;
+the English reference views show their fully readable held state.
+
 - [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, with `New Game: Watch Intro` focused and `New Game: Skip Intro` and `Settings` available in the dark menu panel.
 - [startup_resume.png](startup_resume.png) — the same title layout with `Resume Game` focused as it is when a valid save exists; checks that all four choices remain visible and readable.
 - [startup_new_game_confirm.png](startup_new_game_confirm.png) — the saved-campaign new-game warning with keyboard focus on `Keep Progress` before an existing save can be replaced.

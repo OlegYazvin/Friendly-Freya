@@ -124,8 +124,11 @@ It runs:
 20. `-` / `=` keyboard camera zoom through actual input dispatch, both zoom
     limits, pause behavior, and in-game help text in
     `godot/tests/camera_keyboard_zoom.gd`.
+21. `New Game: Watch Intro` through the UFO English dialogue hold, family
+    dialogue hold, required meal, first-exit thought, and return to play using
+    keyboard events in `godot/tests/watch_intro_route.gd`.
 
-Successful output includes `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
+Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`,
 `DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
 `CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
@@ -138,8 +141,21 @@ inspected deterministic capture.
 
 For additional staged camera evidence, run the camera script graphically with
 `FREYA_REVIEW_DIR` pointing to an existing directory. It saves the cinematic
-checkpoints and interior rotations while retaining the same assertions. The
-full natural Watch Intro route still requires input-driven review.
+checkpoints and interior rotations while retaining the same assertions.
+
+The focused Watch Intro route sends Enter, Space, movement, and F through the
+ordinary input path on fixed seed 20260831. It verifies that the first complete
+English UFO and family lines remain visible until Space, then completes the
+meal and first-exit thought before normal play resumes:
+
+```sh
+host-spawn env FREYA_WORLD_SEED=20260831 flatpak run org.godotengine.Godot \
+  --headless --path "$PWD/godot" --script res://tests/watch_intro_route.gd
+```
+
+The route is in predeploy and the exported Windows smoke step. Its headless
+result checks interaction and state transitions; graphical Windows review of
+the opening remains part of release QA.
 
 ## Optional Natural Input Route
 
@@ -423,13 +439,14 @@ the ZIP and checksum only after the Windows startup smoke and exported
 start-to-credits campaign route pass. Other `v*` tags trigger the workflow but
 fail the version/metadata guard. A manual `workflow_dispatch` run from a
 pushed review branch builds
-an Actions artifact, smoke-tests the exported EXE and its bundled performance
-entry on `windows-latest`, then
+an Actions artifact, smoke-tests the exported EXE, its bundled performance
+entry, and the Watch Intro opening on `windows-latest`, then
 runs the bundled keyboard campaign controller through credits and Keep
 Exploring in the extracted EXE/PCK. Tag pushes require the same route before
 publication. That Windows route is headless and checks
 `NATURAL_ROUTE_CREDITS_OK`, `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and
-`NATURAL_ROUTE_CAMPAIGN_OK`; its log is uploaded even if the route fails. Manual
+`NATURAL_ROUTE_CAMPAIGN_OK`; the opening smoke checks `WATCH_INTRO_ROUTE_OK`.
+The campaign log is uploaded even if the route fails. Manual
 runs do not publish a GitHub Release, including when dispatched from a tag.
 A passing route verifies exported Windows input and campaign logic, while visual
 Windows review, unfamiliar-player playtests, and minimum-PC performance still

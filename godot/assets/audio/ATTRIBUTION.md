@@ -403,16 +403,23 @@ exact stream so one hit cannot cut another short.
   file is substituted if it is unavailable.
 - The `door` cue is reserved for a door that visibly opens. Home and store
   doorways are already open, so crossing them is silent.
-- Camera rotation and zoom, the Tab objectives display, and key presses that
-  do not complete an in-world action are silent; they produce no physical
-  sound source. Menu selections and accepted pack orders use the recorded
-  mechanical button cue.
+- Successful Q/E camera rotation, changed keyboard or wheel zoom, opening
+  unpinned goals with Tab, and Page Up/Down scrolling that moves a panel use
+  the exact recorded mechanical `button` cue at a lower gain. Held rotation
+  clicks once on key press; rapid zoom or scrolling shares a short click gap
+  instead of restarting the recording for every intermediate step. Zoom at a
+  limit, scrolling at an edge, Tab while goals are already pinned, and keys
+  that complete no action are silent. G/H toggles, menu selections, and
+  accepted pack orders also use the recorded mechanical button cue.
 - Player-requested Next and Skip in the UFO, family, and first-exit story
   sequences use that exact recorded button cue. Timed, automatic scene
   progression stays silent.
-- Continuous volume-slider adjustment is silent to avoid a click for every
-  intermediate value. Quitting the process is immediate, so its last-frame
-  button press is silent rather than cutting a recorded cue short.
+- A changed master-volume slider plays the exact recorded `button` cue after
+  adjustment settles, avoiding a click for every intermediate slider value.
+  A master volume of zero remains silent as requested by the player's mute.
+  Successful Quit saves first, plays the exact recorded button cue, and waits
+  for that recording to finish before closing. If it cannot load, Quit closes
+  in silence without using a replacement sound.
 - The eight-ship fleet reveal is silent. It occurs in space, where recorded
   aircraft or wind movement would imply air around the ships; its automatic
   camera move has no physical source for an audible Foley event.

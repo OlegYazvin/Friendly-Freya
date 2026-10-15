@@ -223,6 +223,29 @@ jobs:
             Pop-Location
           }
 
+      - name: Verify exported Watch Intro opening route
+        shell: pwsh
+        run: |
+          $exe = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.exe'
+          $logPath = Join-Path $exe.Directory.FullName 'watch-intro-smoke.log'
+          Push-Location $exe.Directory.FullName
+          try {
+            $env:FREYA_EXPORTED_WATCH_INTRO_QA = '1'
+            $env:FREYA_WORLD_SEED = '20260831'
+            $process = Start-Process -FilePath $exe.FullName -ArgumentList @('--headless', '--resolution', '960x540', '--log-file', 'watch-intro-smoke.log') -Wait -PassThru
+            if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 80 }
+            if ($process.ExitCode -ne 0) { throw "Exported Watch Intro route exited with code $($process.ExitCode)." }
+            if (-not (Test-Path -LiteralPath $logPath)) { throw 'Exported Watch Intro log is missing.' }
+            foreach ($marker in @('WATCH_INTRO_UFO_HOLD_OK', 'WATCH_INTRO_FAMILY_HOLD_OK', 'WATCH_INTRO_MEAL_OK', 'WATCH_INTRO_FIRST_EXIT_OK', 'WATCH_INTRO_ROUTE_OK')) {
+              if (-not (Select-String -Path $logPath -Pattern $marker -SimpleMatch -Quiet)) {
+                throw "Exported Watch Intro log did not contain $marker."
+              }
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
   windows-campaign-qa:
     name: Exported Windows start-to-credits route
     needs:

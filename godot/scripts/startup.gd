@@ -7,6 +7,7 @@ const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
 const EXPORTED_CAMPAIGN_ROUTE_PATH = "res://tests/natural_campaign_route.gd"
+const EXPORTED_WATCH_INTRO_ROUTE_PATH = "res://tests/watch_intro_route.gd"
 const EXPORTED_PERF_STRESS_PATH = "res://tests/performance_stress.gd"
 const STARTUP_HERO_BACKGROUND_PATH = "res://assets/images/startup_freya_hero_v2.png"
 const TITLE_CARD_THEME_PATH = "res://assets/audio/menu/title_card_theme_8bit.wav"
@@ -74,6 +75,7 @@ var selection_locked := false
 var title_card_theme_player: AudioStreamPlayer
 var title_card_theme_stream: AudioStream
 var action_audio: Node
+var volume_click_timer: Timer
 var master_volume := AudioPreferencesScript.DEFAULT_MASTER_VOLUME
 var resume_save_path: String = GameSaveScript.SAVE_PATH
 var fresh_start_prompt
@@ -87,6 +89,10 @@ func _ready() -> void:
 	_create_title_card_theme_player()
 	action_audio = ActionAudioScript.new()
 	add_child(action_audio)
+	volume_click_timer = Timer.new()
+	volume_click_timer.one_shot = true
+	volume_click_timer.timeout.connect(_on_volume_click_settled)
+	add_child(volume_click_timer)
 	watch_intro_button.pressed.connect(_on_watch_intro_pressed)
 	skip_to_game_button.pressed.connect(_on_skip_to_game_pressed)
 	resume_game_button.pressed.connect(_on_resume_game_pressed)
@@ -100,8 +106,9 @@ func _ready() -> void:
 	else:
 		watch_intro_button.grab_focus()
 	var exported_campaign_qa = OS.get_environment("FREYA_EXPORTED_CAMPAIGN_QA") == "1"
+	var exported_watch_intro_qa = OS.get_environment("FREYA_EXPORTED_WATCH_INTRO_QA") == "1"
 	var exported_perf_stress = OS.get_environment("FREYA_EXPORTED_PERF_STRESS") == "1"
-	if exported_campaign_qa and exported_perf_stress:
+	if int(exported_campaign_qa) + int(exported_watch_intro_qa) + int(exported_perf_stress) > 1:
 		push_error("Only one exported QA route may run at a time.")
 		get_tree().quit(1)
 		return
@@ -109,6 +116,10 @@ func _ready() -> void:
 		get_tree().set_meta("freya_exported_campaign_qa_started", true)
 		get_tree().set_meta("freya_flow_validation", true)
 		call_deferred("_launch_exported_campaign_qa")
+	elif exported_watch_intro_qa and not bool(get_tree().get_meta("freya_exported_watch_intro_qa_started", false)):
+		get_tree().set_meta("freya_exported_watch_intro_qa_started", true)
+		get_tree().set_meta("freya_flow_validation", true)
+		call_deferred("_launch_exported_watch_intro_qa")
 	elif exported_perf_stress and not bool(get_tree().get_meta("freya_exported_perf_stress_started", false)):
 		get_tree().set_meta("freya_exported_perf_stress_started", true)
 		get_tree().set_meta("freya_flow_validation", true)
@@ -138,6 +149,22 @@ func _launch_exported_campaign_qa() -> void:
 		tree.quit(1)
 		return
 	print("EXPORTED_CAMPAIGN_QA_START: bundled keyboard route attached")
+	tree.call("_initialize")
+
+
+func _launch_exported_watch_intro_qa() -> void:
+	var route_script := load(EXPORTED_WATCH_INTRO_ROUTE_PATH) as Script
+	if route_script == null:
+		push_error("Exported Watch Intro QA route is missing from the PCK.")
+		get_tree().quit(1)
+		return
+	var tree := get_tree()
+	tree.set_script(route_script)
+	if tree.get_script() != route_script:
+		push_error("Could not attach exported Watch Intro QA route to SceneTree.")
+		tree.quit(1)
+		return
+	print("EXPORTED_WATCH_INTRO_QA_START: bundled keyboard route attached")
 	tree.call("_initialize")
 
 
@@ -301,17 +328,28 @@ func _on_settings_pressed() -> void:
 func _on_settings_back_pressed() -> void:
 	if selection_locked:
 		return
+	if volume_click_timer != null:
+		volume_click_timer.stop()
 	action_audio.play("button", -11.0)
 	settings_panel.visible = false
 	settings_button.grab_focus()
 
 
 func _on_master_volume_changed(value: float) -> void:
+	var previous_volume = master_volume
 	master_volume = clampf(value, 0.0, 1.0)
 	AudioPreferencesScript.apply_master_volume(master_volume)
 	AudioPreferencesScript.save_master_volume(master_volume)
 	if master_volume_value_label != null:
 		master_volume_value_label.text = AudioPreferencesScript.display_percent(master_volume)
+	if settings_panel.visible and not selection_locked and not is_equal_approx(master_volume, previous_volume) and volume_click_timer != null:
+		# A drag or held arrow adjusts continuously; acknowledge it once after it settles.
+		volume_click_timer.start(0.25)
+
+
+func _on_volume_click_settled() -> void:
+	if settings_panel.visible and not selection_locked and action_audio != null:
+		action_audio.play("button", -16.0)
 
 
 func _sync_audio_settings_ui() -> void:
@@ -517,6 +555,8 @@ func _run_release_content_validation() -> void:
 		failures.append("campaign_ending_scene_missing")
 	if not ResourceLoader.exists(EXPORTED_CAMPAIGN_ROUTE_PATH, "Script"):
 		failures.append("exported_campaign_route_missing")
+	if not ResourceLoader.exists(EXPORTED_WATCH_INTRO_ROUTE_PATH, "Script"):
+		failures.append("exported_watch_intro_route_missing")
 	if not ResourceLoader.exists(EXPORTED_PERF_STRESS_PATH, "Script"):
 		failures.append("exported_perf_stress_route_missing")
 	for resource_path in RELEASE_EXCLUDED_RESOURCES:

@@ -16,7 +16,11 @@ runs inside the actual generated map home before control is released to Freya.
 Both halves use absolute-time timelines and deterministic regression views.
 `Space` / Next resolves the current text first, then advances on the next press.
 The UFO completion point is the end of its rune and morph phases, so English
-remains available even when advancing early.
+remains available even when advancing early. The UFO timeline pauses just before
+the end of each dialogue scene with its complete English line visible until
+`Space` / Next. Its establishing and fleet shots still advance automatically;
+the fleet's natural end still begins the live-home family sequence. The authored
+`25.5s` is therefore a minimum rather than a fixed viewing duration.
 
 ## Editable Architecture
 
@@ -101,11 +105,12 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. The bubble appears and reveals nonsensical runes for `1.1s`.
   2. Rune cells progressively resolve into English for `1.4s`.
-  3. The exact English sentence remains readable for the rest of the scene.
+  3. The exact English sentence remains visible until `Space` / Next, including
+     after the authored scene time reaches its dialogue hold.
 - Sound cues:
   - `rune_reveal.ogg` once when the rune bubble begins.
   - `translation_resolve.ogg` once when translation begins.
-- Transition: the A bubble clears before the B bubble takes over.
+- Transition: `Space` / Next clears the A bubble before the B bubble takes over.
 - Edit points: speaker, text, and durations are all in this scene's timeline
   dictionary.
 
@@ -123,9 +128,9 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. Nonsensical runes reveal for `1.1s`.
   2. Runes progressively resolve for `1.6s`.
-  3. The longer English sentence receives the sequence's longest reading hold.
+  3. The longer English sentence remains visible until `Space` / Next.
 - Sound cues: one exact rune reveal cue and one exact translation cue.
-- Transition: the B bubble clears before Alien A's final command.
+- Transition: `Space` / Next clears the B bubble before Alien A's final command.
 - Edit points: speaker, text, and durations are in `intro_timeline.gd`.
 
 ## Scene 04 — Alien A: The Command
@@ -141,12 +146,12 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. Runes reveal for `1.0s`.
   2. Runes resolve into English for `1.3s`.
-  3. The command holds through the end of the bridge shot.
+  3. The command holds until `Space` / Next ends the bridge shot.
 - Sound cues: one exact rune reveal cue and one exact translation cue.
 - Alien C rule: Alien C never owns a dialogue entry or speech bubble anywhere in
   the timeline.
-- Transition: a short black mask hides the switch from the bridge interior to
-  the hero UFO exterior.
+- Transition: `Space` / Next starts a short black mask that hides the switch
+  from the bridge interior to the hero UFO exterior.
 
 ## Scene 05 — Fleet Reveal
 
@@ -306,7 +311,8 @@ capture command is an update tool, not an image-diff assertion. See the
 output names.
 
 The validators check the UFO scene IDs/times, exact alien cast and dialogue,
-audio schedules, Earth, fleet, and natural handoff. They also seek the live-home
+player-paced English holds, Next/Skip controls, audio schedules, Earth, fleet,
+and natural handoff. They also seek the live-home
 timeline to check all exact family lines, Gene/Zoe likeness signatures, held
 and dropped pill bottles, two rings around each parent, both disappearance
 checkpoints, Ryah's interrupted transfer, Freya's pill-eating, convulsion, and

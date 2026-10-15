@@ -70,6 +70,9 @@ run_scene_validation res://scenes/Startup.tscn FREYA_STARTUP_VALIDATE=1
 echo "Running Friendly Freya intro cut-scene validation..."
 run_scene_validation res://scenes/IntroCutscene.tscn FREYA_INTRO_VALIDATE=1
 
+echo "Running Friendly Freya Watch Intro keyboard route..."
+run_scene_validation res://tests/watch_intro_route.gd FREYA_WORLD_SEED=20260831
+
 echo "Running Friendly Freya kennel validation..."
 run_scene_validation res://scenes/KennelConcept.tscn FREYA_KENNEL_VALIDATE=1
 

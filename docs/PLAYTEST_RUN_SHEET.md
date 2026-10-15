@@ -72,7 +72,7 @@ Optional observer prompts (not a player questionnaire):
 | Build, machine, display, and input device | |
 | 960×540 readability and smallest acceptable window | |
 | Start route: New Game: Watch Intro / New Game: Skip Intro | |
-| If watching: could the player read each family line, use Next, and continue after Freya's first-exit thought? | |
+| If watching: could the player read each UFO and family line, use Next, and continue after Freya's first-exit thought? | |
 | Time to eat and leave home | |
 | Time to first independent dog decision and cleanse | |
 | Time to first recruited ally and pack order | |

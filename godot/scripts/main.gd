@@ -68,6 +68,7 @@ const CAMERA_ZOOM_MIN = 8.6
 const CAMERA_ZOOM_MAX = 24.5
 const CAMERA_ZOOM_STEP = 1.0
 const CAMERA_ZOOM_SMOOTH = 7.0
+const CONTROL_CLICK_GAP_MSEC = 180
 const STICK_VISUAL_SCALE = 1.2
 const STICK_THICKNESS_MULT = 1.45
 const STICK_MOUTH_FORWARD_OFFSET = -0.08
@@ -861,6 +862,8 @@ var store_focus_overlay: ColorRect
 var pause_menu_layer: CanvasLayer
 var pause_menu_panel: Panel
 var pause_menu_open = false
+var quit_in_progress = false
+var last_control_click_msec = -CONTROL_CLICK_GAP_MSEC
 var pause_resume_button: Button
 var pause_intro_button: Button
 var pause_restart_prompt
@@ -1644,6 +1647,8 @@ func _configure_alien_visual_view() -> void:
 			break
 
 func _process(delta: float) -> void:
+	if quit_in_progress:
+		return
 	_update_performance_benchmark(delta)
 	if perf_benchmark_enabled:
 		if perf_profile_gameplay:
@@ -1972,6 +1977,8 @@ func _configure_input() -> void:
 	_ensure_action("menu", [Key.KEY_ESCAPE])
 
 func _unhandled_input(event: InputEvent) -> void:
+	if quit_in_progress:
+		return
 	if possessed_dog_tutorial_active:
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_ESCAPE]:
 			_dismiss_possessed_dog_tutorial()
@@ -1989,20 +1996,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			if scroll != null:
 				match event.keycode:
 					KEY_PAGEUP:
-						scroll.scroll_vertical -= 160
+						_scroll_panel_with_click(scroll, -160)
 						get_viewport().set_input_as_handled()
 					KEY_PAGEDOWN:
-						scroll.scroll_vertical += 160
+						_scroll_panel_with_click(scroll, 160)
 						get_viewport().set_input_as_handled()
 		return
 	if objectives_panel != null and objectives_panel.visible and event is InputEventKey and event.pressed and not event.echo and objectives_scroll != null:
 		match event.keycode:
 			KEY_PAGEUP:
-				objectives_scroll.scroll_vertical -= 160
+				_scroll_panel_with_click(objectives_scroll, -160)
 				get_viewport().set_input_as_handled()
 				return
 			KEY_PAGEDOWN:
-				objectives_scroll.scroll_vertical += 160
+				_scroll_panel_with_click(objectives_scroll, 160)
 				get_viewport().set_input_as_handled()
 				return
 	if family_intro_active:
@@ -2028,7 +2035,25 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _adjust_camera_zoom(delta_distance: float) -> void:
+	var previous_zoom = camera_zoom_target
 	camera_zoom_target = clampf(camera_zoom_target + delta_distance, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
+	if not is_equal_approx(camera_zoom_target, previous_zoom):
+		_play_recorded_control_click(true)
+
+func _scroll_panel_with_click(scroll: ScrollContainer, distance: int) -> void:
+	var previous_scroll = scroll.scroll_vertical
+	scroll.scroll_vertical += distance
+	if scroll.scroll_vertical != previous_scroll:
+		_play_recorded_control_click(true)
+
+func _play_recorded_control_click(repeatable: bool = false) -> void:
+	if action_audio == null:
+		return
+	var now_msec = Time.get_ticks_msec()
+	if repeatable and now_msec - last_control_click_msec < CONTROL_CLICK_GAP_MSEC:
+		return
+	last_control_click_msec = now_msec
+	action_audio.play("button", -16.0)
 
 func _ensure_action(name: String, keys: Array) -> void:
 	if not InputMap.has_action(name):
@@ -18986,6 +19011,8 @@ func _update_camera_orbit_input(delta: float) -> void:
 	if Input.is_action_pressed("camera_rotate_cw"):
 		rotate_dir -= 1.0
 	if absf(rotate_dir) > 0.0001:
+		if Input.is_action_just_pressed("camera_rotate_ccw") or Input.is_action_just_pressed("camera_rotate_cw"):
+			_play_recorded_control_click()
 		camera_orbit_angle = wrapf(camera_orbit_angle + rotate_dir * CAMERA_ORBIT_SPEED * delta, -PI, PI)
 
 func _clear_occlusion_outlines() -> void:
@@ -19923,6 +19950,8 @@ func _update_objectives_overlay() -> void:
 	if objectives_panel == null:
 		return
 	var should_show = (not pause_menu_open) and (objectives_pinned or Input.is_action_pressed("objectives"))
+	if should_show and not objectives_panel.visible and not objectives_pinned and Input.is_action_just_pressed("objectives"):
+		_play_recorded_control_click()
 	if should_show:
 		_layout_objectives_panel()
 	objectives_panel.visible = should_show
@@ -20429,11 +20458,24 @@ func _on_pause_save_pressed() -> void:
 		_show_status("Could not save game", 2.0)
 
 func _on_pause_exit_pressed() -> void:
-	if _write_game_save():
-		get_tree().quit()
+	if quit_in_progress:
 		return
-	_toggle_pause_menu(0, false)
-	_show_status("Could not save. Check storage, then use Esc > Save Game before quitting.", 5.0, 3)
+	if not _write_game_save():
+		_toggle_pause_menu(0, false)
+		_show_status("Could not save. Check storage, then use Esc > Save Game before quitting.", 5.0, 3)
+		return
+	quit_in_progress = true
+	for child in pause_menu_panel.get_children():
+		if child is Button:
+			(child as Button).disabled = true
+	if action_audio != null and action_audio.is_available("button"):
+		var click_path: String = str(ActionAudioScript.CUE_PATHS["button"])
+		var click_stream: AudioStream = ResourceLoader.load(click_path, "AudioStream") as AudioStream
+		action_audio.play("button", -11.0)
+		if click_stream != null and click_stream.get_length() > 0.0:
+			# Let this exact recorded click finish before the process closes.
+			await get_tree().create_timer(click_stream.get_length(), true).timeout
+	get_tree().quit()
 
 func _make_solid_ui_texture(color: Color, size: Vector2i) -> Texture2D:
 	var w = maxi(2, size.x)

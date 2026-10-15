@@ -98,8 +98,9 @@ The repository contains a versioned Windows export preset, a local packaging
 script, and a tag-driven GitHub Actions workflow. Release jobs verify the Godot
 editor and export-template downloads, run all project checks, build the ZIP,
 and start the exported package on a Windows runner before publishing it. A
-manual workflow run also drives the exported EXE/PCK through credits and Keep
-Exploring on a Windows runner and uploads the campaign log without publishing.
+manual workflow run also checks the exported Watch Intro opening, drives the
+EXE/PCK through credits and Keep Exploring on a Windows runner, and uploads the
+campaign log without publishing.
 
 The active dog model is documented CC0 material. Inactive reference models with
 unresolved provenance are explicitly excluded from release exports. See the

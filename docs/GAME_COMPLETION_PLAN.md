@@ -328,6 +328,19 @@ hardware floor.
   complete. Repeated action holds and a master-only volume setting remain
   items for unfamiliar-player review, along with readability at supported
   window sizes.
+- A focused normal-input Watch Intro route now selects the title's Watch Intro
+  choice, waits for a complete UFO English line and a family line to remain
+  until Space, then uses keyboard Next through both scenes. Freya uses F for
+  her required meal, walks out of the live home, advances the complete immunity
+  thought with Space, and returns to ordinary play. A fixed-seed headless
+  local run passed with `WATCH_INTRO_ROUTE_OK`. The route is in predeploy and
+  the exported Windows startup smoke; exported Windows results and graphical
+  player review still need to be recorded.
+- Accepted camera, goals, help scrolling, and volume controls now have a quiet
+  click from the existing recorded CC0 button file. Repeated zoom and scroll
+  inputs are throttled; a successful Quit finishes that exact recording after
+  saving. A missing recording stays silent. These control cues still need a
+  listening pass on the Windows review build.
 - When goals are open, action and threat status now appears in a reserved strip
   inside that panel. Its scrollable task list makes room for the message at
   small window sizes, so warnings do not silently expire behind pinned goals.

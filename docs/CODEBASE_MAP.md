@@ -55,8 +55,8 @@ thin scene shells whose scripts construct most runtime content.
 | Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data, M/F/A/C service markers, and a fixed cyan next-site or final-signal diamond that stays at the map edge when the site is beyond the zoomed view; Main owns state and synchronization |
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |
-| Regression automation | `scripts/`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
-| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing, then tag-push GitHub Release publication |
+| Regression automation | `scripts/`, `godot/tests/watch_intro_route.gd`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, a keyboard Watch Intro route through the opening and first-exit thought, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
+| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup, Watch Intro, and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing, then tag-push GitHub Release publication |
 
 `godot/scripts/main.gd` is intentionally the integration point and is much
 larger than the focused factories. Search for the owning function or constant
@@ -150,8 +150,11 @@ After preparing imports, it runs focused validation processes and covers:
     clinic-hint bounds.
 20. `-` / `=` keyboard camera zoom through actual input dispatch, zoom limits,
     pause behavior, and in-game help text in `godot/tests/camera_keyboard_zoom.gd`.
+21. the keyboard Watch Intro route through held UFO/family dialogue, required
+    meal, first-exit thought, and ordinary gameplay in
+    `godot/tests/watch_intro_route.gd`.
 
-Successful output contains `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
+Successful output contains `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`, `DEJANK_CAMERA_OK`,
 `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SERVICE_REACHABILITY_OK`,
@@ -178,6 +181,10 @@ claims, lodge rescue, all three chapters, ending page navigation, and Keep
 Exploring. A resumed seed-20260831 run passed that route; it reads world
 geometry and progress only to choose keys. Its command is in the
 [run guide](../RUN_FRIENDLY_FREYA.md#optional-natural-input-route).
+The focused `watch_intro_route.gd` shares those input and navigation helpers,
+chooses Startup Watch Intro, and reaches ordinary play after both cinematics,
+the required meal, and first-exit thought. It does not set gameplay progress;
+its command is also in the [run guide](../RUN_FRIENDLY_FREYA.md#required-validation).
 
 ## Environment Variables
 
@@ -207,6 +214,7 @@ These are automation interfaces, not player settings.
 | `FREYA_PERF_STRESS_SAMPLE_SECONDS` | Override the live stress harness's 135-second sample for a controlled comparison | Graphical stress launch |
 | `FREYA_PERF_STRESS_HIDE_LANE_DASHES` | Set to `1` to hide center-lane dashes in the staged stress scene for a test-only rendering comparison | Graphical stress launch |
 | `FREYA_EXPORTED_CAMPAIGN_QA` | Attach the bundled SceneTree keyboard route to an exported build for Windows campaign QA | Windows Actions manual and tag runs |
+| `FREYA_EXPORTED_WATCH_INTRO_QA` | Attach the bundled Watch Intro keyboard route to an exported build for Windows opening QA | Windows Actions startup smoke |
 | `FREYA_EXPORTED_PERF_STRESS` | Attach the bundled no-save stress controller to an exported build | Packaged Windows `RunPerformanceQA.cmd` and CI headless entry smoke |
 | `GODOT_BIN` | Select a direct Godot executable for validation/export automation | CI or local release tooling |
 | `FREYA_RELEASE_OUTPUT_DIR` | Override the Windows ZIP output directory | `build_windows_release.sh` |
