@@ -519,6 +519,22 @@ hardware floor.
   records three secured chapters, six lodge rescues, four allied dogs, 18
   claimed sites, credits, and Keep Exploring without game errors or warnings.
   HP audible and graphical review remain open for this build.
+- A local release-polish pass keeps a 69-character nearby-occupation
+  instruction visible for reading at 800×450 and 960×540 and gives it
+  priority over incidental feedback while urgent imp warnings still replace
+  it. When a final building claim also completes a chapter, all-map ownership,
+  or both, the exact recorded objective pop plays once rather than restarting
+  in the same frame. Focused runtime regressions passed for both behaviors.
+  The affected 960×540 goals-status PNG was regenerated and inspected; its
+  pixels matched the checked-in baseline. An extra deterministic reachability
+  sweep of seeds 1001–1050 passed: 850 chapter sites, 3,800 required marks,
+  250 occupied walls, 850 entrances, and 300 lodge cages remained connected
+  from home on the Freya-radius grid. The full
+  `./scripts/predeploy_size_checks.sh` suite passed afterward. The local
+  `dist/Friendly-Freya-review-20261015r-Windows-x86_64.zip` passed exported
+  content validation and SHA-256 verification against
+  `7499c1b418aa11ff34c9e1148f68466cdfbcc9ba9694e23468b8a1c7ff626e7c`.
+  Windows CI and HP audible/graphical review remain open for this build.
 
 ## The game to finish
 
@@ -676,8 +692,9 @@ contract](../KENNEL_CONCEPT.md).
   at home on its older test GPU, with variation between samples; measure again
   on the intended release hardware before choosing budgets.
 
-**Gate:** a written playtest report identifies the top three friction points
-and a reproducible seed for each technical issue.
+**Gate:** owner-relayed feedback identifies up to three recurring or severe
+friction points and a reproducible seed or save for each technical issue. No
+player form is required.
 
 ### 1. Ship the first chapter's short, complete loop
 
@@ -794,9 +811,10 @@ minimum-PC performance, and player observation remain open under Gate 4.
 **Gate:** a clean start-to-credits Windows playthrough, a passing
 `./scripts/predeploy_size_checks.sh`, inspected visual captures, no known
 softlocks, a completed accessibility pass, and a documented performance floor
-on minimum hardware. Five unfamiliar-player sessions must identify severe and
-common friction, with fixes and repeat observations showing that players can
-finish the route, understand their choices, and want to continue.
+on minimum hardware. About five unfamiliar-player sessions must establish
+whether players can finish the route, understand their choices, and want to
+continue. Fix any severe or recurring friction they reveal, then repeat the
+affected observations.
 
 ## How to tell whether it is fun
 

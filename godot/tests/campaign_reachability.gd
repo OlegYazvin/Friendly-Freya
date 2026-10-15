@@ -5,19 +5,53 @@ extends SceneTree
 # checked before their strongholds are cleared; entrances, marks, and cages are
 # checked afterward so a locked wall cannot produce a false route to them.
 const SEEDS = [20260831, 1, 42, 20260916, 20261014, 2, 7, 17, 20261015, 314159]
+const MAX_RANGE_SEEDS = 100
+const MAX_RANGE_SEED = 2147483647
 const GRID_STEP = 0.5
 const CARDINAL_OFFSETS = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 var failures: Array[String] = []
 var probe_counts = {"sites": 0, "marks": 0, "walls": 0, "entrances": 0, "cages": 0}
+var test_seeds: Array[int] = []
+var range_mode = false
+var current_seed = -1
+var completed_seeds = 0
 
 
 func _initialize() -> void:
 	set_meta("freya_flow_validation", true)
-	create_timer(240.0).timeout.connect(func():
-		push_error("CAMPAIGN_REACHABILITY_FAIL: timed out")
+	if not _configure_seeds():
+		quit(1)
+		return
+	var timeout_seconds = 240.0 if not range_mode else maxf(240.0, float(test_seeds.size()) * 30.0)
+	create_timer(timeout_seconds).timeout.connect(func():
+		push_error("CAMPAIGN_REACHABILITY_FAIL: timed out during seed %d after %d/%d completed seeds" % [current_seed, completed_seeds, test_seeds.size()])
 		quit(1)
 	)
 	call_deferred("run")
+
+
+func _configure_seeds() -> bool:
+	# Set both variables for an extended deterministic sweep. With neither set,
+	# predeploy keeps its original ten fixed regression seeds.
+	var start_text = OS.get_environment("FREYA_REACHABILITY_SEED_START")
+	var count_text = OS.get_environment("FREYA_REACHABILITY_SEED_COUNT")
+	if start_text.is_empty() and count_text.is_empty():
+		for seed in SEEDS:
+			test_seeds.append(seed)
+		return true
+	if not start_text.is_valid_int() or not count_text.is_valid_int():
+		push_error("CAMPAIGN_REACHABILITY_FAIL: set integer FREYA_REACHABILITY_SEED_START and FREYA_REACHABILITY_SEED_COUNT together")
+		return false
+	var seed_start = int(start_text)
+	var seed_count = int(count_text)
+	if seed_count < 1 or seed_count > MAX_RANGE_SEEDS or seed_start < 0 or seed_start > MAX_RANGE_SEED - (seed_count - 1):
+		push_error("CAMPAIGN_REACHABILITY_FAIL: range requires 1-%d seeds between 0 and %d" % [MAX_RANGE_SEEDS, MAX_RANGE_SEED])
+		return false
+	range_mode = true
+	for offset in range(seed_count):
+		test_seeds.append(seed_start + offset)
+	print("CAMPAIGN_REACHABILITY_RANGE start=%d end=%d count=%d" % [seed_start, seed_start + seed_count - 1, seed_count])
+	return true
 
 
 func check(value: bool, message: String) -> void:
@@ -218,7 +252,10 @@ func check_kennel(scene, grid: Dictionary, seed: int) -> void:
 
 
 func run() -> void:
-	for seed in SEEDS:
+	for seed in test_seeds:
+		current_seed = seed
+		if range_mode:
+			print("CAMPAIGN_REACHABILITY_BEGIN seed=%d progress=%d/%d" % [seed, completed_seeds, test_seeds.size()])
 		OS.set_environment("FREYA_WORLD_SEED", str(seed))
 		check(change_scene_to_file("res://scenes/Main.tscn") == OK, "seed %d Main failed" % seed)
 		await scene_changed
@@ -248,9 +285,10 @@ func run() -> void:
 			cleared_grid = _connected_grid(scene, start, seed, "chapter %d cleared" % chapter) if _needs_cleared_grid(scene, occupied_grid) else occupied_grid
 			check_sites(scene, cleared_grid, seed, chapter)
 		print("CAMPAIGN_REACHABILITY_SEED seed=%d occupied_walls_and_cleared_destinations chapters=3 home_start=%s chapter_sites=8/5/4 chapter_3_connected_nodes=%d" % [seed, start, int(cleared_grid.get("nodes", 0))])
+		completed_seeds += 1
 		await process_frame
 	if failures.is_empty():
-		print("CAMPAIGN_REACHABILITY_OK: %d seeds, %d sequential sites, %d surrounding marks, %d occupied walls, %d outside-to-inside entrances, %d lodge cages; all home-connected on 0.5m Freya-radius grid" % [SEEDS.size(), probe_counts["sites"], probe_counts["marks"], probe_counts["walls"], probe_counts["entrances"], probe_counts["cages"]])
+		print("CAMPAIGN_REACHABILITY_OK: %d seeds, %d sequential sites, %d surrounding marks, %d occupied walls, %d outside-to-inside entrances, %d lodge cages; all home-connected on 0.5m Freya-radius grid" % [test_seeds.size(), probe_counts["sites"], probe_counts["marks"], probe_counts["walls"], probe_counts["entrances"], probe_counts["cages"]])
 		quit()
 	else:
 		push_error("CAMPAIGN_REACHABILITY_FAIL: %d findings" % failures.size())

@@ -360,6 +360,9 @@ learned drill does not replay the first-time reward cue.
 The same recorded `claim` cue confirms an ally securing the cleared final
 signal when other chapter goals remain. If that guard action completes the
 chapter, the chapter-result cue plays once instead.
+When a final building claim also completes a chapter, all-map ownership, or
+both, one `claim` cue confirms the combined result. The ordinary mark cue does
+not restart the same recording in that frame.
 The `alien_emerge` cue also plays once when an occupied storefront generates a
 free imp within 14 world units of Freya. Distant storefront spawns stay silent;
 the event never selects another recording if its exact cue is unavailable.

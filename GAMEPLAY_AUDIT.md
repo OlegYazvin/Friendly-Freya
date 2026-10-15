@@ -209,7 +209,11 @@ The data model should still distinguish a storefront's base function from its cu
 
 1. **Implemented — Find possessed dogs.** Freya uses automatic unease while every dog continues to look ordinary.
 2. **Implemented — Cleanse them.** Aggressive bark performs the exorcism test; a fleeing real dog communicates an incorrect guess.
-3. **Implemented — Respond to building occupation.** Expelled aliens claim nearby buildings; occupied storefronts lose services and reinforce nearby holds. Bark or guarding allies can intercept visible imps.
+3. **Implemented — Respond to building occupation.** Expelled aliens claim
+   nearby buildings; occupied storefronts lose services and reinforce nearby
+   holds. Bark or guarding allies can intercept visible imps. The nearby
+   occupation instruction stays visible long enough to read at small windows
+   and yields to a more urgent threat warning.
 4. **Implemented — Contain alien generation.** Occupied storefronts generate additional free aliens under a map-wide cap.
 5. **Implemented — Deploy the dog army.** Recruited dogs follow, guard, or assist; nearby assistants speed wall weakening and claims and can contain imps. Guard near an independent clean dog to follow and protect that dog, or guard a location when no such dog is nearby. Assist selects the nearby chapter site or alien hold first and names the selected building in its feedback.
 6. **Implemented — Resist re-possession.** Free imps attempt a timed transfer to vulnerable real dogs. Bark, pack defense, immunity, armor, and a clinic recovery kit offer different responses.
@@ -225,8 +229,9 @@ The data model should still distinguish a storefront's base function from its cu
     player owns every eligible site before chapter 3, a marked clean final
     signal still requires a deliberate ally guard instead of silently awarding
     the finale. The guard success plays the recorded objective cue unless the
-    chapter-result cue confirms the same final action. Owning every building
-    remains an optional victory. First-run
+    chapter-result cue confirms the same final action. A last building claim
+    that completes a chapter, all-map victory, or both plays that recorded
+    reward cue once. Owning every building remains an optional victory. First-run
     pacing and the full story route still need human playtesting.
 11. **Future — Advance beyond the neighborhood.** Treat the current map as Level 1 and vary later layouts, resources, pressure, and bonuses while preserving the core loop.
 

@@ -101,6 +101,45 @@ func check_nearly_cleared_hold(scene) -> void:
 	scene.freya.global_position = original_position
 
 
+func check_last_building_reward_cue(scene, cue_probe: CueProbe, building_index: int, finish_chapter: bool, finish_map: bool) -> void:
+	# Complete the same physical Space claim with one chapter site left. Check
+	# chapter, all-map, and simultaneous rewards with the same recorded cue.
+	if finish_map:
+		if bool(scene.buildings[scene.kennel_building_index].get("alien_occupied", false)):
+			scene._clear_alien_occupation(scene.kennel_building_index)
+		scene._set_claim_owner(scene.CLAIM_TARGET_BUILDING, scene.kennel_building_index, scene.CLAIM_OWNER_FREYA)
+	scene._set_claim_owner(scene.CLAIM_TARGET_BUILDING, building_index, scene.CLAIM_OWNER_NONE)
+	scene.chapter_complete = not finish_chapter
+	scene.campaign_complete = not finish_chapter
+	scene.chapter_assisted_stronghold = true
+	scene.chapter_final_signal_cue_pending = false
+	scene.freya_victory_complete = false
+	scene.tap_to_claim_enabled = false
+	scene._clear_tap_claim_state()
+	var original_position: Vector3 = scene.freya.global_position
+	scene._force_building_surrounding_claims_for_validation(building_index, scene.CLAIM_OWNER_FREYA)
+	var interior: Rect2 = scene.buildings[building_index].get("store_interior_rect", Rect2())
+	scene.freya.global_position = Vector3(interior.get_center().x, original_position.y, interior.get_center().y)
+	var target: Dictionary = scene._find_nearest_claim_target()
+	var label = "combined chapter/map" if finish_chapter and finish_map else ("all-map" if finish_map else "chapter")
+	check(bool(target.get("found", false)) and int(target.get("type", -1)) == scene.CLAIM_TARGET_BUILDING and int(target.get("index", -1)) == building_index, "%s reward setup has no live building claim" % label)
+	check(not scene._chapter_completion_requirements_met() and not scene.freya_victory_complete, "%s reward was already complete before the final mark" % label)
+	check(scene._controlled_building_count() == scene._claimable_building_total() - (1 if finish_map else 2), "%s reward setup has the wrong number of unclaimed buildings" % label)
+	if bool(target.get("found", false)) and int(target.get("index", -1)) == building_index:
+		cue_probe.cues.clear()
+		Input.action_press("claim")
+		scene._update_claiming(scene.BUILDING_CLAIM_FILL_TIME + 0.25)
+		Input.action_release("claim")
+		scene._check_chapter_completion()
+		check(scene._building_is_controlled_by_freya(building_index) and scene.chapter_complete and scene._chapter_completion_requirements_met(), "%s final mark did not complete its chapter site" % label)
+		check(scene.freya_victory_complete == finish_map, "%s final mark had the wrong all-map victory state" % label)
+		check(cue_probe.cues == ["claim"], "%s final mark requested duplicate or missing recorded reward cues: %s" % [label, str(cue_probe.cues)])
+		scene._check_chapter_completion()
+		scene._check_victory_condition()
+		check(cue_probe.cues == ["claim"], "%s completed reward replayed its recorded cue" % label)
+	scene.freya.global_position = original_position
+
+
 func check_already_owned_finale() -> void:
 	check(change_scene_to_file("res://scenes/Main.tscn") == OK, "could not open owned-map finale")
 	await scene_changed
@@ -177,6 +216,9 @@ func check_already_owned_finale() -> void:
 	check(cue_probe.cues == ["claim"] and not scene.chapter_final_signal_cue_pending, "last-goal guard success doubled the chapter completion cue")
 	scene._check_chapter_completion()
 	check(cue_probe.cues == ["claim"], "completed chapter replayed the final-signal cue")
+	check_last_building_reward_cue(scene, cue_probe, unfinished_index, true, false)
+	check_last_building_reward_cue(scene, cue_probe, unfinished_index, false, true)
+	check_last_building_reward_cue(scene, cue_probe, unfinished_index, true, true)
 	scene.action_audio = saved_audio
 	cue_probe.queue_free()
 
@@ -275,7 +317,7 @@ func run() -> void:
 	await process_frame
 	cleanup_save()
 	if failures.is_empty():
-		print("CAMPAIGN_FLOW_OK: three chapter routes, seeded holds, owned-map final guard, protected allies, pack assistance, and credits")
+		print("CAMPAIGN_FLOW_OK: three chapter routes, seeded holds, owned-map final guard, single claim/chapter/victory reward cues, protected allies, pack assistance, and credits")
 		quit()
 	else:
 		push_error("CAMPAIGN_FLOW_FAIL: " + ", ".join(failures))

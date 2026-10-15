@@ -88,8 +88,9 @@ It runs:
    fallback, and the first-time park drill's recorded reward cue in
    `godot/tests/audio_actions.gd`;
 7. input-driven skip/replay, food, rune/morph Next, recruitment, blocked gait,
-   spatial collision equivalence, claim bounds, feedback priority, and persistent
-   completion regressions in `godot/tests/dejank_flow.gd`;
+   spatial collision equivalence, claim bounds, readable occupation status at
+   800×450 and 960×540, feedback priority, and persistent completion
+   regressions in `godot/tests/dejank_flow.gd`;
 8. three generated layouts, cinematic transitions, all live building types,
    both entrance sides, four camera orbits, and both zoom extremes in
    `godot/tests/dejank_cameras.gd`, including actual rendered-mesh sightlines.
@@ -107,7 +108,9 @@ It runs:
     saved dismissal, and 800×450 guide/goals/pause
     panel bounds in `godot/tests/chapter_guide.gd`;
 12. the three connected chapter routes, mandatory holds, ally protection, pack
-   assistance, and credits handoff in `godot/tests/campaign_flow.gd`;
+   assistance, one recorded reward cue for a final claim that completes a
+   chapter or all-map victory, and credits handoff in
+   `godot/tests/campaign_flow.gd`;
 13. ten generated seeds with home-connected Freya-radius routes to all chapter
     entrances, required scent marks, occupied wall approaches, and lodge cages,
     plus sequential territory connections in
@@ -147,6 +150,22 @@ Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `CL
 
 A passing command is required evidence, but visual changes also require an
 inspected deterministic capture.
+
+For an additional bounded procedural-route sweep, set both seed-range
+variables. This checks the same site, mark, wall, entrance, and lodge paths as
+the ten fixed predeploy seeds, without changing that default:
+
+```sh
+host-spawn env FREYA_REACHABILITY_SEED_START=1001 \
+  FREYA_REACHABILITY_SEED_COUNT=50 flatpak run org.godotengine.Godot \
+  --headless --path "$PWD/godot" --script res://tests/campaign_reachability.gd
+```
+
+The optional range accepts 1–100 nonnegative 32-bit seeds and logs each one.
+Seeds 1001–1050 passed on October 15, 2026: 850 chapter sites, 3,800 marks,
+250 occupied-wall approaches, 850 entrances, and 300 lodge cages were
+home-connected on the Freya-radius grid. This sample reduces layout risk; it
+does not prove every possible seed.
 
 For additional staged camera evidence, run the camera script graphically with
 `FREYA_REVIEW_DIR` pointing to an existing directory. It saves the cinematic
@@ -439,6 +458,10 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
+`review-20261015r` PCK passed exact-content export and its ZIP passed SHA-256
+verification against
+`7499c1b418aa11ff34c9e1148f68466cdfbcc9ba9694e23468b8a1c7ff626e7c`.
+The preceding local
 `review-20261015q` PCK passed exact-content export and its ZIP passed SHA-256
 verification against
 `8f7cc850f41de195a958193377dcf4b1c0ffd392dcc48810c15a5b562d8fcb8f`.

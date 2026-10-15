@@ -3,6 +3,8 @@ extends SceneTree
 # Input-driven route regressions; rare dog/collision states are explicitly staged.
 # Run headless with --script res://tests/dejank_flow.gd. No imported assets change.
 var failures: Array[String] = []
+const OCCUPATION_NOTICE = "A nearby building has become alien! Pee along its walls to weaken it."
+const THREAT_NOTICE = "An imp is reaching for a dog — bark or guard it!"
 
 func _initialize() -> void:
 	set_meta("freya_flow_validation", true)
@@ -53,6 +55,46 @@ func check_skip(s: Node, route: String) -> void:
 	var home = s.buildings[s.freya_home_index]
 	var out: Vector2 = home.home_layout.entry_outside_pos
 	check(not s._try_block_post_intro_home_exit(out, Vector3.FORWARD), route + " unexpectedly gated the exit")
+
+func check_status_dwell(s: Node) -> void:
+	var original_size = root.size
+	for window_size in [Vector2i(800, 450), Vector2i(960, 540)]:
+		root.size = window_size
+		await frames(3)
+		var building_index = -1
+		for index in range(s.buildings.size()):
+			var building: Dictionary = s.buildings[index]
+			if str(building.get("building_type", "")).begins_with("residence_") and not bool(building.get("is_freya_home", false)) and not bool(building.get("alien_occupied", false)) and not s._building_is_controlled_by_freya(index):
+				building_index = index
+				break
+		check(building_index >= 0, "no clean residence for status test at " + str(window_size))
+		if building_index < 0:
+			break
+		s.status_timer = 0.0
+		check(s._occupy_building_with_alien(building_index, 900100 + building_index), "live occupation did not start at " + str(window_size))
+		check(s.status_label.text == OCCUPATION_NOTICE and s.status_priority >= 1, "occupation did not give a prioritized visible instruction at " + str(window_size))
+		await frames(3)
+		check(s.status_panel.visible and root.get_visible_rect().encloses(s.status_panel.get_global_rect()), "occupation status left the HUD viewport at " + str(window_size))
+		check(s.status_panel.get_global_rect().encloses(s.status_label.get_global_rect()), "occupation text left its HUD background at " + str(window_size))
+		await tap(KEY_G)
+		check(s.objectives_pinned and s.objectives_status_panel.visible, "pinned goals hid occupation instruction at " + str(window_size))
+		await create_timer(2.05).timeout
+		check(s.status_timer > 0.0 and s.status_label.text == OCCUPATION_NOTICE, "occupation instruction expired before two seconds at " + str(window_size))
+		check(s.objectives_status_panel.visible and s.objectives_status_label.text == OCCUPATION_NOTICE, "occupation instruction did not persist in pinned goals at " + str(window_size))
+		check(s.objectives_status_panel.get_global_rect().encloses(s.objectives_status_label.get_global_rect()), "occupation text left pinned-goals background at " + str(window_size))
+		s._show_status("No stick to drop", 0.55, 0)
+		check(s.status_label.text == OCCUPATION_NOTICE, "lower-priority feedback interrupted occupation instruction at " + str(window_size))
+		s._show_status(THREAT_NOTICE, 1.5, 2)
+		check(s.status_label.text == THREAT_NOTICE and s.objectives_status_label.text == THREAT_NOTICE, "urgent threat did not interrupt occupation instruction at " + str(window_size))
+		var expiry_deadline = Time.get_ticks_msec() + 9000
+		while s.status_timer > 0.0 and Time.get_ticks_msec() < expiry_deadline:
+			await process_frame
+		check(s.status_timer <= 0.0 and s.status_priority == 0 and s.status_label.text.is_empty(), "interrupted status did not eventually expire at " + str(window_size))
+		check(not s.objectives_status_panel.visible, "expired status stayed visible in pinned goals at " + str(window_size))
+		await tap(KEY_G)
+		check(not s.objectives_pinned and not s.objectives_panel.visible, "status test left goals pinned at " + str(window_size))
+	root.size = original_size
+	await frames(2)
 
 func run() -> void:
 	await open_scene("res://scenes/Startup.tscn")
@@ -153,6 +195,11 @@ func run() -> void:
 	check(not s.family_intro_active and s.post_intro_meal_tutorial_active and s.post_intro_meal_exit_required, "family skip lost meal/tutorial handoff")
 	check(s.first_exit_abduction_pending and not s.possessed_dog_behavior_enabled, "family skip lost the pending reveal")
 
+	# Give the timed status test a disposable world so its two occupied homes
+	# cannot affect the later interaction and collision fixtures.
+	await open_scene("res://scenes/Main.tscn")
+	s = current_scene
+	await check_status_dwell(s)
 	# Fresh skip for staged interaction/animation/UI regressions.
 	await open_scene("res://scenes/Main.tscn")
 	s = current_scene
@@ -306,7 +353,7 @@ func run() -> void:
 	check(s.territory_label.text.contains("Neighborhood complete!") and s._objectives_text().contains("Neighborhood complete!"), "completion disappears when status expires")
 	check(s.status_timer <= 0.0, "completion persistence test did not outlast temporary status")
 	if failures.is_empty():
-		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, claim bounds, outcome priority, and persistent completion")
+		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, claim bounds, readable status dwell, outcome priority, and persistent completion")
 	else:
 		push_error("DEJANK_FLOW_FAIL: " + ", ".join(failures))
 	quit(0 if failures.is_empty() else 1)

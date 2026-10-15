@@ -179,6 +179,8 @@ const POSSESSED_DOG_AGGRO_BARK_RADIUS = 4.2
 const POSSESSED_DOG_SCARE_RADIUS = 3.35
 const FREYA_POSSESSED_DOG_FLEE_SPEED_MULT = 1.18
 const FREYA_POSSESSED_DOG_SCARE_STATUS_COOLDOWN = 1.25
+const STATUS_READ_BASE_SECONDS = 0.65
+const STATUS_READ_CHARACTERS_PER_SECOND = 21.0
 const HUNGER_IDLE_PER_SEC = 0.025
 const HUNGER_WALK_PER_SEC = 0.35
 const HUNGER_RUN_PER_SEC = 0.85
@@ -13076,7 +13078,7 @@ func _occupy_building_with_alien(building_index: int, alien_serial: int, announc
 		if announce:
 			if action_audio != null:
 				action_audio.play("alien_emerge", -7.0)
-			_show_status("A nearby building has become alien! Pee along its walls to weaken it.", 1.75)
+			_show_status("A nearby building has become alien! Pee along its walls to weaken it.", 1.75, 1)
 	return true
 
 func _occupied_building_collision_bounds(building: Dictionary, radius: float) -> Rect2:
@@ -14551,7 +14553,10 @@ func _check_victory_condition() -> void:
 	if controlled < total:
 		return
 	freya_victory_complete = true
-	action_audio.play("claim", -5.0)
+	# A chapter ending on this claim has its own result cue later in the frame.
+	# One exact recorded pop confirms the combined reward.
+	if chapter_complete or not _chapter_completion_requirements_met():
+		action_audio.play("claim", -5.0)
 	_show_status("Victory! Freya owns the whole map!", 5.0, 3)
 	if victory_panel != null:
 		victory_panel.show()
@@ -15425,7 +15430,10 @@ func _update_claiming(delta: float) -> void:
 	var claimed_now = _advance_claim_progress(target_type, target_index, delta, fill_time)
 	if claimed_now:
 		_set_claim_owner(target_type, target_index, CLAIM_OWNER_FREYA)
-		action_audio.play("claim", -8.0)
+		var chapter_result_pending = not chapter_complete and _chapter_completion_requirements_met()
+		var map_result_pending = target_type == CLAIM_TARGET_BUILDING and not freya_victory_complete and _controlled_building_count() >= _claimable_building_total()
+		if not chapter_result_pending and not map_result_pending:
+			action_audio.play("claim", -8.0)
 
 	if not claimed_now:
 		return
@@ -20773,7 +20781,9 @@ func _show_status(text: String, duration: float, priority: int = 0) -> void:
 	if status_timer > 0.0 and priority < status_priority:
 		return
 	status_label.text = _mode_adjusted_input_text(text)
-	status_timer = duration
+	# Short cues stay brisk; wrapped instructions need enough time to read.
+	# A newer message of equal or higher priority can still interrupt this one.
+	status_timer = maxf(duration, STATUS_READ_BASE_SECONDS + float(status_label.text.length()) / STATUS_READ_CHARACTERS_PER_SECOND)
 	status_priority = priority
 	_update_status_presentation()
 
