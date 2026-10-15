@@ -357,6 +357,9 @@ silent.
 The `claim` cue also confirms the first completion of each dog-park drill;
 the drill itself begins with the recorded `dog_run` cue. Repeating an already
 learned drill does not replay the first-time reward cue.
+The same recorded `claim` cue confirms an ally securing the cleared final
+signal when other chapter goals remain. If that guard action completes the
+chapter, the chapter-result cue plays once instead.
 The `alien_emerge` cue also plays once when an occupied storefront generates a
 free imp within 14 world units of Freya. Distant storefront spawns stay silent;
 the event never selects another recording if its exact cue is unavailable.

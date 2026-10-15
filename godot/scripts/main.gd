@@ -618,6 +618,7 @@ var campaign_chapter = 1
 var campaign_complete = false
 var chapter_required_occupation_clears = CHAPTER_OCCUPATIONS_TO_CLEAR
 var chapter_assisted_stronghold = false
+var chapter_final_signal_cue_pending = false
 var chapter_final_stronghold_index = -1
 var chapter_guide_hidden = false
 var pack_order = PACK_ORDER_FOLLOW
@@ -14017,6 +14018,7 @@ func _start_campaign_chapter(next_chapter: int) -> void:
 	chapter_result_dismissed = false
 	chapter_occupations_cleared = 0
 	chapter_assisted_stronghold = false
+	chapter_final_signal_cue_pending = false
 	chapter_final_stronghold_index = -1
 	chapter_target_indices = _select_followup_chapter_targets(CHAPTER_2_TARGET_BUILDING_COUNT if next_chapter == 2 else CHAPTER_3_TARGET_BUILDING_COUNT)
 	var seeded_stronghold_index = _seed_followup_chapter_stronghold()
@@ -14065,6 +14067,7 @@ func _update_chapter_three_recovery() -> void:
 			continue
 		if _point_distance_to_rect(Vector2(dog.global_position.x, dog.global_position.z), footprint) <= PACK_ASSIST_RADIUS:
 			chapter_assisted_stronghold = true
+			chapter_final_signal_cue_pending = true
 			_show_status("An ally has secured the final signal site with Freya's pack!", 2.3, 2)
 			return
 
@@ -14075,18 +14078,32 @@ func _note_chapter_occupation_cleared(building_index: int) -> void:
 		return
 	chapter_occupations_cleared += 1
 
-func _check_chapter_completion() -> void:
-	if chapter_complete or chapter_target_indices.is_empty():
-		return
+func _chapter_completion_requirements_met() -> bool:
+	if chapter_target_indices.is_empty():
+		return false
 	if _chapter_claimed_target_count() < chapter_target_indices.size():
-		return
+		return false
 	if chapter_occupations_cleared < chapter_required_occupation_clears or _chapter_active_generator_count() > 0:
-		return
+		return false
 	if campaign_chapter == 1 and (_chapter_real_ally_count() < 1 or not has_method("kennel_rescue_complete") or not bool(call("kennel_rescue_complete"))):
-		return
+		return false
 	if campaign_chapter == 2 and _chapter_protected_ally_count() < 2:
-		return
+		return false
 	if campaign_chapter == 3 and (_chapter_real_ally_count() < 1 or not chapter_assisted_stronghold):
+		return false
+	return true
+
+func _check_chapter_completion() -> void:
+	if chapter_complete:
+		chapter_final_signal_cue_pending = false
+		return
+	var ready = _chapter_completion_requirements_met()
+	if chapter_final_signal_cue_pending:
+		chapter_final_signal_cue_pending = false
+		if not ready:
+			# The chapter result has its own cue when this guard was the last goal.
+			action_audio.play("claim", -8.0)
+	if not ready:
 		return
 	_cancel_tap_claim(false)
 	_cancel_tap_social(false)

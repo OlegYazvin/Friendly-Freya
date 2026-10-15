@@ -14,12 +14,13 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The local `review-20261015p` Windows ZIP passed export content and checksum
-checks after the complete source suite and inspected captures. The
+The local `review-20261015q` Windows ZIP passed export content and checksum
+checks after the complete source suite. The preceding
 [review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
 passed source validation, export, EXE startup, the short performance entry,
-the keyboard Watch Intro opening, credits, and Keep Exploring. Release
-publication remains gated by the checks below.
+the keyboard Watch Intro opening, credits, and Keep Exploring. The updated
+audio source awaits its Windows CI review. Release publication remains gated
+by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -499,6 +500,15 @@ hardware floor.
   claimed sites, credits, and Keep Exploring without game errors or warnings.
   This automated route was headless; graphical HP performance and player
   enjoyment still need direct observation.
+- When an ally secures a cleared final signal but other chapter goals remain,
+  one exact recorded CC0 objective pop confirms that action. If the guard
+  action completes the chapter, only the existing chapter-result pop plays.
+  The focused campaign flow checks both paths and the complete source
+  predeploy suite passed. The local
+  `dist/Friendly-Freya-review-20261015q-Windows-x86_64.zip` passed exported
+  content validation and SHA-256 verification against
+  `8f7cc850f41de195a958193377dcf4b1c0ffd392dcc48810c15a5b562d8fcb8f`.
+  Windows CI and HP audible/graphical review remain open for this build.
 
 ## The game to finish
 

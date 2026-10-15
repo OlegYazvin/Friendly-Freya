@@ -439,10 +439,12 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
-`review-20261015p` PCK passed exact-content export and its ZIP passed SHA-256
+`review-20261015q` PCK passed exact-content export and its ZIP passed SHA-256
 verification against
-`bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`.
-The preceding review-o PCK passed the packaged press-once keyboard test; the
+`8f7cc850f41de195a958193377dcf4b1c0ffd392dcc48810c15a5b562d8fcb8f`.
+The preceding review-p ZIP passed SHA-256 verification against
+`bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`;
+review-o's PCK passed the packaged press-once keyboard test. The
 prior review-k PCK passed a warmed graphical 1280×720 sample on Linux. The
 [review-o Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
 passed export, EXE startup, packaged performance entry, Watch Intro, and the

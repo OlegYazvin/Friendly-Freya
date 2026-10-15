@@ -1,8 +1,17 @@
 extends SceneTree
 
 const GameSaveScript = preload("res://scripts/game_save.gd")
+const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const TEST_SAVE_PATH = "user://friendly_freya_campaign_flow_test.json"
 var failures: Array[String] = []
+
+
+class CueProbe:
+	extends Node
+	var cues: Array[String] = []
+
+	func play(cue_id: String, _volume_db: float = 0.0) -> void:
+		cues.append(cue_id)
 
 
 func _initialize() -> void:
@@ -116,6 +125,12 @@ func check_already_owned_finale() -> void:
 	var final_index: int = scene.chapter_final_stronghold_index
 	if final_index < 0:
 		return
+	var claim_path: String = str(ActionAudioScript.CUE_PATHS.get("claim", ""))
+	check(claim_path == "res://assets/audio/actions/bubble_pop_669918.ogg" and ResourceLoader.exists(claim_path, "AudioStream"), "final-signal cue is not the exact recorded objective sound")
+	var saved_audio: Node = scene.action_audio
+	var cue_probe = CueProbe.new()
+	scene.add_child(cue_probe)
+	scene.action_audio = cue_probe
 	var footprint: Rect2 = scene.buildings[final_index].get("footprint", Rect2())
 	scene._update_minimap_dynamic(0.0)
 	check(scene.minimap.next_chapter_target_building == footprint, "clear final signal is absent from the minimap next-site diamond")
@@ -131,12 +146,39 @@ func check_already_owned_finale() -> void:
 	scene.pack_assist_target_index = final_index
 	scene._update_chapter_three_recovery()
 	check(not scene.chapter_assisted_stronghold, "assist silently satisfied the clear final signal's guard order")
+	check(cue_probe.cues.is_empty(), "assist attempt played a final-signal success cue")
 	scene.pack_order = scene.PACK_ORDER_GUARD
 	scene.pack_guard_dog_index = -1
 	scene.pack_guard_position = Vector2(approach.x, approach.z)
+	var unfinished_index = -1
+	for target_index in scene.chapter_target_indices:
+		if target_index != final_index:
+			unfinished_index = target_index
+			break
+	check(unfinished_index >= 0, "owned-map finale has no independent site for guard-cue test")
+	if unfinished_index < 0:
+		scene.action_audio = saved_audio
+		cue_probe.queue_free()
+		return
+	scene._set_claim_owner(scene.CLAIM_TARGET_BUILDING, unfinished_index, scene.CLAIM_OWNER_NONE)
 	scene._update_chapter_three_recovery()
+	check(scene.chapter_assisted_stronghold and scene.chapter_final_signal_cue_pending and cue_probe.cues.is_empty(), "guard arrival did not queue exactly one final-signal cue")
+	scene._check_chapter_completion()
+	check(not scene.chapter_complete and cue_probe.cues == ["claim"] and not scene.chapter_final_signal_cue_pending, "nonfinal guard success did not play one recorded objective cue")
+	scene._check_chapter_completion()
+	check(cue_probe.cues == ["claim"], "rechecking a nonfinal guard success replayed its cue")
+	scene._set_claim_owner(scene.CLAIM_TARGET_BUILDING, unfinished_index, scene.CLAIM_OWNER_FREYA)
+	scene.chapter_assisted_stronghold = false
+	cue_probe.cues.clear()
+	scene._update_chapter_three_recovery()
+	check(scene.chapter_final_signal_cue_pending and cue_probe.cues.is_empty(), "last-goal guard arrival played before chapter completion")
 	scene._check_chapter_completion()
 	check(scene.chapter_assisted_stronghold and scene.chapter_complete, "owned map could not finish with a real ally guarding the clear final signal")
+	check(cue_probe.cues == ["claim"] and not scene.chapter_final_signal_cue_pending, "last-goal guard success doubled the chapter completion cue")
+	scene._check_chapter_completion()
+	check(cue_probe.cues == ["claim"], "completed chapter replayed the final-signal cue")
+	scene.action_audio = saved_audio
+	cue_probe.queue_free()
 
 
 func run() -> void:

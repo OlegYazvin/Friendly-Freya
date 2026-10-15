@@ -224,7 +224,9 @@ The data model should still distinguish a storefront's base function from its cu
     pack-assisted final hold, and a Gene/Zoe/Ryah ending with credits. If the
     player owns every eligible site before chapter 3, a marked clean final
     signal still requires a deliberate ally guard instead of silently awarding
-    the finale. Owning every building remains an optional victory. First-run
+    the finale. The guard success plays the recorded objective cue unless the
+    chapter-result cue confirms the same final action. Owning every building
+    remains an optional victory. First-run
     pacing and the full story route still need human playtesting.
 11. **Future — Advance beyond the neighborhood.** Treat the current map as Level 1 and vary later layouts, resources, pressure, and bonuses while preserving the core loop.
 
