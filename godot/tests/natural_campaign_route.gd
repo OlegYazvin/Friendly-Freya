@@ -172,7 +172,7 @@ func _build_navigation() -> void:
 				nav_grid.set_point_solid(id)
 
 
-func _drive_toward(world_target: Vector2, run: bool = false, defend: bool = false) -> void:
+func _drive_toward(world_target: Vector2, run: bool = false, defend: bool = false, spare_clean_dog_index: int = -1) -> void:
 	var desired = (world_target - _world_position()).normalized()
 	var basis: Basis = game.camera_node.global_basis
 	var right = Vector2(basis.x.x, basis.x.z).normalized()
@@ -199,10 +199,18 @@ func _drive_toward(world_target: Vector2, run: bool = false, defend: bool = fals
 	_set_key(KEY_S, use_y and screen_y < 0.0)
 	_set_key(KEY_SHIFT, run)
 	var threat = game._nearest_possessed_dog_threat(4.0) if defend else {"found": false}
-	_set_key(KEY_R, bool(threat.get("found", false)))
+	var bark = bool(threat.get("found", false))
+	if bark and spare_clean_dog_index >= 0 and spare_clean_dog_index < game.dogs.size():
+		var spare_state: Dictionary = game.dogs[spare_clean_dog_index]
+		var spare_dog: Node3D = spare_state.get("node", null)
+		if not bool(spare_state.get("alien_possessed", false)) and spare_dog != null and is_instance_valid(spare_dog):
+			# R also frightens clean dogs. Release it before entering the
+			# candidate's social range, even if another dog is possessed.
+			bark = spare_dog.global_position.distance_to(game.freya.global_position) > game.SOCIALIZE_RANGE + 0.55
+	_set_key(KEY_R, bark)
 
 
-func _walk_to(goal: Vector2, goal_range: float = 0.55, defend: bool = false, recover_occupied_building_index: int = -1) -> bool:
+func _walk_to(goal: Vector2, goal_range: float = 0.55, defend: bool = false, recover_occupied_building_index: int = -1, spare_clean_dog_index: int = -1) -> bool:
 	var origin = _world_position()
 	var leg_started_ms = Time.get_ticks_msec()
 	# The straight-line distance can badly understate a cross-map route around
@@ -279,7 +287,7 @@ func _walk_to(goal: Vector2, goal_range: float = 0.55, defend: bool = false, rec
 					stalled = true
 					break
 				last_distance = distance
-				_drive_toward(waypoint, false, defend)
+				_drive_toward(waypoint, false, defend, spare_clean_dog_index)
 				await process_frame
 			if stalled:
 				break
@@ -906,48 +914,148 @@ func _eat_if_hungry() -> bool:
 	return await _use_service("infinite_dog_food")
 
 
+func _clean_recruit_snapshot(index: int) -> String:
+	if index < 0 or index >= game.dogs.size():
+		return "dog=%d missing" % index
+	var state: Dictionary = game.dogs[index]
+	var dog: Node3D = state.get("node", null)
+	var position = Vector2(dog.global_position.x, dog.global_position.z) if dog != null and is_instance_valid(dog) else Vector2.ZERO
+	var threat: Dictionary = game._nearest_possessed_dog_threat(game.POSSESSED_DOG_SCARE_RADIUS)
+	return "dog=%d freya=%s dog_pos=%s distance=%.2f possessed=%s aligned=%s flee=%.2f social=%.2f hunger=%.1f threat=%s C=%s R=%s" % [
+		index, _world_position(), position, _world_position().distance_to(position),
+		bool(state.get("alien_possessed", false)), bool(state.get("army_aligned", false)),
+		float(state.get("flee_timer", 0.0)), float(state.get("socialization_progress", 0.0)),
+		game.freya_hunger, threat, Input.is_action_pressed("friendly_social"), Input.is_action_pressed("aggressive_social")
+	]
+
+
 func _recruit_clean_ally() -> bool:
 	if not await _eat_if_hungry():
 		return false
-	var best_index = -1
-	var best_distance = INF
-	for index in range(game.dogs.size()):
-		var state: Dictionary = game.dogs[index]
-		if bool(state.get("army_aligned", false)) or bool(state.get("alien_possessed", false)):
-			continue
-		var dog: Node3D = state.get("node", null)
-		if dog == null or not is_instance_valid(dog):
-			continue
-		var distance = _world_position().distance_to(Vector2(dog.global_position.x, dog.global_position.z))
-		if distance < best_distance:
-			best_distance = distance
-			best_index = index
-	if best_index < 0:
-		print("NATURAL_ROUTE_ALLY_FALLBACK: no clean stray is available; seek a possessed dog with R then C")
-		return await _recruit_first_ally()
-	var dog: Node3D = game.dogs[best_index].get("node", null)
-	for approach in range(6):
-		var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
-		if _world_position().distance_to(dog_pos) < 3.0:
-			break
-		if not await _walk_to(dog_pos, 2.4, true):
+	var attempted: Dictionary = {}
+	var last_snapshot = ""
+	for candidate_attempt in range(3):
+		_build_navigation()
+		var from_id = _closest_open_id(_world_position(), 1.2)
+		if from_id.x < 0:
+			from_id = _closest_open_id(_world_position(), 2.0)
+		if from_id.x < 0:
+			_fail("no walkable recruitment starting point near %s" % _world_position())
 			return false
-	var started_ms = Time.get_ticks_msec()
-	_set_key(KEY_C, true)
-	while not bool(game.dogs[best_index].get("army_aligned", false)) and Time.get_ticks_msec() - started_ms < 18000:
-		var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
-		if _world_position().distance_to(dog_pos) > 2.9:
-			_drive_toward(dog_pos)
-		else:
+		var best_index = -1
+		var best_score = INF
+		for index in range(game.dogs.size()):
+			var state: Dictionary = game.dogs[index]
+			if attempted.has(index) or bool(state.get("army_aligned", false)) or bool(state.get("alien_possessed", false)):
+				continue
+			var candidate: Node3D = state.get("node", null)
+			if candidate == null or not is_instance_valid(candidate):
+				continue
+			var candidate_pos = Vector2(candidate.global_position.x, candidate.global_position.z)
+			var approach_id = _reachable_open_id(from_id, candidate_pos, 2.4)
+			if approach_id.x < 0:
+				print("NATURAL_ROUTE_ALLY_SKIP index=%d reason=no_reachable_approach pos=%s" % [index, candidate_pos])
+				continue
+			var route: Array[Vector2i] = nav_grid.get_id_path(from_id, approach_id)
+			if route.is_empty():
+				print("NATURAL_ROUTE_ALLY_SKIP index=%d reason=no_path pos=%s" % [index, candidate_pos])
+				continue
+			var score = float(route.size()) * CELL_SIZE + float(state.get("flee_timer", 0.0)) * 2.0
+			# A clean dog among possessed dogs makes Freya flee whenever C
+			# releases R. Prefer one with room for four seconds of socializing.
+			for other_index in range(game.dogs.size()):
+				if other_index == index or not bool(game.dogs[other_index].get("alien_possessed", false)):
+					continue
+				var other: Node3D = game.dogs[other_index].get("node", null)
+				if other != null and is_instance_valid(other) and candidate.global_position.distance_to(other.global_position) < 4.5:
+					score += 8.0
+			if score < best_score:
+				best_score = score
+				best_index = index
+		if best_index < 0:
+			if attempted.is_empty():
+				print("NATURAL_ROUTE_ALLY_FALLBACK: no clean stray is available; seek a possessed dog with R then C")
+				return await _recruit_first_ally()
+			break
+
+		attempted[best_index] = true
+		var dog: Node3D = game.dogs[best_index].get("node", null)
+		var started_ms = Time.get_ticks_msec()
+		var next_report_ms = started_ms + 5000
+		var repaths = 0
+		var barked_near_clean = false
+		print("NATURAL_ROUTE_ALLY_TRY attempt=%d score=%.1f %s" % [candidate_attempt + 1, best_score, _clean_recruit_snapshot(best_index)])
+		while Time.get_ticks_msec() - started_ms < 30000:
+			if dog == null or not is_instance_valid(dog):
+				break
+			var state: Dictionary = game.dogs[best_index]
+			if bool(state.get("army_aligned", false)) and not bool(state.get("alien_possessed", false)):
+				_set_key(KEY_C, false)
+				_release_movement()
+				print("NATURAL_ROUTE_ALLY_RECRUITED index=%d allies=%d" % [best_index, game._chapter_real_ally_count()])
+				return true
+			if game.possessed_dog_tutorial_active:
+				_set_key(KEY_C, false)
+				_release_movement()
+				await _tap(KEY_SPACE)
+				continue
+			var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
+			var distance = _world_position().distance_to(dog_pos)
+			var threat: Dictionary = game._nearest_possessed_dog_threat(game.POSSESSED_DOG_SCARE_RADIUS)
+			if float(state.get("flee_timer", 0.0)) > 0.0 and not bool(state.get("alien_possessed", false)):
+				# One accidental bark is recoverable. Let the dog settle before
+				# navigating back, rather than repeatedly frightening it.
+				barked_near_clean = true
+				_set_key(KEY_C, false)
+				_release_movement()
+				await process_frame
+				continue
+			if bool(state.get("alien_possessed", false)) or bool(threat.get("found", false)):
+				_set_key(KEY_C, false)
+				_release_movement()
+				if distance > 3.2 and bool(state.get("alien_possessed", false)):
+					if repaths >= 5:
+						break
+					print("NATURAL_ROUTE_ALLY_REPATH reason=repossessed %s" % _clean_recruit_snapshot(best_index))
+					if not await _walk_to(dog_pos, 2.4, true):
+						return false
+					repaths += 1
+					continue
+				if not bool(state.get("alien_possessed", false)) and barked_near_clean:
+					print("NATURAL_ROUTE_ALLY_RETRY reason=threat_persisted_after_bark %s" % _clean_recruit_snapshot(best_index))
+					break
+				if not bool(state.get("alien_possessed", false)) and distance < game.SOCIALIZE_RANGE + 0.55:
+					barked_near_clean = true
+				_set_key(KEY_R, true)
+				var bark_started_ms = Time.get_ticks_msec()
+				while Time.get_ticks_msec() - bark_started_ms < 1400:
+					await process_frame
+				_set_key(KEY_R, false)
+				print("NATURAL_ROUTE_ALLY_DEFEND %s" % _clean_recruit_snapshot(best_index))
+				continue
+			if distance > 3.2:
+				_set_key(KEY_C, false)
+				if repaths >= 5:
+					break
+				print("NATURAL_ROUTE_ALLY_REPATH reason=moving %s" % _clean_recruit_snapshot(best_index))
+				if not await _walk_to(dog_pos, 2.4, true, -1, best_index):
+					return false
+				repaths += 1
+				continue
 			_release_movement()
-		await process_frame
-	_set_key(KEY_C, false)
-	_release_movement()
-	if not bool(game.dogs[best_index].get("army_aligned", false)):
-		_fail("C did not recruit cleansed dog %d; hunger=%.1f" % [best_index, game.freya_hunger])
-		return false
-	print("NATURAL_ROUTE_ALLY_RECRUITED index=%d allies=%d" % [best_index, game._chapter_real_ally_count()])
-	return true
+			_set_key(KEY_C, true)
+			if Time.get_ticks_msec() >= next_report_ms:
+				print("NATURAL_ROUTE_ALLY_PROGRESS %s" % _clean_recruit_snapshot(best_index))
+				next_report_ms += 5000
+			await process_frame
+		_set_key(KEY_C, false)
+		_release_movement()
+		last_snapshot = _clean_recruit_snapshot(best_index)
+		print("NATURAL_ROUTE_ALLY_RETRY attempt=%d repaths=%d %s" % [candidate_attempt + 1, repaths, last_snapshot])
+		if game.freya_hunger >= 82.0 and not await _eat_if_hungry():
+			return false
+	_fail("C did not recruit a clean dog after %d candidates; %s" % [attempted.size(), last_snapshot])
+	return false
 
 
 func _recover_real_ally() -> bool:
