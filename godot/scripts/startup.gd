@@ -3,9 +3,11 @@ extends Control
 const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
 const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const GameSaveScript = preload("res://scripts/game_save.gd")
+const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
 const EXPORTED_CAMPAIGN_ROUTE_PATH = "res://tests/natural_campaign_route.gd"
+const EXPORTED_PERF_STRESS_PATH = "res://tests/performance_stress.gd"
 const STARTUP_HERO_BACKGROUND_PATH = "res://assets/images/startup_freya_hero_v2.png"
 const TITLE_CARD_THEME_PATH = "res://assets/audio/menu/title_card_theme_8bit.wav"
 const RELEASE_REQUIRED_RESOURCES = [
@@ -66,6 +68,7 @@ const RELEASE_EXCLUDED_RESOURCES = [
 @onready var settings_back_button: Button = %SettingsBackButton
 @onready var hero_background: TextureRect = $HeroBackground
 @onready var menu_center: CenterContainer = $MenuCenter
+@onready var prompt_label: Label = $MenuCenter/MenuPanel/Margin/Choices/Prompt
 
 var selection_locked := false
 var title_card_theme_player: AudioStreamPlayer
@@ -73,6 +76,9 @@ var title_card_theme_stream: AudioStream
 var action_audio: Node
 var master_volume := AudioPreferencesScript.DEFAULT_MASTER_VOLUME
 var resume_save_path: String = GameSaveScript.SAVE_PATH
+var fresh_start_prompt
+var pending_new_game_scene_path := ""
+var pending_new_game_button: Button
 
 
 func _ready() -> void:
@@ -87,17 +93,34 @@ func _ready() -> void:
 	settings_button.pressed.connect(_on_settings_pressed)
 	settings_back_button.pressed.connect(_on_settings_back_pressed)
 	master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	_create_fresh_start_prompt()
 	_refresh_resume_button()
-	watch_intro_button.grab_focus()
-	if OS.get_environment("FREYA_EXPORTED_CAMPAIGN_QA") == "1" and not bool(get_tree().get_meta("freya_exported_campaign_qa_started", false)):
+	if resume_game_button.visible and (_is_automated_title_view() or not GameSaveScript.inspect_slots(resume_save_path).incompatible):
+		resume_game_button.grab_focus()
+	else:
+		watch_intro_button.grab_focus()
+	var exported_campaign_qa = OS.get_environment("FREYA_EXPORTED_CAMPAIGN_QA") == "1"
+	var exported_perf_stress = OS.get_environment("FREYA_EXPORTED_PERF_STRESS") == "1"
+	if exported_campaign_qa and exported_perf_stress:
+		push_error("Only one exported QA route may run at a time.")
+		get_tree().quit(1)
+		return
+	if exported_campaign_qa and not bool(get_tree().get_meta("freya_exported_campaign_qa_started", false)):
 		get_tree().set_meta("freya_exported_campaign_qa_started", true)
 		get_tree().set_meta("freya_flow_validation", true)
 		call_deferred("_launch_exported_campaign_qa")
+	elif exported_perf_stress and not bool(get_tree().get_meta("freya_exported_perf_stress_started", false)):
+		get_tree().set_meta("freya_exported_perf_stress_started", true)
+		get_tree().set_meta("freya_flow_validation", true)
+		get_tree().set_meta("freya_perf_stress_no_save", true)
+		call_deferred("_launch_exported_perf_stress")
 
 	if OS.get_environment("FREYA_RELEASE_CONTENT_VALIDATE") == "1":
 		_run_release_content_validation()
 	elif OS.get_environment("FREYA_STARTUP_VALIDATE") == "1":
 		_run_startup_validation()
+	elif OS.get_environment("FREYA_STARTUP_VIEW").strip_edges().to_lower() == "confirm_new_game":
+		call_deferred("_capture_new_game_confirmation")
 
 
 func _launch_exported_campaign_qa() -> void:
@@ -118,18 +141,124 @@ func _launch_exported_campaign_qa() -> void:
 	tree.call("_initialize")
 
 
+func _launch_exported_perf_stress() -> void:
+	# The release template cannot use --script. Start the bundled graphical
+	# stress controller from the same exported PCK as the player's game.
+	var stress_script := load(EXPORTED_PERF_STRESS_PATH) as Script
+	if stress_script == null:
+		push_error("Exported performance stress route is missing from the PCK.")
+		get_tree().quit(1)
+		return
+	var tree := get_tree()
+	tree.set_script(stress_script)
+	if tree.get_script() != stress_script:
+		push_error("Could not attach exported performance stress route to SceneTree.")
+		tree.quit(1)
+		return
+	print("EXPORTED_PERF_STRESS_START: bundled graphical stress route attached")
+	tree.call("_initialize")
+
+
 func _on_watch_intro_pressed() -> void:
-	action_audio.play_persistent("button", -11.0)
-	_select_destination(INTRO_SCENE_PATH)
+	_request_new_game(INTRO_SCENE_PATH, watch_intro_button)
 
 
 func _on_skip_to_game_pressed() -> void:
+	_request_new_game(GAME_SCENE_PATH, skip_to_game_button)
+
+
+func _request_new_game(scene_path: String, source_button: Button) -> void:
+	if selection_locked or fresh_start_prompt.visible:
+		return
+	# Automated normal-input checks never inspect or replace a player's real
+	# default save. A focused check can still use an explicit isolated path.
+	if _is_automated_title_view() and resume_save_path == GameSaveScript.SAVE_PATH:
+		_begin_new_game(scene_path)
+		return
+	var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+	pending_new_game_button = source_button
+	if bool(slots.get("incompatible", false)):
+		_show_fresh_start_notice(FreshStartPromptScript.incompatible_save_detail(resume_save_path, bool(slots.get("newer", false))))
+		return
+	if bool(slots.get("has_files", false)):
+		_show_new_game_decision(scene_path, source_button, bool(slots.get("has_valid_save", false)))
+		return
+	_begin_new_game(scene_path)
+
+
+func _show_new_game_decision(scene_path: String, source_button: Button, has_valid_save: bool) -> void:
+	pending_new_game_scene_path = scene_path
+	pending_new_game_button = source_button
+	var detail = "Starting a new game will replace the existing saved campaign when the new game saves. Choose Resume Game to continue it." if has_valid_save else FreshStartPromptScript.unreadable_save_detail(resume_save_path)
+	fresh_start_prompt.show_decision("Start a new story?", detail, "Start New Game", "Keep Progress")
+	_set_title_choices_enabled(false)
+	action_audio.play("button", -11.0)
+
+
+func _capture_new_game_confirmation() -> void:
+	# A deterministic saved-game preview never creates or reads a player's save.
+	_show_new_game_decision(GAME_SCENE_PATH, skip_to_game_button, true)
+
+
+func _begin_new_game(scene_path: String) -> void:
 	action_audio.play_persistent("button", -11.0)
-	_select_destination(GAME_SCENE_PATH)
+	_select_destination(scene_path)
+
+
+func _create_fresh_start_prompt() -> void:
+	fresh_start_prompt = FreshStartPromptScript.new()
+	fresh_start_prompt.name = "FreshStartPrompt"
+	add_child(fresh_start_prompt)
+	fresh_start_prompt.accepted.connect(_on_fresh_start_accepted)
+	fresh_start_prompt.canceled.connect(_on_fresh_start_canceled)
+
+
+func _show_fresh_start_notice(detail: String) -> void:
+	fresh_start_prompt.show_notice("Save from another version", detail)
+	_set_title_choices_enabled(false)
+	action_audio.play("button", -11.0)
+
+
+func _on_fresh_start_accepted() -> void:
+	var scene_path = pending_new_game_scene_path
+	pending_new_game_scene_path = ""
+	var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+	if bool(slots.get("incompatible", false)):
+		_show_fresh_start_notice(FreshStartPromptScript.incompatible_save_detail(resume_save_path, bool(slots.get("newer", false))))
+		return
+	if not scene_path.is_empty():
+		_begin_new_game(scene_path)
+
+
+func _on_fresh_start_canceled() -> void:
+	pending_new_game_scene_path = ""
+	_set_title_choices_enabled(true)
+	if pending_new_game_button != null:
+		pending_new_game_button.grab_focus()
+	pending_new_game_button = null
+	action_audio.play("button", -11.0)
+
+
+func _set_title_choices_enabled(enabled: bool) -> void:
+	watch_intro_button.disabled = not enabled
+	skip_to_game_button.disabled = not enabled
+	resume_game_button.disabled = not enabled
+	settings_button.disabled = not enabled
+	settings_back_button.disabled = not enabled
+	master_volume_slider.editable = enabled
+
+
+func _is_automated_title_view() -> bool:
+	return OS.get_environment("FREYA_STARTUP_VALIDATE") == "1" or not OS.get_environment("FREYA_STARTUP_VIEW").is_empty() or bool(get_tree().get_meta("freya_flow_validation", false))
 
 
 func _on_resume_game_pressed() -> void:
-	if selection_locked:
+	if selection_locked or fresh_start_prompt.visible:
+		return
+	var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+	if bool(slots.get("incompatible", false)):
+		pending_new_game_button = resume_game_button
+		_show_fresh_start_notice(FreshStartPromptScript.incompatible_save_detail(resume_save_path, bool(slots.get("newer", false))))
 		return
 	var result = GameSaveScript.read_save(resume_save_path)
 	if not bool(result.get("ok", false)):
@@ -143,14 +272,22 @@ func _on_resume_game_pressed() -> void:
 func _refresh_resume_button() -> void:
 	# Test and deterministic capture routes must remain independent of a local
 	# player's user:// data, while the ordinary menu offers a valid resume.
-	var automated = OS.get_environment("FREYA_STARTUP_VALIDATE") == "1" or bool(get_tree().get_meta("freya_flow_validation", false))
+	var automated = _is_automated_title_view()
 	var capture_view = OS.get_environment("FREYA_STARTUP_VIEW").strip_edges().to_lower()
 	if capture_view == "menu":
 		resume_game_button.visible = false
-	elif capture_view == "resume":
+	elif capture_view in ["resume", "confirm_new_game"]:
 		resume_game_button.visible = true
 	else:
 		resume_game_button.visible = not automated and GameSaveScript.has_resume(resume_save_path)
+	if not automated:
+		var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+		if bool(slots.get("incompatible", false)):
+			prompt_label.text = "Another-version save found. Open its game version."
+		elif bool(slots.get("has_files", false)) and not bool(slots.get("has_valid_save", false)):
+			prompt_label.text = "An unreadable save exists. Back it up first."
+		else:
+			prompt_label.text = "The invasion is about to begin."
 
 
 func _on_settings_pressed() -> void:
@@ -278,13 +415,13 @@ func _run_startup_validation() -> void:
 		failures.append("startup_menu_not_in_left_safe_area")
 	if watch_intro_button == null:
 		failures.append("watch_intro_button_missing")
-	elif watch_intro_button.text != "Watch Intro":
+	elif watch_intro_button.text != "New Game: Watch Intro":
 		failures.append("watch_intro_label_bad")
 	elif not watch_intro_button.pressed.is_connected(_on_watch_intro_pressed):
 		failures.append("watch_intro_signal_missing")
 	if skip_to_game_button == null:
 		failures.append("skip_to_game_button_missing")
-	elif skip_to_game_button.text != "Skip To Game":
+	elif skip_to_game_button.text != "New Game: Skip Intro":
 		failures.append("skip_to_game_label_bad")
 	elif not skip_to_game_button.pressed.is_connected(_on_skip_to_game_pressed):
 		failures.append("skip_to_game_signal_missing")
@@ -380,6 +517,8 @@ func _run_release_content_validation() -> void:
 		failures.append("campaign_ending_scene_missing")
 	if not ResourceLoader.exists(EXPORTED_CAMPAIGN_ROUTE_PATH, "Script"):
 		failures.append("exported_campaign_route_missing")
+	if not ResourceLoader.exists(EXPORTED_PERF_STRESS_PATH, "Script"):
+		failures.append("exported_perf_stress_route_missing")
 	for resource_path in RELEASE_EXCLUDED_RESOURCES:
 		if ResourceLoader.exists(resource_path):
 			failures.append("excluded_resource_present_%s" % resource_path.get_file())

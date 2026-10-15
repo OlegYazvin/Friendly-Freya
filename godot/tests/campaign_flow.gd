@@ -92,8 +92,56 @@ func check_nearly_cleared_hold(scene) -> void:
 	scene.freya.global_position = original_position
 
 
+func check_already_owned_finale() -> void:
+	check(change_scene_to_file("res://scenes/Main.tscn") == OK, "could not open owned-map finale")
+	await scene_changed
+	var scene = current_scene
+	scene.set_process(false)
+	scene.game_save_incompatible = true
+	for index in range(scene.buildings.size()):
+		if index == scene.freya_home_index or index == scene.kennel_building_index:
+			continue
+		if bool(scene.buildings[index].get("alien_occupied", false)):
+			scene._clear_alien_occupation(index)
+		scene._set_claim_owner(scene.CLAIM_TARGET_BUILDING, index, scene.CLAIM_OWNER_FREYA)
+	scene.pack_order = scene.PACK_ORDER_ASSIST
+	scene.pack_assist_target_index = scene.chapter_target_indices[0]
+	scene._start_campaign_chapter(3)
+	check(scene.chapter_target_indices.size() == 4, "owned map lost the four-site final route")
+	check(scene.pack_order == scene.PACK_ORDER_FOLLOW and scene.pack_assist_target_index == -1, "chapter two order carried into the final signal")
+	check(scene.chapter_final_stronghold_index >= 0 and scene.chapter_required_occupation_clears == 0, "owned map did not choose a clear final signal site")
+	check(not scene.chapter_assisted_stronghold, "owned map silently awarded the final pack objective")
+	scene._check_chapter_completion()
+	check(not scene.chapter_complete, "owned map completed without an ally at the final signal")
+	var final_index: int = scene.chapter_final_stronghold_index
+	if final_index < 0:
+		return
+	var footprint: Rect2 = scene.buildings[final_index].get("footprint", Rect2())
+	scene._update_minimap_dynamic(0.0)
+	check(scene.minimap.next_chapter_target_building == footprint, "clear final signal is absent from the minimap next-site diamond")
+	check("Secure the final signal with an ally" in scene._chapter_objectives_text() and not "(0/0)" in scene._chapter_objectives_text(), "clear final signal guidance is misleading")
+	var ally: Dictionary = scene.dogs[0]
+	ally["army_aligned"] = true
+	ally["alien_possessed"] = false
+	ally["node"].set_army_aligned(true)
+	var approach: Vector3 = scene._alien_building_approach_position(final_index, footprint.get_center())
+	ally["node"].global_position = approach
+	scene.dogs[0] = ally
+	scene.pack_order = scene.PACK_ORDER_ASSIST
+	scene.pack_assist_target_index = final_index
+	scene._update_chapter_three_recovery()
+	check(not scene.chapter_assisted_stronghold, "assist silently satisfied the clear final signal's guard order")
+	scene.pack_order = scene.PACK_ORDER_GUARD
+	scene.pack_guard_dog_index = -1
+	scene.pack_guard_position = Vector2(approach.x, approach.z)
+	scene._update_chapter_three_recovery()
+	scene._check_chapter_completion()
+	check(scene.chapter_assisted_stronghold and scene.chapter_complete, "owned map could not finish with a real ally guarding the clear final signal")
+
+
 func run() -> void:
 	cleanup_save()
+	await check_already_owned_finale()
 	check(change_scene_to_file("res://scenes/Main.tscn") == OK, "could not open Main")
 	await scene_changed
 	var scene = current_scene
@@ -185,7 +233,7 @@ func run() -> void:
 	await process_frame
 	cleanup_save()
 	if failures.is_empty():
-		print("CAMPAIGN_FLOW_OK: three chapter routes, seeded holds, protected allies, pack assistance, and credits")
+		print("CAMPAIGN_FLOW_OK: three chapter routes, seeded holds, owned-map final guard, protected allies, pack assistance, and credits")
 		quit()
 	else:
 		push_error("CAMPAIGN_FLOW_FAIL: " + ", ".join(failures))

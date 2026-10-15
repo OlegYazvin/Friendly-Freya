@@ -31,15 +31,17 @@ godot --path .\godot
 ```
 
 Alternatively, open [project.godot](project.godot) in the editor and press Play.
-The configured entry scene is `Startup.tscn`: choose `Watch Intro`,
-`Skip To Game`, `Resume Game` when a valid save exists, or `Settings`. Settings currently contains a master-volume
+The configured entry scene is `Startup.tscn`: choose `New Game: Watch Intro`,
+`New Game: Skip Intro`, `Resume Game` when a valid save exists, or `Settings`. Settings currently contains a master-volume
 slider. Its background is generated cinematic key art of the real three-legged
 Freya in a Northbrook-inspired brick town-center streetscape.
 
 ## Controls
 
-- Startup: choose `Watch Intro`, `Skip To Game`, `Resume Game` when available, or `Settings`; `Watch Intro`
-  has keyboard focus by default.
+- Startup: choose `New Game: Watch Intro`, `New Game: Skip Intro`, `Resume Game`
+  when available, or `Settings`. The first new-game choice has keyboard focus
+  on a fresh install; `Resume Game` has focus when a save exists. Starting over
+  with a saved campaign opens a confirmation focused on `Keep Progress`.
 - Intro: `Space` / Next completes the current line, then advances the beat.
   `Esc` / Skip To Game skips the current cinematic.
 - `WASD` or Arrow keys: move Freya; `Shift`: run.
@@ -54,8 +56,8 @@ Freya in a Northbrook-inspired brick town-center streetscape.
 - Hold `R` near a dog: bark aggressively, stand ground against possessed dogs,
   expel an alien, or scare a real dog away. Bark near a visible imp to interrupt
   its attempt.
-- `1` / `2` / `3`: order the active pack to follow Freya, guard her current
-  spot, or assist at a building. The first three eligible allies form the
+- `1` / `2` / `3`: order the active pack to follow Freya, guard a nearby clean
+  dog (otherwise her current spot), or assist at a nearby building. The first three eligible allies form the
   active squad; later recruits hold their own guard posts and defend nearby dogs.
 - Hold `Space`: claim trees, light poles, hydrants, mailboxes, and eligible building
   interiors; weaken an alien building beside its wall; or search a nearby
@@ -67,8 +69,9 @@ Freya in a Northbrook-inspired brick town-center streetscape.
 - `Esc` during gameplay: pause or resume. `Resume` receives keyboard focus when
   the menu opens, so Enter also resumes. The Controls and How To Play panels
   scroll with Page Up and Page Down while open. `Save Game` writes current progress,
-  and `Quit Game` saves before exiting. `Watch Intro` replays the cut-scene and
-  begins a fresh game when it finishes or is skipped.
+  and `Quit Game` saves before exiting. `Restart Story` warns before ending the
+  current session and starting a new game through the intro; Escape returns to
+  the paused session.
 
 The in-game pause menu is the closest player-facing source for controls. Input
 bindings are configured in `main.gd` under `_configure_input` and
@@ -89,7 +92,10 @@ file can be recovered from its previous valid backup. If a later build changes
 the generated map so substantially that progress cannot be matched safely, the
 game starts a fresh neighborhood and leaves the old save untouched. A primary
 save from an unsupported game version hides Resume even if an older backup
-exists; this build will not overwrite either incompatible save slot.
+exists. If either save slot is incompatible, this build blocks new-game and
+restart routes, with instructions to use a matching build or archive both
+files before starting fresh. A compatible primary paired with an incompatible
+backup cannot be resumed in this build because saving would fail.
 
 ## Implemented Gameplay at a Glance
 

@@ -11,6 +11,33 @@ The implementation log below states what this pass added; the playtest,
 performance, accessibility, and Windows release gates remain open. Runtime
 code and executable checks remain authoritative.
 
+## Next release steps
+
+1. Finish the current full validation suite, inspect the changed startup,
+   pause, pack, final-signal, and credits captures, then cut a new checksummed
+   Windows review ZIP. Repeat its exported startup, performance-entry, and
+   keyboard campaign checks in Windows Actions.
+2. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
+   active GPU. Run the packaged no-save graphical stress test at 1280×720 and
+   1920×1080. Require every five-second window to reach 30 FPS, and check
+   text, input response, audio, and memory in natural play. Optimize and repeat
+   only if measured results miss the target.
+3. Complete an ordinary graphical Windows start-to-credits run. Exercise
+   mid-chapter Resume, a lodge rescue, chapter-2 ally protection, the final
+   signal, credits, Keep Exploring, and Replay Story cancellation. Verify a
+   future-version save is preserved rather than overwritten.
+4. Observe five players who have not seen the project, without control
+   coaching. Record where they lose the route, why they choose pack and
+   protection tactics, time to each chapter, and what feels rewarding or
+   repetitive. Use the [run sheet](PLAYTEST_RUN_SHEET.md).
+5. Fix the three most common or severe problems, then repeat affected
+   automated, visual, Windows, and player checks. Set the supported window
+   sizes and release metadata from observed results before a public release.
+
+The proposed 30–45 minute first chapter is a hypothesis. A passing automated
+route and a powerful Victus result do not establish enjoyment or a lower
+hardware floor.
+
 ## Implementation log
 
 - The Northbrook map now selects eight connected highlighted properties and
@@ -28,8 +55,18 @@ code and executable checks remain authoritative.
   whether the player dismissed a chapter result. Keep Exploring after the
   ending returns to the completed neighborhood with the result panel closed;
   saving there keeps it closed on the next resume. New gameplay cues use
-  sourced CC0 recordings with exact file mappings and silence for missing
-  files. See [audio attribution](../godot/assets/audio/ATTRIBUTION.md).
+  sourced recordings with exact file mappings and silence for missing files;
+  the active dog-food cue is CC BY 4.0, while the other mapped action excerpts
+  are CC0. See [audio attribution](../godot/assets/audio/ATTRIBUTION.md).
+- New Game from the title, Restart Story from pause, and Replay Story from the
+  ending now show a focused cancelable warning before replacing an existing
+  save. A primary or backup save from a newer game version blocks any route
+  that would overwrite it and explains where to archive the files.
+- The extracted Windows package includes `RunPerformanceQA.cmd`. It stages
+  the live full-pack scenario without touching the campaign save, samples
+  windowed 1280×720 and fullscreen 1920×1080 separately, verifies the actual
+  display sizes, and writes frame-time, five-second FPS, memory, and hardware
+  logs. The HP result is still pending.
 - Chapter 2 follows five connected highlighted sites, asks the player to
   protect two real allies with medicine or armor, and adds a warned imp threat.
   Its seeded alien hold carries a visible scent-relay marker; the objectives
@@ -42,6 +79,12 @@ code and executable checks remain authoritative.
   and secure it; the chapter cannot be stranded by claiming every site first.
   Goals point to any occupied generator that still blocks progress. Failed
   Quit or ending saves keep the current game open with retry guidance.
+- Pack Assist now selects a nearby route site or occupied building before a
+  distant hold and names its target. Guard can follow an independent clean dog
+  selected near Freya, with that dog's stable identity saved. When earlier
+  exploration leaves no legal chapter-3 occupation target, a claimed final
+  signal remains marked and must be secured by a real ally with an explicit
+  guard order; ownership is preserved and the finale is not auto-awarded.
 - A skippable first-chapter guide now advances from park dog to recruitment,
   an optional first park drill, the first clean connected claim, occupied hold,
   and lodge rescue. `H` hides it and the choice survives a save. Occupied
@@ -294,19 +337,21 @@ code and executable checks remain authoritative.
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. The route
   is headless and automated; it does not replace a graphical player run.
 - The current local Windows review ZIP,
-  `dist/Friendly-Freya-review-20261015g-Windows-x86_64.zip`, was exported with
+  `dist/Friendly-Freya-review-20261015i-Windows-x86_64.zip`, was exported with
   Godot 4.7.2 and verified against SHA-256
-  `6a135eb0afb55676bf7e71546f93962ce2f6e406b164a4782bca1d5958f74ee1`.
+  `0aee3d862a40a9a29022dfad18a4f2b4be1e8fd0c66c721b2bdcf8cddf522a8f`.
   Exported-PCK validation reported `RELEASE_CONTENT_OK` for the ending scene,
-  active dog model, 24 recorded barks, all 31 exact cue mappings, and the bundled
-  normal-input campaign QA route. A local Linux headless run of the earlier
+  active dog model, 24 recorded barks, all 32 exact cue mappings, and the bundled
+  normal-input campaign QA and performance routes. The extracted review-i PCK
+  passed a six-second headless performance-entry smoke and a graphical
+  1280×720 smoke on Linux; those do not measure sustained FPS on the HP.
+  A local Linux headless run of the earlier
   review-f extracted PCK secured chapter 1 at 8/8 sites and six lodge
   rescues, recovered from an ally's re-possession to protect two in chapter 2
   at 5/5 sites, then completed chapter 3 at 4/4 with pack assistance. It logged
   `NATURAL_ROUTE_CREDITS_OK`, `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and
-  `NATURAL_ROUTE_CAMPAIGN_OK` before exiting successfully. Those
-  mappings use 18 recorded action files plus an existing attributed eating
-  recording. A separate Windows export from the same review commit completed
+  `NATURAL_ROUTE_CAMPAIGN_OK` before exiting successfully. A separate Windows
+  export from that earlier review commit completed
   the exported-EXE
   controller route in 1187 simulated seconds, securing all three chapters with
   18 claimed sites, six lodge rescues, and four allies. Graphical Windows
@@ -487,7 +532,7 @@ and a reproducible seed for each technical issue.
   stable IDs rather than scene-node references in the save. Add versioning and
   a safe recovery path for old saves.
 - Add the chapter result and clear continuation path. A player who chooses
-  `Skip To Game` must still reach and understand it.
+  `New Game: Skip Intro` must still reach and understand it.
 
 **Gate:** new players can complete the first cleanse and meaningful claim
 without consulting documentation; the whole chapter can be finished and

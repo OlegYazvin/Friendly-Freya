@@ -208,7 +208,7 @@ The data model should still distinguish a storefront's base function from its cu
 2. **Implemented — Cleanse them.** Aggressive bark performs the exorcism test; a fleeing real dog communicates an incorrect guess.
 3. **Implemented — Respond to building occupation.** Expelled aliens claim nearby buildings; occupied storefronts lose services and reinforce nearby holds. Bark or guarding allies can intercept visible imps.
 4. **Implemented — Contain alien generation.** Occupied storefronts generate additional free aliens under a map-wide cap.
-5. **Implemented — Deploy the dog army.** Recruited dogs follow, guard, or assist; nearby assistants speed wall weakening and claims and can contain imps.
+5. **Implemented — Deploy the dog army.** Recruited dogs follow, guard, or assist; nearby assistants speed wall weakening and claims and can contain imps. Guard near an independent clean dog to follow and protect that dog, or guard a location when no such dog is nearby. Assist selects the nearby chapter site or alien hold first and names the selected building in its feedback.
 6. **Implemented — Resist re-possession.** Free imps attempt a timed transfer to vulnerable real dogs. Bark, pack defense, immunity, armor, and a clinic recovery kit offer different responses.
 7. **Implemented — Claim and weaken through scent marking.** Freya marks
    objects and directly weakens occupied buildings; pack assistance improves
@@ -218,9 +218,11 @@ The data model should still distinguish a storefront's base function from its cu
 9. **Future — Fortify buildings.** Resource costs and multiple fortification levels are still proposals; current services and territory have tactical value without them.
 10. **Implemented — Secure Northbrook and finish the story.** The eight-site
     rescue chapter leads to a five-site ally-protection chapter, a four-site
-    pack-assisted final hold, and a Gene/Zoe/Ryah ending with credits. Owning
-    every building remains an optional victory. First-run pacing and the full
-    story route still need human playtesting.
+    pack-assisted final hold, and a Gene/Zoe/Ryah ending with credits. If the
+    player owns every eligible site before chapter 3, a marked clean final
+    signal still requires a deliberate ally guard instead of silently awarding
+    the finale. Owning every building remains an optional victory. First-run
+    pacing and the full story route still need human playtesting.
 11. **Future — Advance beyond the neighborhood.** Treat the current map as Level 1 and vary later layouts, resources, pressure, and bonuses while preserving the core loop.
 
 ## Recommended System Model

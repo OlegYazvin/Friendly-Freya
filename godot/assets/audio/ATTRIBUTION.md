@@ -31,19 +31,15 @@ procedurally generate, substitute, or select another sound as a fallback.
 
 ### Derived file
 
-`menu/title_card_theme_8bit.wav` is currently a Stable Audio 3 audio-to-audio
-render of the project-owner recording. The build duplicates the original
-8.51-second performance once as a 17.02-second reference bed, runs Stable Audio
-3 Small-Music through the optimized TFLite CPU path with an upbeat NES/chiptune
-title-screen prompt, then saves a Godot-friendly 44.1 kHz, 16-bit PCM WAV.
-
-The generated model output was produced with Stable Audio 3 Small-Music. Use of
-the model weights is governed by the Stability AI Community License; the model
-card also notes the bundled T5Gemma text-conditioning component and its terms.
-
-The rejected Magenta/MusicRNN MIDI-continuation experiment is not used for the
-distributed asset. Candidate details and alternate generated WAVs are documented
-in
+`menu/title_card_theme_8bit.wav` is the source-derived energetic candidate 02
+from the project-owner recording. The build repeats the original 8.51-second
+performance to make a 17.02-second menu bed, speeds it up, applies fixed
+bit/sample reduction, filtering, echo/pulse processing, and limiting, then
+saves a Godot-friendly 44.1 kHz, 16-bit PCM WAV. It does not contain a
+Stable Audio 3 render or a MIDI continuation. The live WAV has SHA-256
+`ced60668f4e72d65cd4d89b6c4624921186e430b2c6669064699feea6f27f5a6`,
+matching `title_card_theme_source_energy_candidate_02.wav` exactly. The source
+recording, conversion command, and historical AI experiments are documented in
 [`docs/audio/TITLE_CARD_THEME.md`](../../../docs/audio/TITLE_CARD_THEME.md).
 
 ## Dog Barks
@@ -206,17 +202,42 @@ but is not loaded for gameplay or used as a fallback.
   - Direct preview URL used in project:
     `https://cdn.freesound.org/previews/456/456376_8812224-hq.mp3`
 
-### License
+### Licenses
 
-- [CC0 (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/)
+- `dog_eating_dinner_760336.mp3` and its `dog_eating_dinner_bite_760336.ogg`
+  derivative: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+  Credit: Geoff Bremner / `Geoff-Bremner-Audio`,
+  [“Hungry Dog Eating Dinner 1”](https://freesound.org/people/Geoff-Bremner-Audio/sounds/760336/).
+  The preview MP3 was cropped to 0.10–0.46 seconds, faded at both ends,
+  converted to mono Ogg Vorbis, and used at a fixed −10.4 dB playback gain.
+- The two `bbrocer` wet-eating recordings and the
+  `Bon_Vivant_Pictures` crunchy-dog recording, including their derivatives:
+  [CC0 (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/).
 
 ### Runtime mapping
 
 Food, bone, and poop each select only their matching recorded pool. The chosen
-recording plays at original pitch and a fixed −10.4 dB gain, with a fixed
-0.10-second start offset for food or poop and 0.05 seconds for bone. A missing
-selected recording leaves that eat event silent; an unknown kind selects no
-recording.
+recording plays at original pitch and a fixed −10.4 dB gain. Active gameplay
+files are short, source-derived excerpts, so each bite can end during Freya's
+0.34–0.56-second eating pose without an abrupt cut. The original full-length
+MP3s remain as attributed source/reference files; they are not alternative
+playback choices. The cinematic pill-eating beat uses its own longer excerpt.
+All excerpt ranges below are from the exact source files named above; fixed
+fade-in/fade-out and the stated gain are the only edits. No new audio was
+synthesized or layered. Rebuild with
+[build_eat_action_excerpts.sh](../../../scripts/build_eat_action_excerpts.sh),
+which verifies the source-file hashes first.
+
+| Active derived file under `eat/` | Source | Excerpt (seconds) | Fixed source gain | Runtime event |
+| --- | --- | --- | --- | --- |
+| `dog_eating_dinner_bite_760336.ogg` | `dog_eating_dinner_760336.mp3` | 0.10–0.46 | unchanged | Food or bowl, 0.36 s |
+| `dog_chewing_crunchy_bite_456376.ogg` | `dog_chewing_crunchy_456376.mp3` | 8.40–8.68 | unchanged | Bone, 0.28 s |
+| `wet_sloppy_eating_bite_382671.ogg` | `wet_sloppy_eating_382671.mp3` | 27.05–27.53 | −14 dB | Poop, 0.48 s |
+| `wet_sloppy_eating_alt_bite_382673.ogg` | `wet_sloppy_eating_alt_382673.mp3` | 4.42–4.90 | −9 dB | Poop, 0.48 s |
+| `dog_chewing_crunchy_pills_456376.ogg` | `dog_chewing_crunchy_456376.mp3` | 8.35–9.47 | unchanged | Family pill-eating beat, 1.12 s |
+
+A missing selected recording leaves that eat event silent; an unknown kind
+selects no recording.
 
 ## Intro Speech Bubbles
 
@@ -273,18 +294,19 @@ recording.
 
 ### Runtime mapping
 
-Only `vomit/dog_wheezing_coughing_825417.mp3` is currently listed in
-[`VOMIT_SAMPLE_CANDIDATES`](../../scripts/main.gd). The shipped
-`vomit/dog_gagging_135415.mp3` file is retained as a source/reference asset; it
-is not currently selected by that mapping and must never be used as a fallback.
-The active recording plays at original pitch with a fixed −10.2 dB gain and
-a fixed 0.18-second start offset.
+Only `vomit/dog_gagging_135415.mp3` is currently listed in
+[`VOMIT_SAMPLE_CANDIDATES`](../../scripts/main.gd). Its 1.28-second real
+gagging sound replaces the much longer wheezing/coughing source as the exact
+vomit cue. The shipped `vomit/dog_wheezing_coughing_825417.mp3` remains an
+attributed reference file; it is never selected as a fallback. The active
+recording plays at original pitch with a fixed −10.2 dB gain and no start
+offset. Freya's 1.05-second vomit pose stops the player if any tail remains.
 
 ## Recorded Action Cues
 
 The clips below are **real recordings or physical Foley**, edited only by
 cutting an excerpt, converting the linked source audio to mono Ogg Vorbis,
-and applying the stated fixed gain. No tone, oscillator, generated layer,
+applying short edge fades where stated, and applying the stated fixed gain. No tone, oscillator, generated layer,
 replacement, or fallback was added. All source pages state
 [CC0](https://creativecommons.org/publicdomain/zero/1.0/). These files are
 available for specific runtime events; a source file's presence alone does not
@@ -295,10 +317,12 @@ mean that the event is already wired to playback.
 | `dog_paws_skitter_208654.ogg` | Quick dog run or agility movement | [Dog skitter on concrete](https://freesound.org/people/luckylittleraven/sounds/208654/) (`luckylittleraven`) | [HQ MP3](https://cdn.freesound.org/previews/208/208654_2112203-hq.mp3) | 0.00–3.78, unchanged |
 | `dog_sniff_pant_784915.ogg` | Freya sensing or dog breathing | [Dog panting and sniffing](https://freesound.org/people/Primitv094/sounds/784915/) (`Primitv094`) | [HQ MP3](https://cdn.freesound.org/previews/784/784915_9616274-hq.mp3) | 16.40–19.70, +13 dB |
 | `dog_whine_462660.ogg` | Kennel captive or vulnerable dog | [Whining Dog](https://freesound.org/people/Breviceps/sounds/462660/) (`Breviceps`) | [HQ MP3](https://cdn.freesound.org/previews/462/462660_9159316-hq.mp3) | 0.45–2.90, unchanged |
+| `girl_crying_ryah_218184.ogg` | Ryah's alien-repelling cry | [Girl Crying](https://freesound.org/people/mvVoiceActing/sounds/218184/) (`mvVoiceActing`; a recorded voice performance) | [HQ MP3](https://cdn.freesound.org/previews/218/218184_3298571-hq.mp3) | 25.58–27.30, +19 dB and short edge fades |
 | `collar_jingle_611827.ogg` | Recruit or pack order acknowledgment | [Dog Collar Jingling](https://freesound.org/people/AKFeniks/sounds/611827/) (`AKFeniks`) | [HQ MP3](https://cdn.freesound.org/previews/611/611827_7493314-hq.mp3) | 5.85–8.40, +18 dB |
 | `home_door_683434.ogg` | Opening a hinged wooden door, if such an action is added | [door open](https://freesound.org/people/saha213131/sounds/683434/) (`saha213131`) | [HQ MP3](https://cdn.freesound.org/previews/683/683434_14040168-hq.mp3) | 0.00–0.90, +10 dB |
 | `metal_gate_411884.ogg` | Open a kennel cage or heavy gate | [Metal Door](https://freesound.org/people/Yin_Yang_Jake007/sounds/411884/) (`Yin_Yang_Jake007`) | [HQ MP3](https://cdn.freesound.org/previews/411/411884_7919598-hq.mp3) | 0.48–2.08, unchanged |
 | `medicine_bottle_460153.ogg` | Collect or apply immunity medicine | [Pill Bottle, Shaking](https://freesound.org/people/AudioWay/sounds/460153/) (`AudioWay`) | [HQ MP3](https://cdn.freesound.org/previews/460/460153_9565159-hq.mp3) | 0.00–0.94, +9 dB |
+| `plastic_bottle_landing_173597.ogg` | Pill bottles landing on the home floor | [Plastic Bottle falling](https://freesound.org/people/WarcakeStudios/sounds/173597/) (`WarcakeStudios`; an empty plastic bottle dropped onto the ground) | [HQ MP3](https://cdn.freesound.org/previews/173/173597_2393266-hq.mp3) | 0.03–0.82, unchanged gain and short edge fades |
 | `clinic_fabric_rustle.ogg` | Clinic care kit or bandage handling | [Fabric Rustling](https://opengameart.org/content/fabric-rustling) (`Iochi Glaucus`; a real leg warmer recorded with an AT2020) | [`rustling.ogg`](https://opengameart.org/sites/default/files/rustling.ogg) | 2.00–3.50, unchanged |
 | `armor_velcro_267713.ogg` | Attach or repair dog armor | [Velcro](https://freesound.org/people/WeeJee_vdH/sounds/267713/) (`WeeJee_vdH`) | [HQ MP3](https://cdn.freesound.org/previews/267/267713_3666787-hq.mp3) | 1.07–2.28, +7 dB |
 | `stick_pickup_qubodup_wobble2.ogg` | Pick up a loose wooden stick | [Wood Wobbling & Rattling](https://opengameart.org/content/wood-wobbling-rattling) (`qubodup`; a thin piece of real wood moved and stopped) | [`qubodup-wobble2.wav` in the CC0 archive](https://opengameart.org/sites/default/files/qubodup-wobble.7z) | Full 0.89, unchanged |
@@ -313,11 +337,20 @@ mean that the event is already wired to playback.
 
 The action cue IDs in [action_audio.gd](../../scripts/action_audio.gd) map to
 these exact files, except `family_pills_eaten`, which maps directly to the
-already-attributed `eat/dog_chewing_crunchy_456376.mp3`. The group-giggling
+already-attributed `eat/dog_chewing_crunchy_pills_456376.ogg`. The group-giggling
 source is already mono Ogg; the distributed excerpt was cropped to 1.95 seconds
 and re-encoded as mono Vorbis without pitch change, synthesis, or layering.
 Its downloaded source SHA-256 was
 `2155db34a3d62290d3dfcb6429cfda2af4e3ff736d3b86bdebb78100598b95fe`.
+The Ryah-cry and plastic-bottle excerpts rebuild with
+[build_story_action_excerpts.sh](../../../scripts/build_story_action_excerpts.sh).
+That script verifies the two CC0 Freesound HQ preview SHA-256 values before
+editing: `0f03b4a4fabec4afa8da55595fd007af89d80c2ac2b45d94d8fb738c9b73952e`
+for the cry and `8a8b4dc8e61c25e3658d7d7721e1118d1aff9122bdd43f65cc0d583da4478b21`
+for the bottle. The cry excerpt ends in 1.72 seconds, within Ryah's brief
+visual crying beat. The 0.79-second bottle impact ends before the next
+cinematic sound. Both preserve their natural pitch and contain only their
+single recorded sources.
 Every listed cue except `door` has a live event hook; `door` is reserved for a
 future visibly opening door. If an exact file is unavailable, its event stays
 silent.
@@ -327,6 +360,15 @@ learned drill does not replay the first-time reward cue.
 The `alien_emerge` cue also plays once when an occupied storefront generates a
 free imp within 14 world units of Freya. Distant storefront spawns stay silent;
 the event never selects another recording if its exact cue is unavailable.
+Approaching an unpossessed caged dog plays the existing recorded `dog_whine`
+once per approach and captive, with a 2.6-second minimum gap between whines.
+Possessed captives and repeated frames in the same interaction do not retrigger
+it. Ryah's home defense plays the exact recorded `ryah_cry` when she starts
+crying; a 1.95-second gap prevents simultaneous alien attempts from restarting
+the voice. A pack-only imp interception plays one aggressive recorded dog bark
+from the existing pool, at the non-Freya gain. Freya's held-bark interception
+keeps her own bark, and a 0.85-second gap prevents multiple imps from stacking
+pack barks. The pop still marks the imp itself being interrupted.
 
 ### Intro story event mappings
 
@@ -341,11 +383,11 @@ exact stream so one hit cannot cut another short.
 | `family_laugh` | `actions/family_group_giggling.ogg` | Gene and Zoe laugh at 23.0 s |
 | `family_pills_revealed` | `actions/medicine_bottle_460153.ogg` | Gene reveals the bottles at 28.4 s |
 | `family_abduction_beam` | `actions/electric_arc_367456.ogg` | The parents' beams appear at 45.0 s |
-| `family_pills_landed` | `actions/medicine_bottle_460153.ogg` | The pill bottles land at 46.35 s |
+| `family_pills_landed` | `actions/plastic_bottle_landing_173597.ogg` | The pill bottles land at 46.35 s |
 | `family_parents_vanish` | `actions/suction_pop_386885.ogg` | Gene and Zoe disappear at 47.2 s |
 | `family_ryah_beam` | `actions/electric_arc_367456.ogg` | Ryah's beam appears at 48.0 s |
 | `family_ryah_beam_break` | `actions/suction_pop_386885.ogg` | Her beam collapses at 51.2 s |
-| `family_pills_eaten` | `eat/dog_chewing_crunchy_456376.mp3` | Freya eats the spill at 54.0 s |
+| `family_pills_eaten` | `eat/dog_chewing_crunchy_pills_456376.ogg` | Freya eats the spill at 54.0 s |
 | `family_convulsion` | `actions/collar_jingle_611827.ogg` | Freya shakes and hops at 55.2 s |
 | `first_exit_abduction_beam` | `actions/electric_arc_367456.ogg` | Dog-walker beams appear at 0.9 s |
 | `first_exit_walkers_vanish` | `actions/suction_pop_386885.ogg` | The walkers vanish at 3.35 s |
@@ -370,3 +412,6 @@ exact stream so one hit cannot cut another short.
 - Continuous volume-slider adjustment is silent to avoid a click for every
   intermediate value. Quitting the process is immediate, so its last-frame
   button press is silent rather than cutting a recorded cue short.
+- The eight-ship fleet reveal is silent. It occurs in space, where recorded
+  aircraft or wind movement would imply air around the ships; its automatic
+  camera move has no physical source for an audible Foley event.

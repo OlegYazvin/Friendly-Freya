@@ -10,6 +10,12 @@ How to play
 2. Keep FriendlyFreya.exe and FriendlyFreya.pck together in the same folder.
 3. Double-click FriendlyFreya.exe.
 
+"New Game: Watch Intro" and "New Game: Skip Intro" start a fresh campaign. If a
+valid save exists, the game asks before replacing it. Resume Game continues the
+saved campaign. The pause menu's Restart Story and the ending's Replay Story
+actions also ask before leaving the current session. Cancel keeps the current
+screen and saved progress.
+
 Godot is not required. The included executable contains the Godot runtime.
 
 Windows may display a SmartScreen warning because this early build is not code
@@ -28,7 +34,7 @@ V                  Drop a carried stick
 C (hold)           Socialize with a nearby dog
 R (hold)           Bark at a suspicious dog
 Space (hold)       Claim objects/buildings or weaken an occupied building
-1 / 2 / 3          Pack follows, guards, or assists at a building
+1 / 2 / 3          Pack follows, guards a spot or nearby clean dog, or assists a named site
 X                  Vomit when the meter is full; spray can interrupt imps
 H                  Show or hide chapter tips
 Tab (hold)         Show objectives temporarily
@@ -46,3 +52,18 @@ and alien goals for the current chapter. The three-chapter campaign ends with
 Gene and Zoe's return and credits. The pause menu saves the game. Resume Game
 appears on the title screen when a valid save exists. Owning every building is an
 optional neighborhood challenge.
+
+Graphical performance QA
+------------------------
+On the nominated Windows test PC, plug in the laptop, select the dedicated GPU,
+close other games, and double-click RunPerformanceQA.cmd in this folder. The
+runner opens the exported game at 1280x720 windowed and 1920x1080 fullscreen.
+It checks that the actual game image matches each requested size. Each run has a
+15-second warm-up and a 135-second live stress sample. Do not minimize the
+game during the sample. The runner writes a summary and both full logs to a
+dated performance-qa folder beside the EXE. It reports the worst five-second
+FPS window against the 30 FPS target and samples Windows process memory. The
+diagnostic does not change the campaign save. Confirm the active GPU in Windows
+and record power mode, graphics driver, and any visual or input problems during
+a separate natural playthrough. A passing stress sample alone is not a full
+gameplay or lower-hardware guarantee.

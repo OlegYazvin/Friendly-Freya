@@ -13,6 +13,7 @@ const FamilyVisualFactory = preload("res://scripts/family_visual_factory.gd")
 const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
 const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const GameSaveScript = preload("res://scripts/game_save.gd")
+const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
@@ -110,22 +111,22 @@ const PEE_SAMPLE_CANDIDATES = [
 	"res://assets/audio/pee/dog_urination_stream_330024.mp3"
 ]
 const EAT_FOOD_SAMPLE_CANDIDATES = [
-	"res://assets/audio/eat/dog_eating_dinner_760336.mp3"
+	"res://assets/audio/eat/dog_eating_dinner_bite_760336.ogg"
 ]
 const EAT_POOP_SAMPLE_CANDIDATES = [
-	"res://assets/audio/eat/wet_sloppy_eating_382671.mp3",
-	"res://assets/audio/eat/wet_sloppy_eating_alt_382673.mp3"
+	"res://assets/audio/eat/wet_sloppy_eating_bite_382671.ogg",
+	"res://assets/audio/eat/wet_sloppy_eating_alt_bite_382673.ogg"
 ]
 const EAT_BONE_SAMPLE_CANDIDATES = [
-	"res://assets/audio/eat/dog_chewing_crunchy_456376.mp3"
+	"res://assets/audio/eat/dog_chewing_crunchy_bite_456376.ogg"
 ]
 const VOMIT_SAMPLE_CANDIDATES = [
-	"res://assets/audio/vomit/dog_wheezing_coughing_825417.mp3"
+	"res://assets/audio/vomit/dog_gagging_135415.mp3"
 ]
-const EAT_SOUND_START_OFFSET_SEC = 0.1
-const EAT_BONE_SOUND_START_OFFSET_SEC = 0.05
+const EAT_SOUND_START_OFFSET_SEC = 0.0
+const EAT_BONE_SOUND_START_OFFSET_SEC = 0.0
 const PEE_SOUND_START_OFFSET_SEC = 0.02
-const VOMIT_SOUND_START_OFFSET_SEC = 0.18
+const VOMIT_SOUND_START_OFFSET_SEC = 0.0
 const FREYA_STRENGTH_MIN_LEVEL = 1
 const FREYA_STRENGTH_MAX_LEVEL = 5
 const OBJECTIVE_CLAIM_TARGET = 10
@@ -140,6 +141,8 @@ const PACK_ORDER_FOLLOW = "follow"
 const PACK_ORDER_GUARD = "guard"
 const PACK_ORDER_ASSIST = "assist"
 const PACK_ASSIST_RADIUS = 5.0
+const PACK_ASSIST_CONTEXT_RADIUS = 7.0
+const PACK_GUARD_DOG_TARGET_RADIUS = 2.65
 const PACK_MAX_ACTIVE_ASSISTANTS = 3
 const PACK_TRAINING_ASSIST_BONUS = 0.08
 const PACK_PATH_CELL_SIZE = 1.0
@@ -187,6 +190,7 @@ const ALIEN_EXPEL_BARK_TIME = 0.68
 const ALIEN_TRAVEL_SPEED = 5.8
 const ALIEN_NEAREST_BUILDING_POOL = 3
 const ALIEN_RYAH_REPEL_TIME = 0.72
+const RYAH_CRY_AUDIO_GAP = 1.95
 const ALIEN_BUILDING_MIN_INTEGRITY = 0.08
 const ALIEN_BUILDING_WEAKEN_TIME = 5.5
 const ALIEN_STOREFRONT_REINFORCEMENT_RADIUS = 22.0
@@ -208,6 +212,7 @@ const FREE_ALIEN_DOG_RETRY_COOLDOWN = 8.0
 const IMP_BARK_INTERRUPT_RADIUS = 3.2
 const IMP_BARK_INTERRUPT_TIME = 0.42
 const IMP_ISOLATED_BARK_SOUND_GAP = 0.58
+const IMP_PACK_BARK_SOUND_GAP = 0.85
 const IMP_PACK_CONTAIN_RADIUS = 1.35
 const IMP_PACK_CONTAIN_TIME = 0.55
 const ALIEN_VISUAL_SCALE = 0.84
@@ -554,6 +559,8 @@ var freya_movement_audio_mode = 0
 var freya_movement_audio_timer = 0.0
 var dog_sniff_audio_cooldown = 0.0
 var freya_imp_bark_audio_next_time = 0.0
+var pack_imp_bark_audio_next_time = 0.0
+var ryah_cry_audio_next_time = 0.0
 var dog_park_training_completed: Array[String] = []
 
 var world_root: Node3D
@@ -599,6 +606,8 @@ var kennel_reserved_parcel = Rect2()
 var kennel: KennelBuilding
 var kennel_caged_bark_index = -1
 var kennel_caged_bark_progress = 0.0
+var kennel_captive_whine_index = -1
+var kennel_captive_whine_next_time = 0.0
 var chapter_target_indices: Array[int] = []
 var chapter_occupations_cleared = 0
 var chapter_complete = false
@@ -611,6 +620,7 @@ var chapter_final_stronghold_index = -1
 var chapter_guide_hidden = false
 var pack_order = PACK_ORDER_FOLLOW
 var pack_guard_position = Vector2.ZERO
+var pack_guard_dog_index = -1
 var pack_assist_target_index = -1
 var pack_route_update_serial = 0
 var pack_route_last_build_serial = -1
@@ -850,6 +860,7 @@ var pause_menu_panel: Panel
 var pause_menu_open = false
 var pause_resume_button: Button
 var pause_intro_button: Button
+var pause_restart_prompt
 var bark_sfx_players: Array[AudioStreamPlayer] = []
 var bark_sfx_streams_conversational: Array[AudioStream] = []
 var bark_sfx_streams_excited_social: Array[AudioStream] = []
@@ -1047,6 +1058,10 @@ func _configure_alien_visual_view() -> void:
 	if visual_view == "pause_menu":
 		_toggle_pause_menu(1)
 		return
+	if visual_view == "pause_restart":
+		_toggle_pause_menu(1)
+		_show_pause_restart_decision(true)
+		return
 	if visual_view == "pause_controls":
 		_toggle_pause_menu(1)
 		_on_pause_controls_pressed()
@@ -1061,6 +1076,42 @@ func _configure_alien_visual_view() -> void:
 		objectives_list_label.text = _objectives_text()
 		if status_panel != null:
 			status_panel.hide()
+		set_process(false)
+		return
+	if visual_view == "pack_assist_context" and freya != null:
+		_seed_chapter_strongholds()
+		var site_index = _first_clean_connected_chapter_target_index()
+		if site_index >= 0:
+			var site: Dictionary = buildings[site_index]
+			var site_rect: Rect2 = site.get("footprint", Rect2())
+			var entry: Vector2 = site.get("store_layout", {}).get("entry_outside_pos", site_rect.get_center())
+			var outward = entry - site_rect.get_center()
+			if outward.length_squared() < 0.01:
+				outward = Vector2.DOWN
+			var foreground = entry + outward.normalized() * 2.8
+			freya.global_position = Vector3(foreground.x, 0.0, foreground.y)
+			camera_orbit_angle = -0.35 if outward.y > 0.0 else PI - 0.35
+			camera_zoom_target = 11.4
+			camera_planar_distance = camera_zoom_target
+			for state in dogs:
+				var hidden_dog: Node3D = state.get("node", null)
+				if hidden_dog != null and is_instance_valid(hidden_dog):
+					hidden_dog.visible = false
+			for dog_index in range(mini(3, dogs.size())):
+				var ally: Dictionary = dogs[dog_index]
+				ally["army_aligned"] = true
+				ally["alien_possessed"] = false
+				ally["node"].visible = true
+				ally["node"].global_position = freya.global_position + Vector3(float(dog_index - 1) * 1.35, 0.0, 1.6)
+				ally["node"].call("set_army_aligned", true)
+				dogs[dog_index] = ally
+			pack_order = PACK_ORDER_ASSIST
+			pack_assist_target_index = _pack_assist_target_for_position(foreground)
+			var target_name = str(buildings[pack_assist_target_index].get("building_display_name", "chapter site"))
+			_show_status(_pack_order_status("assist %s, about %.0fm away" % [target_name, _point_distance_to_rect(foreground, buildings[pack_assist_target_index].get("footprint", Rect2()))]), 20.0, 2)
+		freya_inside_home = false
+		_update_territory_feedback()
+		_update_minimap_dynamic(0.0)
 		set_process(false)
 		return
 	if visual_view == "chapter_guide" and freya != null:
@@ -1251,7 +1302,7 @@ func _configure_alien_visual_view() -> void:
 		camera_planar_distance = camera_zoom_target
 		set_process(false)
 		return
-	if visual_view == "pack_squad" and freya != null:
+	if visual_view in ["pack_squad", "pack_guard_dog"] and freya != null:
 		var pack_center = Vector3(dog_park.get_center().x, 0.0, dog_park.get_center().y)
 		freya.global_position = pack_center + Vector3(0.0, 0.0, 1.5)
 		for state in dogs:
@@ -1267,18 +1318,27 @@ func _configure_alien_visual_view() -> void:
 			if dog == null or not is_instance_valid(dog):
 				continue
 			dog.visible = true
-			dog.global_position = pack_center + pack_offsets[pack_slot]
-			state["army_aligned"] = true
+			dog.global_position = freya.global_position + Vector3(1.5, 0.0, 0.0) if visual_view == "pack_guard_dog" and pack_slot == 3 else pack_center + pack_offsets[pack_slot]
+			state["army_aligned"] = not (visual_view == "pack_guard_dog" and pack_slot == 3)
 			state["alien_possessed"] = false
 			state["pack_guard_position"] = Vector2(dog.global_position.x, dog.global_position.z)
 			state["speed"] = 0.0
 			state["dir"] = Vector3.ZERO
 			state["wander"] = 999.0
-			dog.call("set_army_aligned", true)
+			dog.call("set_army_aligned", bool(state["army_aligned"]))
 			dogs[pack_slot] = state
-		_show_status(_pack_order_status("follow Freya"), 20.0, 2)
+		if visual_view == "pack_guard_dog" and dogs.size() > 3:
+			pack_order = PACK_ORDER_GUARD
+			pack_guard_dog_index = 3
+			var guarded_dog: Node3D = dogs[3]["node"]
+			pack_guard_position = Vector2(guarded_dog.global_position.x, guarded_dog.global_position.z)
+			_show_status(_pack_order_status("guard nearby %s" % _pack_guard_dog_name(3)), 20.0, 2)
+		else:
+			_show_status(_pack_order_status("follow Freya"), 20.0, 2)
 		camera_zoom_target = 11.4
 		camera_planar_distance = camera_zoom_target
+		if visual_view == "pack_guard_dog":
+			set_process(false)
 		return
 	if visual_view.begins_with("dog_park_training_") and freya != null:
 		var training_view_kinds = {
@@ -1601,6 +1661,10 @@ func _process(delta: float) -> void:
 		elif Input.is_action_just_pressed("menu"):
 			_acknowledge_chapter_completion()
 		return
+	if pause_restart_prompt != null and pause_restart_prompt.visible:
+		if Input.is_action_just_pressed("menu"):
+			pause_restart_prompt.cancel_prompt()
+		return
 	if Input.is_action_just_pressed("menu"):
 		_toggle_pause_menu()
 	if pause_menu_open:
@@ -1892,6 +1956,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_ESCAPE]:
 			_dismiss_possessed_dog_tutorial()
 			get_viewport().set_input_as_handled()
+		return
+	if pause_restart_prompt != null and pause_restart_prompt.visible:
 		return
 	if pause_menu_open:
 		if event is InputEventKey and event.pressed and not event.echo:
@@ -3970,6 +4036,15 @@ func _update_kennel(delta: float) -> void:
 	var nearest = _nearest_caged_kennel_dog()
 	var target_index = int(nearest.get("index", -1))
 	var aggressive = Input.is_action_pressed("aggressive_social") and not _is_dog_park_training_active()
+	if target_index < 0:
+		kennel_captive_whine_index = -1
+	elif not aggressive:
+		var nearby_captive: Node3D = nearest.get("dog", null)
+		if nearby_captive != null and not bool(nearby_captive.get_meta("alien_possessed", false)) and target_index != kennel_captive_whine_index:
+			if world_time >= kennel_captive_whine_next_time and action_audio != null:
+				action_audio.play("dog_whine", -12.0)
+				kennel_captive_whine_index = target_index
+				kennel_captive_whine_next_time = world_time + 2.6
 	if not aggressive or target_index < 0:
 		kennel_caged_bark_index = -1
 		kennel_caged_bark_progress = 0.0
@@ -3989,6 +4064,7 @@ func _update_kennel(delta: float) -> void:
 	kennel_caged_bark_progress = 0.0
 	kennel_caged_bark_index = -1
 	if kennel.depossess_caged_dog(target_index):
+		kennel_captive_whine_index = -1
 		var aisle_x = -2.82 if target_index < 3 else 2.82
 		var imp_origin = kennel.to_global(Vector3(aisle_x, 0.0, dog.position.z + ([-2.25, -0.25, 1.75][target_index % 3])))
 		_spawn_alien_transfer(imp_origin, -1)
@@ -11352,35 +11428,101 @@ func _update_pack_order_input() -> void:
 		return
 	if Input.is_action_just_pressed("pack_follow"):
 		pack_order = PACK_ORDER_FOLLOW
+		pack_guard_dog_index = -1
 		pack_assist_target_index = -1
 		_show_status(_pack_order_status("follow Freya"), 1.7, 1)
 		action_audio.play("button", -11.0)
 	elif Input.is_action_just_pressed("pack_guard"):
 		pack_order = PACK_ORDER_GUARD
-		pack_guard_position = Vector2(freya.global_position.x, freya.global_position.z)
+		var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
+		pack_guard_dog_index = _nearby_pack_guard_dog_index(freya_pos)
+		pack_guard_position = freya_pos
+		var order_text = "guard this spot"
+		if pack_guard_dog_index >= 0:
+			var guard_dog: Node3D = dogs[pack_guard_dog_index].get("node", null)
+			if guard_dog != null and is_instance_valid(guard_dog):
+				pack_guard_position = Vector2(guard_dog.global_position.x, guard_dog.global_position.z)
+				order_text = "guard nearby %s" % _pack_guard_dog_name(pack_guard_dog_index)
 		pack_assist_target_index = -1
-		_show_status(_pack_order_status("guard this spot"), 1.7, 1)
+		_show_status(_pack_order_status(order_text), 1.7, 1)
 		action_audio.play("button", -11.0)
 	elif Input.is_action_just_pressed("pack_assist"):
 		var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
-		var nearest = INF
-		var target = -1
-		for building_index in range(buildings.size()):
-			if not bool(buildings[building_index].get("alien_occupied", false)):
-				continue
-			var distance = _point_distance_to_rect(freya_pos, buildings[building_index].get("footprint", Rect2()))
-			if distance < nearest:
-				nearest = distance
-				target = building_index
-		if target < 0:
-			target = _next_chapter_target_index()
+		var target = _pack_assist_target_for_position(freya_pos)
 		if target >= 0:
 			pack_order = PACK_ORDER_ASSIST
+			pack_guard_dog_index = -1
 			pack_assist_target_index = target
-			_show_status(_pack_order_status("assist this building"), 1.7, 1)
+			var building: Dictionary = buildings[target]
+			var name = str(building.get("building_display_name", ""))
+			if name.is_empty():
+				name = "alien hold" if bool(building.get("alien_occupied", false)) else "chapter site"
+			var distance = _point_distance_to_rect(freya_pos, building.get("footprint", Rect2()))
+			_show_status(_pack_order_status("assist %s, about %.0fm away" % [name, distance]), 2.3, 1)
 			action_audio.play("button", -11.0)
 		else:
 			_show_status("No building needs pack assistance nearby.", 1.5)
+
+func _nearby_pack_guard_dog_index(origin: Vector2) -> int:
+	# A dog chosen for protection must be able to move independently from the
+	# active squad. Otherwise an assistant could end up escorting itself.
+	if campaign_chapter == 3 and not chapter_assisted_stronghold and chapter_final_stronghold_index >= 0 and chapter_final_stronghold_index < buildings.size():
+		var final_building: Dictionary = buildings[chapter_final_stronghold_index]
+		if not bool(final_building.get("alien_occupied", false)) and _point_distance_to_rect(origin, final_building.get("footprint", Rect2())) <= PACK_ASSIST_RADIUS:
+			return -1
+	var active = _active_pack_dog_indices()
+	var nearest = PACK_GUARD_DOG_TARGET_RADIUS
+	var target = -1
+	for dog_index in range(dogs.size()):
+		if active.has(dog_index):
+			continue
+		var state: Dictionary = dogs[dog_index]
+		if bool(state.get("alien_possessed", false)):
+			continue
+		var dog: Node3D = state.get("node", null)
+		if dog == null or not is_instance_valid(dog):
+			continue
+		var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
+		var distance = origin.distance_to(dog_pos)
+		if distance <= nearest and _pack_path_segment_walkable(origin, dog_pos):
+			nearest = distance
+			target = dog_index
+	return target
+
+func _pack_guard_dog_name(index: int) -> String:
+	if index < 0 or index >= dogs.size():
+		return "dog"
+	var breed = str(dogs[index].get("breed_id", ""))
+	return str(DOG_BREED_DEFINITIONS.get(breed, {}).get("display_name", "dog"))
+
+func _pack_assist_target_for_position(origin: Vector2) -> int:
+	# A nearby route site is what the player is looking at, even if a different
+	# occupied building lies elsewhere in the neighborhood.
+	var local_target = -1
+	var local_distance = PACK_ASSIST_CONTEXT_RADIUS
+	var nearest_occupied = -1
+	var occupied_distance = INF
+	for building_index in range(buildings.size()):
+		var building: Dictionary = buildings[building_index]
+		var occupied = bool(building.get("alien_occupied", false))
+		var route_site = chapter_target_indices.has(building_index) and not _building_is_controlled_by_freya(building_index)
+		var final_signal = campaign_chapter == 3 and chapter_required_occupation_clears > 0 and not chapter_assisted_stronghold and chapter_final_stronghold_index == building_index
+		if not occupied and not route_site and not final_signal:
+			continue
+		var distance = _point_distance_to_rect(origin, building.get("footprint", Rect2()))
+		if distance <= local_distance:
+			local_distance = distance
+			local_target = building_index
+		if occupied and distance < occupied_distance:
+			occupied_distance = distance
+			nearest_occupied = building_index
+	if local_target >= 0:
+		return local_target
+	if campaign_chapter == 3 and chapter_required_occupation_clears > 0 and not chapter_assisted_stronghold and chapter_final_stronghold_index >= 0 and chapter_final_stronghold_index < buildings.size() and not bool(buildings[chapter_final_stronghold_index].get("alien_occupied", false)):
+		return chapter_final_stronghold_index
+	if nearest_occupied >= 0:
+		return nearest_occupied
+	return _next_chapter_target_index()
 
 func _active_pack_dog_indices() -> Array[int]:
 	var active: Array[int] = []
@@ -11409,6 +11551,13 @@ func _pack_reserve_destination(state: Dictionary, dog: Node3D) -> Vector3:
 
 func _pack_destination_for_dog(dog: Node3D) -> Vector3:
 	if pack_order == PACK_ORDER_GUARD:
+		if pack_guard_dog_index >= 0 and pack_guard_dog_index < dogs.size():
+			var guard_state: Dictionary = dogs[pack_guard_dog_index]
+			var guard_dog: Node3D = guard_state.get("node", null)
+			if not bool(guard_state.get("alien_possessed", false)) and not _active_pack_dog_indices().has(pack_guard_dog_index) and guard_dog != null and is_instance_valid(guard_dog):
+				pack_guard_position = Vector2(guard_dog.global_position.x, guard_dog.global_position.z)
+			else:
+				pack_guard_dog_index = -1
 		return Vector3(pack_guard_position.x, 0.0, pack_guard_position.y)
 	if pack_order == PACK_ORDER_ASSIST and pack_assist_target_index >= 0 and pack_assist_target_index < buildings.size():
 		var origin = Vector2(dog.global_position.x, dog.global_position.z)
@@ -12094,6 +12243,9 @@ func _retarget_alien_transfer(transfer: Dictionary) -> Dictionary:
 func _trigger_ryah_alien_defense() -> void:
 	ryah_alien_defense_count += 1
 	ryah_alien_cry_timer = maxf(ryah_alien_cry_timer, ALIEN_RYAH_REPEL_TIME + 1.15)
+	if world_time >= ryah_cry_audio_next_time and action_audio != null:
+		action_audio.play("ryah_cry", -6.0)
+		ryah_cry_audio_next_time = world_time + RYAH_CRY_AUDIO_GAP
 	if ryah_diane_node != null and is_instance_valid(ryah_diane_node):
 		if ryah_alien_cry_visual_root == null or not is_instance_valid(ryah_alien_cry_visual_root):
 			ryah_alien_cry_visual_root = Node3D.new()
@@ -12344,6 +12496,9 @@ func _imp_interrupted_by_defenders(imp: Dictionary, node: Node3D, delta: float) 
 		if progress >= 1.0:
 			_spawn_bark_pulse(node.global_position + Vector3.UP * 0.62, Color(0.7, 0.92, 1.0, 0.95))
 			_show_status("The imp was intercepted before it could take hold!", 1.35, 2)
+			if pack_near and not bark_near and world_time >= pack_imp_bark_audio_next_time:
+				_play_bark_sound(false, BARK_CATEGORY_AGGRESSIVE)
+				pack_imp_bark_audio_next_time = world_time + IMP_PACK_BARK_SOUND_GAP
 			action_audio.play("alien_interrupt", -5.0)
 			return true
 	else:
@@ -13648,6 +13803,12 @@ func _chapter_protected_ally_count() -> int:
 func _start_campaign_chapter(next_chapter: int) -> void:
 	if next_chapter < 2 or next_chapter > 3:
 		return
+	if next_chapter == 3:
+		# The final signal needs a fresh player order. A chapter-two guard or
+		# assist target could otherwise complete it on transition without input.
+		pack_order = PACK_ORDER_FOLLOW
+		pack_guard_dog_index = -1
+		pack_assist_target_index = -1
 	campaign_chapter = next_chapter
 	chapter_complete = false
 	chapter_result_dismissed = false
@@ -13658,13 +13819,19 @@ func _start_campaign_chapter(next_chapter: int) -> void:
 	var seeded_stronghold_index = _seed_followup_chapter_stronghold()
 	chapter_required_occupation_clears = 1 if seeded_stronghold_index >= 0 else 0
 	chapter_final_stronghold_index = seeded_stronghold_index
+	if next_chapter == 3 and chapter_final_stronghold_index < 0 and not chapter_target_indices.is_empty():
+		# A player can already own every building before advancing the story.
+		# Ownership is never silently revoked to manufacture a new alien hold.
+		# Secure an existing signal site with a real ally instead of auto-awarding
+		# the finale's pack objective.
+		chapter_final_stronghold_index = chapter_target_indices[0]
 	if next_chapter == 2:
 		_mark_chapter_relay_visual()
-	if next_chapter == 3 and chapter_required_occupation_clears == 0:
-		chapter_assisted_stronghold = true
 	if next_chapter == 2:
 		_spawn_campaign_imp_near_ally()
 		_show_status("The lodge scent trail leads into the next block. Protect two allies and follow it!", 3.0, 2)
+	elif seeded_stronghold_index < 0:
+		_show_status("The final signal is clear. Bring a clean ally to guard its marked site!", 3.0, 2)
 	else:
 		_show_status("Gene and Zoe are close. Bring the pack to the final alien hold!", 3.0, 2)
 	if chapter_complete_panel != null:
@@ -13682,7 +13849,7 @@ func _update_chapter_three_recovery() -> void:
 		return
 	var footprint: Rect2 = buildings[index].get("footprint", Rect2())
 	var guard_at_site = pack_order == PACK_ORDER_GUARD and _point_distance_to_rect(pack_guard_position, footprint) <= PACK_ASSIST_RADIUS
-	var assist_at_site = pack_order == PACK_ORDER_ASSIST and pack_assist_target_index == index
+	var assist_at_site = chapter_required_occupation_clears > 0 and pack_order == PACK_ORDER_ASSIST and pack_assist_target_index == index
 	if not guard_at_site and not assist_at_site:
 		return
 	# A reserve ally already at the site can secure it too; the three-dog cap
@@ -18673,7 +18840,7 @@ func _run_headless_smoke_checks() -> bool:
 	_toggle_pause_menu(1)
 	if not get_tree().paused:
 		failures.append("pause_menu_not_pausing")
-	if pause_intro_button == null or pause_intro_button.text != "Watch Intro":
+	if pause_intro_button == null or pause_intro_button.text != "Restart Story":
 		failures.append("pause_intro_button_missing")
 	elif not pause_intro_button.pressed.is_connected(_on_pause_intro_pressed):
 		failures.append("pause_intro_button_signal_missing")
@@ -19716,8 +19883,9 @@ func _chapter_objectives_text() -> String:
 			var final_name = str(final_building.get("building_display_name", ""))
 			if final_name.is_empty():
 				final_name = "Final signal site"
-			var final_action = "Press [3] to assist, then hold Space at its wall" if bool(final_building.get("alien_occupied", false)) else "Return with an active ally and press [2] to guard"
+			var final_action = "Press [3] to assist, then hold Space at its wall" if bool(final_building.get("alien_occupied", false)) else "Bring an active ally here and press [2] to guard"
 			text += "  %s (about %.0fm): %s.\n" % [final_name, final_distance, final_action]
+		if chapter_required_occupation_clears > 0:
 			text += "- %s Break alien holds (%d/%d)\n" % ["[DONE]" if chapter_occupations_cleared >= chapter_required_occupation_clears else "[ ]", mini(chapter_occupations_cleared, chapter_required_occupation_clears), chapter_required_occupation_clears]
 	text += "- %s Stop alien generators (%d active)\n" % ["[DONE]" if generators == 0 else "[ ]", generators]
 	if generators > 0:
@@ -19950,10 +20118,10 @@ func _create_pause_menu() -> void:
 
 	pause_intro_button = Button.new()
 	pause_intro_button.name = "WatchIntroButton"
-	pause_intro_button.text = "Watch Intro"
+	pause_intro_button.text = "Restart Story"
 	pause_intro_button.position = Vector2(22, 114)
 	pause_intro_button.size = Vector2(166, 44)
-	pause_intro_button.tooltip_text = "Replay the intro cut-scene. A new game begins when it ends or is skipped."
+	pause_intro_button.tooltip_text = "Start the story over. This ends your current session and may replace its saved campaign."
 	pause_intro_button.pressed.connect(_on_pause_intro_pressed)
 	pause_menu_panel.add_child(pause_intro_button)
 
@@ -20002,7 +20170,7 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(pause_controls_scroll)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nHold Space: Mark objects, claim eligible interiors, weaken alien walls\nSpace near dumpster: Search once\nHold R: Bark at dogs or interrupt a visible imp\nHold C near dogs: Socialize and recruit; possessed dogs raise Vomit\n1: Pack follows Freya\n2: Pack guards this spot\n3: Pack assists the nearest alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
+	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nHold Space: Mark objects, claim eligible interiors, weaken alien walls\nSpace near dumpster: Search once\nHold R: Bark at dogs or interrupt a visible imp\nHold C near dogs: Socialize and recruit; possessed dogs raise Vomit\n1: Pack follows Freya\n2: Pack guards a nearby dog, or this spot\n3: Pack assists a nearby alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
 	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
@@ -20030,7 +20198,7 @@ func _create_pause_menu() -> void:
 	howto_text.text = (
 		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Owning every building is an optional challenge.\n\n"
 		+ "Freya alone marks nearby trees, poles, hydrants and mailboxes with Space. A clean building can be claimed after its nearby objects are marked and it connects to Freya territory. Hold Space inside for 10 seconds. For an occupied building, first weaken its outer wall with Space, then claim the clean interior.\n\n"
-		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Hold C with a freed dog to recruit it. Use 1 to follow, 2 to guard, and 3 to assist a building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
+		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Hold C with a freed dog to recruit it. Use 1 to follow, 2 beside a clean dog to guard that dog (otherwise guard this spot), and 3 to assist a nearby building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
 		+ "Visible imps may flee into buildings or try to take a vulnerable dog. Their transfer gives a warning: bark at the imp or send the pack to guard it. A full Vomit meter lets Freya interrupt imps with X. Pharmacy medicine makes a dog permanently immune; police armor absorbs one attempt. The clinic gives a care kit that frees a taken ally or calms a frightened dog. The home and grocery bowls reset Hunger. Take supplies with F and use them near a dog with F. On the minimap, M marks medicine, F food, A armor, and C clinic care.\n\n"
 		+ "The occupied dog lodge produces at most six possessed dogs. Cleanse it, bark at each captive, then press F to open each safe cage. Early cleansing does not prevent rescuing the dogs still inside. Ryah's home cannot be occupied. Save from the pause menu; Resume Game appears on the startup screen when a save exists."
 	)
@@ -20042,6 +20210,12 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.visible = false
 	pause_howto_panel.visible = false
 	pause_menu_panel.visible = false
+	pause_restart_prompt = FreshStartPromptScript.new()
+	pause_restart_prompt.name = "RestartStoryPrompt"
+	pause_restart_prompt.handle_escape = false
+	pause_menu_layer.add_child(pause_restart_prompt)
+	pause_restart_prompt.accepted.connect(_on_pause_restart_accepted)
+	pause_restart_prompt.canceled.connect(_on_pause_restart_canceled)
 	get_viewport().size_changed.connect(_layout_pause_menu)
 	_layout_pause_menu()
 
@@ -20067,6 +20241,8 @@ func _toggle_pause_menu(force_state: int = -1, play_sound: bool = true) -> void:
 		_hide_claim_meter()
 	if pause_menu_panel != null:
 		pause_menu_panel.visible = open
+	if not open and pause_restart_prompt != null:
+		pause_restart_prompt.hide()
 	if open and pause_resume_button != null:
 		pause_resume_button.grab_focus()
 	if pause_controls_panel != null and not open:
@@ -20108,13 +20284,47 @@ func _on_pause_howto_pressed() -> void:
 		pause_controls_button.text = "Controls"
 
 func _on_pause_intro_pressed() -> void:
+	if pause_restart_prompt == null or pause_restart_prompt.visible:
+		return
+	var save_path = game_save_test_path if not game_save_test_path.is_empty() else GameSaveScript.SAVE_PATH
+	var slots: Dictionary = {}
+	if not get_tree().has_meta("freya_flow_validation") or not game_save_test_path.is_empty():
+		slots = GameSaveScript.inspect_slots(save_path)
+	pause_menu_panel.hide()
+	if bool(slots.get("incompatible", false)):
+		pause_restart_prompt.show_notice("Save from another version", FreshStartPromptScript.incompatible_save_detail(save_path, bool(slots.get("newer", false))))
+	else:
+		_show_pause_restart_decision(bool(slots.get("has_valid_save", false)))
+	action_audio.play("button", -11.0)
+
+
+func _show_pause_restart_decision(has_valid_save: bool) -> void:
+	pause_menu_panel.hide()
+	var detail = "Restarting ends this session. The new game will replace your saved campaign when it next saves. Cancel to keep playing." if has_valid_save else "Restarting ends this session and loses any unsaved progress. Cancel to keep playing."
+	pause_restart_prompt.show_decision("Restart the story?", detail, "Restart Story", "Keep Playing")
+
+
+func _on_pause_restart_canceled() -> void:
+	if pause_menu_open:
+		pause_menu_panel.show()
+		pause_intro_button.grab_focus()
+	action_audio.play("button", -11.0)
+
+
+func _on_pause_restart_accepted() -> void:
+	var save_path = game_save_test_path if not game_save_test_path.is_empty() else GameSaveScript.SAVE_PATH
+	if not get_tree().has_meta("freya_flow_validation") or not game_save_test_path.is_empty():
+		var slots: Dictionary = GameSaveScript.inspect_slots(save_path)
+		if bool(slots.get("incompatible", false)):
+			pause_restart_prompt.show_notice("Save from another version", FreshStartPromptScript.incompatible_save_detail(save_path, bool(slots.get("newer", false))))
+			return
 	# The pause menu owns SceneTree.paused. Clear it before changing scenes so
 	# the intro and the fresh gameplay scene it launches both advance normally.
 	_toggle_pause_menu(0, false)
 	action_audio.play_persistent("button", -11.0)
 	var error = get_tree().change_scene_to_file(INTRO_SCENE_PATH)
 	if error != OK:
-		push_error("Could not open intro from the in-game menu (error %d)." % error)
+		push_error("Could not restart the story (error %d)." % error)
 		_toggle_pause_menu(1)
 
 func _on_pause_save_pressed() -> void:
@@ -20600,6 +20810,8 @@ func _update_minimap_dynamic(delta: float) -> void:
 			var final_rect: Rect2 = buildings[chapter_final_stronghold_index].get("footprint", Rect2())
 			if not chapter_rects.has(final_rect):
 				chapter_rects.append(final_rect)
+			if next_index < 0:
+				next_chapter_rect = final_rect
 
 	var map_forward = -camera_node.global_transform.basis.z
 	map_forward.y = 0.0
@@ -20698,6 +20910,10 @@ func _on_minimap_zoom_step(delta_zoom: float) -> void:
 
 
 func _game_saving_allowed() -> bool:
+	# The exported live performance route must never touch a player's save slot.
+	# The same SceneTree flag is set by the editor-run stress controller.
+	if bool(get_tree().get_meta("freya_perf_stress_no_save", false)):
+		return false
 	if game_save_incompatible:
 		return false
 	var isolated_headless_test = get_tree().has_meta("freya_flow_validation") and game_save_test_path.begins_with("user://friendly_freya_") and game_save_test_path.ends_with("_test.json")
@@ -20807,6 +21023,7 @@ func _snapshot_game_state() -> Dictionary:
 			"camera_zoom_target": camera_zoom_target,
 			"pack_order": pack_order,
 			"pack_guard_position": [pack_guard_position.x, pack_guard_position.y],
+			"pack_guard_dog_id": _save_dog_id_from_index(pack_guard_dog_index),
 			"pack_assist_building_id": _save_building_id_from_index(pack_assist_target_index)
 		},
 		"story": {
@@ -21261,6 +21478,9 @@ func _restore_player_and_story(state: Dictionary) -> void:
 	var saved_pack_order = str(player.get("pack_order", PACK_ORDER_FOLLOW))
 	pack_order = saved_pack_order if saved_pack_order in [PACK_ORDER_FOLLOW, PACK_ORDER_GUARD, PACK_ORDER_ASSIST] else PACK_ORDER_FOLLOW
 	pack_guard_position = _saved_position(player.get("pack_guard_position", []), Vector2(freya.global_position.x, freya.global_position.z))
+	pack_guard_dog_index = _save_dog_index_from_id(str(player.get("pack_guard_dog_id", ""))) if pack_order == PACK_ORDER_GUARD else -1
+	if pack_guard_dog_index >= 0 and bool(dogs[pack_guard_dog_index].get("alien_possessed", false)):
+		pack_guard_dog_index = -1
 	pack_assist_target_index = _save_building_index_from_id(str(player.get("pack_assist_building_id", "")))
 	if pack_order == PACK_ORDER_ASSIST and pack_assist_target_index < 0:
 		pack_order = PACK_ORDER_FOLLOW

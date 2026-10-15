@@ -23,15 +23,16 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015g-Windows-x86_64.zip`
-(SHA-256 `6a135eb0afb55676bf7e71546f93962ce2f6e406b164a4782bca1d5958f74ee1`).
+Current local review package: `dist/Friendly-Freya-review-20261015i-Windows-x86_64.zip`
+(SHA-256 `0aee3d862a40a9a29022dfad18a4f2b4be1e8fd0c66c721b2bdcf8cddf522a8f`).
 Verify it against the adjacent `.sha256` file before testing.
-The earlier review-f extracted PCK passed a local Linux headless
-start-to-credits input route. A separate Windows export from the same review
-commit passed the automated
-[Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38747554956)
-through credits and Keep Exploring, but has not passed the graphical manual
-checks below.
+The extracted review-i PCK passed a short exported performance-entry check
+headlessly and graphically at 1280×720 on Linux. The earlier review-f PCK
+passed a local Linux input route through credits; the earlier
+[Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
+passed its automated headless campaign route. Check the review-i Windows
+Actions result on [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
+before using this package for player tests. Graphical manual checks remain open.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
 `.pck`. Record the exact build label and SHA-256 manifest. Each of five players
@@ -50,19 +51,22 @@ Use the same observation sheet for every player:
 | Player ID and prior game familiarity | |
 | Build, machine, display, and input device | |
 | 960×540 readability and smallest acceptable window | |
-| Start route: Watch Intro or Skip To Game | |
+| Start route: New Game: Watch Intro / New Game: Skip Intro | |
 | Time to eat and leave home | |
 | Time to first independent dog decision and cleanse | |
 | Time to first recruited ally and pack order | |
+| Did key 3 name a useful nearby Pack Assist target? | |
+| Could key 2 guard a nearby independent clean dog? | |
 | Time to first building claim and cleared stronghold | |
 | Time to lodge rescue and chapter 1 result | |
 | Time to chapters 2 and 3, credits, and return to exploration | |
 | Did the H next-step guide help with ally protection and the final signal? | |
+| If the final site was already owned, could the player find and guard its clean signal with an ally? | |
 | Could the player read the G-pinned goals, scroll them, and return to play? | |
 | Could the player read the chapter guide at the tested window size? | |
 | Missed prompt, wrong input, unclear marker, or stuck route | |
 | Chosen protection and stronghold tactics; why | |
-| Save/resume attempt and result | |
+| Save/resume attempt; New Game, Restart, and Replay cancel/confirm clarity | |
 | One moment that was fun; one that felt repetitive or unfair | |
 
 Let the player try to recover from confusion before giving a hint. If a hint is
@@ -76,9 +80,12 @@ they would want to play another route.
 On the proposed HP Victus minimum Windows PC, record Windows build, actual
 hardware configuration, graphics driver, power mode, and active GPU. With the
 laptop plugged in and the dedicated RTX 4060 active, run the unprofiled
-135-second full-pack stress scenario described in the
-[run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample) and
-record each size separately:
+135-second full-pack stress scenario by double-clicking `RunPerformanceQA.cmd`
+from the extracted review ZIP, as described in the
+[run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample). Keep
+the dated summary and full logs. The runner measures each size separately and
+samples process memory; confirm the dedicated GPU is active and record any
+visible or input issue during a separate natural playthrough:
 
 | Window | Average FPS | Worst five-second FPS | p95 / p99 frame time | Peak memory | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -95,6 +102,12 @@ long enough to note frame rate, input delay, memory growth, and any sound that
 fails to play. Open pause with Escape, resume with Escape and the focused Enter
 button, then use Page Down and Page Up in both help panels with the keyboard
 alone.
+
+On a separate QA save copy, verify that New Game, pause Restart Story, and
+ending Replay Story leave the existing save intact when canceled. Inject a
+future-version primary save and, separately, a future-version backup only in
+that disposable QA copy; each must show its archive notice and block a route
+that cannot save. Never use a playtester’s sole campaign save for this check.
 
 ## Decision record
 

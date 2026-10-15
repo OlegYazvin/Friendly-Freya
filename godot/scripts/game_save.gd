@@ -44,6 +44,27 @@ static func has_resume(path: String = SAVE_PATH) -> bool:
 	return bool(read_save(path).get("ok", false))
 
 
+static func inspect_slots(path: String = SAVE_PATH) -> Dictionary:
+	# A valid primary can hide an incompatible backup from read_save(), while
+	# write_save() correctly refuses to replace either future-version file.
+	# Check both slots before offering any route that will need autosave.
+	var primary = _read_file(path)
+	var backup = _read_file(path + ".bak")
+	var primary_error = str(primary.get("error", ""))
+	var backup_error = str(backup.get("error", ""))
+	var incompatible = _is_unsupported_save(primary) or _is_unsupported_save(backup)
+	var newer = false
+	for error in [primary_error, backup_error]:
+		if error.begins_with("unsupported_version_") and int(error.trim_prefix("unsupported_version_")) > VERSION:
+			newer = true
+	return {
+		"has_files": FileAccess.file_exists(path) or FileAccess.file_exists(path + ".bak"),
+		"has_valid_save": bool(primary.get("ok", false)) or bool(backup.get("ok", false)),
+		"incompatible": incompatible,
+		"newer": newer
+	}
+
+
 static func write_save(state: Dictionary, path: String = SAVE_PATH) -> bool:
 	var normalized = _normalize_state(state)
 	if not bool(normalized.get("ok", false)):

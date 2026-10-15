@@ -17,6 +17,7 @@ mkdir -p "$output_dir"
 for spec in \
 	startup_menu:Startup.tscn:menu \
 	startup_resume:Startup.tscn:resume \
+	startup_new_game_confirm:Startup.tscn:confirm_new_game \
 	intro_01_establishing:IntroCutscene.tscn:establishing \
 	intro_02_a_question_runes:IntroCutscene.tscn:a_question_runes \
 	intro_02_a_question_morph:IntroCutscene.tscn:a_question_morph \
@@ -38,7 +39,8 @@ for spec in \
 	ending_01_signal_breaks:CampaignEnding.tscn:return \
 	ending_02_family_reunion:CampaignEnding.tscn:reunion \
 	ending_03_freya_rest:CampaignEnding.tscn:freya \
-	ending_04_credits:CampaignEnding.tscn:credits
+	ending_04_credits:CampaignEnding.tscn:credits \
+	ending_05_replay_confirm:CampaignEnding.tscn:replay_confirm
 do
 	output_name=${spec%%:*}
 	remainder=${spec#*:}

@@ -17,7 +17,9 @@ Use host Flatpak (not sandbox `flatpak`):
 host-spawn flatpak run org.godotengine.Godot --path "$PWD/godot"
 ```
 
-The first screen should offer `Watch Intro` and `Skip To Game`.
+The first screen should offer `New Game: Watch Intro` and `New Game: Skip Intro`.
+If a valid save exists, `Resume Game` is focused by default. Either new-game
+choice asks for confirmation before that save can be replaced.
 
 Why `host-spawn` is required here:
 
@@ -80,9 +82,11 @@ It runs:
    guard positions, collision-triggered pack routing around the seed-20260831
    site-33 blocker, and a nearby reserve's cleared-site guard recovery in
    `godot/tests/pack_squad.gd`;
-6. isolated R bark defense of an imp, duplicate-bark restraint, near-only
-   occupied-storefront imp emergence without fallback, and the first-time
-   park drill's recorded reward cue in `godot/tests/audio_actions.gd`;
+6. isolated R and pack-dog bark defense of an imp with duplicate-bark
+   restraint, the caged-dog whine on approach, Ryah's brief cry, the real
+   pill-bottle landing, near-only occupied-storefront imp emergence without
+   fallback, and the first-time park drill's recorded reward cue in
+   `godot/tests/audio_actions.gd`;
 7. input-driven skip/replay, food, rune/morph Next, recruitment, blocked gait,
    spatial collision equivalence, claim bounds, feedback priority, and persistent
    completion regressions in `godot/tests/dejank_flow.gd`;
@@ -93,30 +97,33 @@ It runs:
    recovery, legacy migration, future-version preservation, all campaign
    state, old chapter-1 stronghold repair, dogs, claims, occupation, and kennel
    state;
-10. chapter guidance, clean-first target priority, chapter-2 ally protection,
+10. New Game, Restart Story, and Replay Story confirmation/cancel behavior,
+    keyboard focus, and future-version primary/backup save protection in
+    `godot/tests/new_game_safety.gd`;
+11. chapter guidance, clean-first target priority, chapter-2 ally protection,
     chapter-3 pack and final-signal recovery cues, the named next-site
     minimap diamond and legend, saved dismissal, and 800×450 guide/goals/pause
     panel bounds in `godot/tests/chapter_guide.gd`;
-11. the three connected chapter routes, mandatory holds, ally protection, pack
+12. the three connected chapter routes, mandatory holds, ally protection, pack
    assistance, and credits handoff in `godot/tests/campaign_flow.gd`;
-12. five generated seeds with all chapter entrances, required scent marks,
+13. five generated seeds with all chapter entrances, required scent marks,
     occupied wall approaches, lodge cages, and sequential territory connections
     in `godot/tests/campaign_reachability.gd`;
-13. occupied-building margin recovery for Freya and dogs, plus old-save and
+14. occupied-building margin recovery for Freya and dogs, plus old-save and
     interior-exit checks, in `godot/tests/occupation_collision_recovery.gd`;
-14. five-seed doorway-connected routes to grocery, pharmacy, police, and clinic
+15. five-seed doorway-connected routes to grocery, pharmacy, police, and clinic
     services using Freya-radius collision, with each F effect verified in
     `godot/tests/service_reachability.gd`;
-15. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
-16. ending layout and navigation in `godot/tests/campaign_ending.gd`;
-17. the ending's return to the saved neighborhood and persistent exploration
+16. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
+17. ending layout and navigation in `godot/tests/campaign_ending.gd`;
+18. the ending's return to the saved neighborhood and persistent exploration
     state in `godot/tests/ending_resume.gd`;
-18. carried supply targeting, duplicate-use protection, clinic and grocery
+19. carried supply targeting, duplicate-use protection, clinic and grocery
     priority, and matching dog highlights in `godot/tests/supply_targeting.gd`.
 
 Successful output includes `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`,
-`DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
+`DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
 `CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SCENT_SUPPORT_OK`,
 `ENDING_OK`, `ENDING_RESUME_OK`, and `SUPPLY_TARGETING_OK`, followed by
@@ -265,8 +272,8 @@ occupied storefront generators, and the still-possessed kennel. It drives
 movement beside one storefront while normal gameplay updates run. After a
 15-second warm-up, it samples 135 seconds and prints five-second FPS, scene
 population, node and draw-call counts, engine memory, Linux process RSS, and
-frame-time percentiles. It does not write a game save. This is a reproducible
-local stress diagnostic, not a release gate by itself; measure the natural
+frame-time percentiles. The stress controller disables game saving. This is a
+reproducible local stress diagnostic, not a release gate by itself; measure the natural
 playthrough on the stated minimum Windows machine as well. The proposed test
 machine is the HP Victus 16-r0073cl (factory Windows 11 Home, i7-13700HX,
 RTX 4060 Laptop GPU, 32 GB RAM, 1920×1080 display). Confirm its actual
@@ -278,10 +285,20 @@ in the [playtest sheet](docs/PLAYTEST_RUN_SHEET.md). The target is a floor of
 30 FPS in every five-second window on this machine; 960×540 remains a
 readability candidate pending manual review.
 
-On Windows, use a checkout of this exact review commit and the Godot 4.7.2
-editor, with no other Godot instance running. In PowerShell from the repository
-root, set `$godotExe` to the editor's actual path and run both sizes without
-`--headless` or `FREYA_PERF_PROFILE_GAMEPLAY`:
+For the release measurement on Windows, extract the matching review ZIP and
+double-click `RunPerformanceQA.cmd` beside `FriendlyFreya.exe`. The bundled
+runner launches the exported game graphically at 1280×720 windowed and
+1920×1080 fullscreen without a Godot installation, verifies the actual client
+size during sampling, saves full logs and a summary in a dated `performance-qa`
+folder, and samples Windows process memory. Use its worst five-second FPS result for
+the 30 FPS floor. Check the active GPU and observe a separate natural
+start-to-credits playthrough; the scripted stress case alone cannot establish
+playability or enjoyment. The runner never writes the campaign save.
+
+For a developer diagnostic from source, use a checkout of the exact review
+commit and the Godot 4.7.2 editor, with no other Godot instance running. In
+PowerShell from the repository root, set `$godotExe` to the editor's actual path
+and run both sizes without `--headless` or `FREYA_PERF_PROFILE_GAMEPLAY`:
 
 ```powershell
 $godotExe = 'C:\path\to\Godot_v4.7.2-stable_win64.exe'
@@ -299,12 +316,15 @@ unprofiled run for the FPS comparison.
 
 ## Save Version Compatibility
 
-An older game build preserves save files created by a newer version. If a
-compatible primary save is paired with a newer-version `.bak`, Resume may open
-the primary, but further saves are blocked to protect the newer backup. Use the
-newer build or archive both save slots outside Godot's `user://` data directory
-before continuing with the older build. Keep those archived files if that
-newer progress matters.
+An older game build preserves save files created by a newer version. The title
+screen and pause-menu restart block fresh starts when either the primary or
+backup save uses an incompatible version. Resume is blocked too if an otherwise
+compatible primary is paired with an incompatible backup, because further
+saves would fail. The on-screen notice names the save folder: use the newer
+build, or close the game and copy both `friendly_freya_save.json` and its
+`.bak` out of that folder before removing the originals and starting fresh.
+Ordinary new-game choices and pause-menu `Restart Story` require a keyboard
+accessible confirm/cancel step when progress could be replaced or abandoned.
 
 ## Visual Regression Captures
 
@@ -354,8 +374,8 @@ To build locally after installing matching export templates:
 ```
 
 The build script verifies the executable and PCK, confirms the active CC0 dog,
-all 24 runtime bark recordings, 31 exact cue mappings across 18 recorded action
-files plus the attributed eating recording, and the campaign ending
+all 24 runtime bark recordings, every exact mapped action cue and its recorded
+source file, and the campaign ending
 are present, proves inactive model references are absent, adds the player
 instructions and legal notices, creates a ZIP, and writes its SHA-256 manifest
 under `dist/`.
@@ -373,11 +393,12 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
-review-g PCK passed the exact-content export check. A separate Windows export
-from the same review commit passed the automated campaign route in
-[Actions run 38747554956](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38747554956),
-including all three completion markers. Graphical playtesting on the HP Victus
-remains open.
+review-i PCK passed exact-content export, checksum, and short exported
+performance-entry checks, including a graphical 1280×720 smoke on Linux.
+The prior [Windows Actions run 38752479431](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
+passed the automated campaign route at the previous commit. Check the
+[draft PR's current Windows Actions result](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
+for review-i; graphical playtesting on the HP Victus remains open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
@@ -395,7 +416,8 @@ the ZIP and checksum only after the Windows startup smoke and exported
 start-to-credits campaign route pass. Other `v*` tags trigger the workflow but
 fail the version/metadata guard. A manual `workflow_dispatch` run from a
 pushed review branch builds
-an Actions artifact, smoke-tests the exported EXE on `windows-latest`, then
+an Actions artifact, smoke-tests the exported EXE and its bundled performance
+entry on `windows-latest`, then
 runs the bundled keyboard campaign controller through credits and Keep
 Exploring in the extracted EXE/PCK. Tag pushes require the same route before
 publication. That Windows route is headless and checks

@@ -85,6 +85,8 @@ echo "Running Friendly Freya generated-layout camera regressions..."
 run_scene_validation res://tests/dejank_cameras.gd
 echo "Running Friendly Freya save and resume regressions..."
 run_scene_validation res://tests/save_resume.gd
+echo "Running Friendly Freya new-game save-safety regressions..."
+run_scene_validation res://tests/new_game_safety.gd
 echo "Running Friendly Freya three-chapter campaign flow..."
 run_scene_validation res://tests/campaign_flow.gd
 echo "Running Friendly Freya generated campaign reachability sweep..."

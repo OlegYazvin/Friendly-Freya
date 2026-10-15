@@ -37,7 +37,7 @@ recorded action sounds, and deterministic visual regression views.
 | [De-jankification implementation](docs/DEJANKIFICATION.md) | Eleven gameplay/presentation fixes, rendered/input evidence, regression coverage, performance, and limits | Current implementation record |
 | [Visual regression catalog](visual_regressions/README.md) | What each deterministic PNG documents and how to regenerate it | Current capture reference |
 | [Model inventory and policy](godot/assets/models/README_MODELS.md) | Active/inactive model status, shared-dog rules, and provenance gaps | Current asset/release record |
-| [Audio attribution](godot/assets/audio/ATTRIBUTION.md) | Audio provenance, licenses, derived files, and exact intro mappings | Current legal/source record |
+| [Audio attribution](godot/assets/audio/ATTRIBUTION.md) | Audio provenance, licenses, derived files, and exact story and gameplay cue mappings | Current legal/source record |
 | [Original visual change request](New%20changes.md) | The historical request that led to the home/storefront/suburban visual pass | Historical record |
 | [Windows artifacts](Logs%20and%20Monitoring/README.md) | Why packaged copies exist and why they are not source documentation | Artifact note |
 

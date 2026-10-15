@@ -10,6 +10,7 @@ signal replay_requested
 
 const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const GameSaveScript = preload("res://scripts/game_save.gd")
+const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
 const INTRO_SCENE_PATH := "res://scenes/IntroCutscene.tscn"
 const MAIN_SCENE_PATH := "res://scenes/Main.tscn"
 const SUMMARY_META := "friendly_freya_ending_summary"
@@ -30,7 +31,7 @@ const PAGES := [
 	},
 	{
 		"heading": "Thank you for playing",
-		"body": "FRIENDLY FREYA\nA neighborhood adventure about a very brave dog.\n\nStory and game: the Friendly Freya project\nFreya dog model: Quaternius, Cube World Kit (CC0)\nRecorded dog barks: Brandon Morris and pauliuw (CC0)\nAdditional recorded sounds: the CC0 creators named in the Audio Attribution file\n\nThank you for helping Freya bring her family home."
+		"body": "FRIENDLY FREYA\nA neighborhood adventure about a very brave dog.\n\nStory and game: the Friendly Freya project\nFreya dog model: Quaternius, Cube World Kit (CC0)\nRecorded dog barks: Brandon Morris and pauliuw (CC0)\nFood recording: Geoff Bremner (CC BY 4.0)\nRyah cry performance: mvVoiceActing (CC0)\nPlastic bottle Foley: WarcakeStudios (CC0)\nAdditional recorded sounds: see AUDIO_ATTRIBUTION.md for creators, sources, and licenses\n\nThank you for helping Freya bring her family home."
 	}
 ]
 
@@ -43,6 +44,7 @@ const PAGES := [
 @onready var skip_button: Button = %SkipButton
 @onready var explore_button: Button = %ExploreButton
 @onready var replay_button: Button = %ReplayButton
+@onready var story_panel: PanelContainer = $Screen/StoryPanel
 
 var _page := 0
 var _was_paused := false
@@ -51,6 +53,8 @@ var _routing := false
 var _action_audio: Node
 var _summary: Dictionary = {}
 var resume_save_path: String = GameSaveScript.SAVE_PATH
+var replay_prompt
+var replay_prompt_return_button: Button
 
 
 func _ready() -> void:
@@ -69,7 +73,15 @@ func _ready() -> void:
 	skip_button.pressed.connect(_on_skip_pressed)
 	explore_button.pressed.connect(_on_explore_pressed)
 	replay_button.pressed.connect(_on_replay_pressed)
+	replay_prompt = FreshStartPromptScript.new()
+	replay_prompt.name = "ReplayStoryPrompt"
+	replay_prompt.handle_escape = false
+	$Screen.add_child(replay_prompt)
+	replay_prompt.accepted.connect(_on_replay_confirmed)
+	replay_prompt.canceled.connect(_on_replay_canceled)
 	_show_page(_capture_page_index())
+	if OS.get_environment("FREYA_ENDING_VIEW").strip_edges().to_lower() == "replay_confirm":
+		call_deferred("_capture_replay_confirmation")
 
 
 func configure_summary(summary: Dictionary) -> void:
@@ -90,6 +102,11 @@ func _input(event: InputEvent) -> void:
 		return
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo:
+		return
+	if replay_prompt != null and replay_prompt.visible:
+		if key_event.keycode == KEY_ESCAPE:
+			replay_prompt.cancel_prompt()
+			get_viewport().set_input_as_handled()
 		return
 	match key_event.keycode:
 		KEY_RIGHT:
@@ -161,9 +178,14 @@ func _on_skip_pressed() -> void:
 
 
 func _on_explore_pressed() -> void:
-	if _routing:
+	if _routing or replay_prompt.visible:
 		return
 	if get_tree().current_scene == self:
+		var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+		if bool(slots.get("incompatible", false)):
+			replay_prompt_return_button = explore_button
+			_show_incompatible_save_notice(slots)
+			return
 		var result: Dictionary = GameSaveScript.read_save(resume_save_path)
 		if not bool(result.get("ok", false)):
 			status.text = "The saved neighborhood could not be loaded. Replay Story is available."
@@ -185,7 +207,46 @@ func _on_explore_pressed() -> void:
 
 
 func _on_replay_pressed() -> void:
-	if _routing:
+	if _routing or replay_prompt.visible:
+		return
+	var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+	replay_prompt_return_button = replay_button
+	if bool(slots.get("incompatible", false)):
+		_show_incompatible_save_notice(slots)
+		return
+	_show_replay_decision(bool(slots.get("has_valid_save", false)))
+
+
+func _capture_replay_confirmation() -> void:
+	# Preview a saved-campaign warning without reading the local player's files.
+	replay_prompt_return_button = replay_button
+	_show_replay_decision(true)
+
+
+func _show_replay_decision(has_valid_save: bool) -> void:
+	story_panel.hide()
+	var detail = "Replaying begins a new game. Its next save will replace your completed campaign. Choose Keep Exploring to stay with your dogs." if has_valid_save else "Replaying begins a new game and leaves this completed story. Cancel to stay at the credits."
+	replay_prompt.show_decision("Replay from the beginning?", detail, "Replay Story", "Keep Credits")
+	_play_button()
+
+
+func _show_incompatible_save_notice(slots: Dictionary) -> void:
+	story_panel.hide()
+	replay_prompt.show_notice("Save from another version", FreshStartPromptScript.incompatible_save_detail(resume_save_path, bool(slots.get("newer", false))))
+	_play_button()
+
+
+func _on_replay_canceled() -> void:
+	story_panel.show()
+	if replay_prompt_return_button != null:
+		replay_prompt_return_button.grab_focus()
+	_play_button()
+
+
+func _on_replay_confirmed() -> void:
+	var slots: Dictionary = GameSaveScript.inspect_slots(resume_save_path)
+	if bool(slots.get("incompatible", false)):
+		_show_incompatible_save_notice(slots)
 		return
 	_routing = true
 	_action_audio.play_persistent("button", -11.0)
@@ -245,5 +306,7 @@ func _capture_page_index() -> int:
 		"freya":
 			return 2
 		"credits":
+			return 3
+		"replay_confirm":
 			return 3
 	return 0

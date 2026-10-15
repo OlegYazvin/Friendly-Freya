@@ -45,15 +45,21 @@ Main thresholds, and the relevant reviewed captures.
 
 - Runtime scene: `Startup.tscn`
 - Timing: untimed; appears every normal application launch.
-- During gameplay, press `Esc` and select `Watch Intro` to replay the cut-scene at any time. The pause state is cleared before routing; finishing or skipping the replay starts a fresh game.
-- Visible UI: title, invasion prompt, `Watch Intro`, and `Skip To Game`.
-- Default focus: `Watch Intro`.
-- `Watch Intro` route: `IntroCutscene.tscn`.
-- `Skip To Game` route: `Main.tscn`, starting at the live home near the food
+- During gameplay, press `Esc` and select `Restart Story`. Confirm the warning
+  to end the current session and replay the intro. The pause state clears before
+  routing; finishing or skipping the intro starts a fresh game.
+- Visible UI: title, invasion prompt, `New Game: Watch Intro`,
+  `New Game: Skip Intro`, and `Resume Game` when a valid save exists.
+- Default focus: `Resume Game` when available, otherwise `New Game: Watch Intro`.
+- `New Game: Watch Intro` route: `IntroCutscene.tscn`.
+- `New Game: Skip Intro` route: `Main.tscn`, starting at the live home near the food
   bowl with 100% Hunger, optional food guidance, an open exit, and dog behavior
   enabled independently of cinematic history. UFO Escape uses the same route.
-- Selection behavior: both buttons immediately lock after either choice so two
-  destination changes cannot race.
+- Selection behavior: an existing save prompts for confirmation before either
+  new-game route can replace it. Cancel has default keyboard focus. A save from
+  an incompatible game version blocks new game and resume until both save files
+  are archived outside the save folder or opened in the matching version.
+  Choices lock once a destination is selected so two scene changes cannot race.
 - Edit point: presentation lives in `Startup.tscn`; route invariants and startup
   validation live in `startup.gd`.
 
@@ -158,6 +164,8 @@ Main thresholds, and the relevant reviewed captures.
   widens its field of view until Earth and the full eight-ship formation appear.
 - Dialogue/bubble: none.
 - Speech audio: none.
+- Fleet movement audio: intentionally silent. The reveal is in space, so a
+  recorded aircraft or wind pass would imply air around the ships.
 - End transition: natural completion sets a one-shot family-intro handoff and
   opens `Main.tscn`. Main generates the map and actual home before beginning the
   family sequence. Skipping the UFO segment bypasses that sequence.

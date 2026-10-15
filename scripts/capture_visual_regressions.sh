@@ -38,6 +38,8 @@ for spec in \
 	FREYA_VISUAL_VIEW:first_exit_immunity_thought \
 	FREYA_VISUAL_VIEW:dog_park_friendly \
 	FREYA_VISUAL_VIEW:pack_squad \
+	FREYA_VISUAL_VIEW:pack_assist_context \
+	FREYA_VISUAL_VIEW:pack_guard_dog \
 	FREYA_VISUAL_VIEW:supply_target \
 	FREYA_VISUAL_VIEW:supply_target_960 \
 	FREYA_VISUAL_VIEW:dog_park_training_weave \
@@ -46,6 +48,7 @@ for spec in \
 	FREYA_VISUAL_VIEW:dog_park_training_tunnel \
 	FREYA_VISUAL_VIEW:army_collars \
 	FREYA_VISUAL_VIEW:pause_menu \
+	FREYA_VISUAL_VIEW:pause_restart \
 	FREYA_VISUAL_VIEW:pause_controls \
 	FREYA_VISUAL_VIEW:pause_howto \
 	FREYA_VISUAL_VIEW:chapter_guide \

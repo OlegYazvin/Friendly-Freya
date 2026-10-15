@@ -31,6 +31,8 @@ func _run() -> void:
 	var credits := ending.get_node("Screen/StoryPanel/Margin/Contents/Body") as RichTextLabel
 	if not credits.text.contains("Gene") and not credits.text.contains("Quaternius"):
 		failures.append("credits_missing")
+	if not credits.text.contains("Geoff Bremner (CC BY 4.0)") or not credits.text.contains("mvVoiceActing (CC0)") or not credits.text.contains("WarcakeStudios (CC0)") or not credits.text.contains("AUDIO_ATTRIBUTION.md"):
+		failures.append("recorded_sound_credits_missing")
 	if not credits.text.contains("Chapters secured: 3") or not credits.text.contains("Pack allies: 4") or not credits.text.contains("Lodge dogs rescued: 6"):
 		failures.append("summary_missing")
 	if not (ending.get_node("Screen/StoryPanel/Margin/Contents/Choices/ExploreButton") as Button).visible:
@@ -71,10 +73,21 @@ func _run() -> void:
 	var replay_scene := packed.instantiate()
 	root.add_child(replay_scene)
 	current_scene = replay_scene
+	replay_scene.resume_save_path = "user://campaign_ending_validation_missing_save.json"
 	replay_scene.get_node("Screen/StoryPanel/Margin/Contents/Navigation/SkipButton").pressed.emit()
 	var signals_replay := {"requested": false}
 	replay_scene.replay_requested.connect(func() -> void: signals_replay["requested"] = true)
 	replay_scene.get_node("Screen/StoryPanel/Margin/Contents/Choices/ReplayButton").pressed.emit()
+	if not replay_scene.replay_prompt.visible or not replay_scene.replay_prompt.cancel_button.has_focus():
+		failures.append("replay_confirmation_missing_or_cancel_not_focused")
+	var escape := InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	replay_scene._input(escape)
+	if replay_scene.replay_prompt.visible or not paused or current_scene != replay_scene or signals_replay["requested"] or not replay_scene.replay_button.has_focus():
+		failures.append("replay_escape_did_not_keep_credits")
+	replay_scene.get_node("Screen/StoryPanel/Margin/Contents/Choices/ReplayButton").pressed.emit()
+	replay_scene.replay_prompt.confirm_button.pressed.emit()
 	for frame in range(4):
 		await process_frame
 	if not signals_replay["requested"]:
@@ -90,5 +103,5 @@ func _run() -> void:
 		push_error("ENDING_FAIL: %s" % ", ".join(failures))
 		quit(1)
 		return
-	print("ENDING_OK: four story beats, credits, summary, both choices, missing-save handling, pause restoration, and replay route")
+	print("ENDING_OK: four story beats, credits, summary, both choices, missing-save handling, pause restoration, and confirmed replay route")
 	quit()

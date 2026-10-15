@@ -198,9 +198,69 @@ func _run() -> void:
 		scene.dogs[selected[3]] = reserve_state
 		scene._restore_dog_states({reserve_id: record})
 		_check(scene.dogs[selected[3]].get("pack_guard_position", Vector2.ZERO) == start, "reserve post not restored")
+
+		# A nearby clean independent dog is a moving guard target. The active
+		# squad is excluded so it cannot accidentally escort itself.
+		var moving_target: Dictionary = scene.dogs[selected[3]]
+		moving_target["army_aligned"] = false
+		moving_target["alien_possessed"] = false
+		moving_target["node"].global_position = Vector3(start.x, 0.0, start.y)
+		scene.dogs[selected[3]] = moving_target
+		scene.freya.global_position = Vector3(start.x, 0.0, start.y)
+		_check(scene._nearby_pack_guard_dog_index(start) == selected[3], "nearby clean independent dog was not selectable for guard")
+		Input.action_press("pack_guard")
+		scene._update_pack_order_input()
+		Input.action_release("pack_guard")
+		_check(scene.pack_order == scene.PACK_ORDER_GUARD and scene.pack_guard_dog_index == selected[3], "2 did not guard the nearby clean dog")
+		var dog_destination: Vector3 = scene._pack_destination_for_dog(scene.dogs[selected[0]]["node"])
+		_check(Vector2(dog_destination.x, dog_destination.z).distance_to(start) < 0.01, "guard destination missed the selected dog")
+		moving_target["node"].global_position = Vector3(destination.x, 0.0, destination.y)
+		dog_destination = scene._pack_destination_for_dog(scene.dogs[selected[0]]["node"])
+		_check(Vector2(dog_destination.x, dog_destination.z).distance_to(destination) < 0.01, "guard destination did not follow the moving dog")
+		var guard_save: Dictionary = scene._snapshot_game_state()
+		_check(str(guard_save.get("player", {}).get("pack_guard_dog_id", "")) == scene._save_dog_id_from_index(selected[3]), "guard dog stable ID was not saved")
+		scene.pack_guard_dog_index = -1
+		scene._restore_player_and_story(guard_save)
+		_check(scene.pack_guard_dog_index == selected[3], "guard dog stable ID did not restore")
+		var missing_guard_save = guard_save.duplicate(true)
+		missing_guard_save["player"]["pack_guard_dog_id"] = "missing:dog"
+		scene._restore_player_and_story(missing_guard_save)
+		_check(scene.pack_guard_dog_index == -1 and scene.pack_order == scene.PACK_ORDER_GUARD, "missing guard dog did not fall back to the saved post")
+		# If the protected dog is later recruited into the active three, the
+		# order must hold its last post instead of making the squad chase itself.
+		var first_active: Dictionary = scene.dogs[selected[0]]
+		first_active["army_aligned"] = false
+		scene.dogs[selected[0]] = first_active
+		moving_target["army_aligned"] = true
+		scene.dogs[selected[3]] = moving_target
+		scene.pack_guard_dog_index = selected[3]
+		scene._pack_destination_for_dog(scene.dogs[selected[1]]["node"])
+		_check(scene.pack_guard_dog_index == -1, "recruited active guard target made the pack escort itself")
+		first_active["army_aligned"] = true
+		scene.dogs[selected[0]] = first_active
+		moving_target["army_aligned"] = false
+		scene.dogs[selected[3]] = moving_target
+
+		# Key 3 should use the route site under Freya before any occupied
+		# building elsewhere, and tell the player which site it selected.
+		var local_site = scene._first_clean_connected_chapter_target_index()
+		_check(local_site >= 0, "no clean route site for contextual assist")
+		if local_site >= 0:
+			var local_center: Vector2 = scene.buildings[local_site]["footprint"].get_center()
+			scene.freya.global_position = Vector3(local_center.x, 0.0, local_center.y)
+			_check(scene._pack_assist_target_for_position(local_center) == local_site, "local clean route site lost to a distant occupied building")
+			await process_frame
+			scene.status_timer = 0.0
+			scene.status_priority = 0
+			Input.action_press("pack_assist")
+			scene._update_pack_order_input()
+			Input.action_release("pack_assist")
+			var site_name = str(scene.buildings[local_site].get("building_display_name", ""))
+			_check(scene.pack_assist_target_index == local_site and site_name in str(scene.status_label.text), "3 did not name and select the nearby route site: target=%d wanted=%d name=%s status=%s" % [scene.pack_assist_target_index, local_site, site_name, scene.status_label.text])
+	await process_frame
 	await _test_blocked_guard_route()
 	if failures.is_empty():
-		print("PACK_SQUAD_OK: active three and reserve posts, saved guard, blocked-guard path and reserve final-site recovery")
+		print("PACK_SQUAD_OK: active three, reserve posts, moving-dog guard save, contextual assist, blocked-guard path, and final-site recovery")
 		quit()
 	else:
 		push_error("PACK_SQUAD_FAIL: " + ", ".join(failures))

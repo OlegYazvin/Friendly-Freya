@@ -3,6 +3,7 @@ extends SceneTree
 # Graphical production-scene stress sample. Run without FREYA_PERF_BENCHMARK:
 #   FREYA_WORLD_SEED=20260831 flatpak run org.godotengine.Godot \
 #     --path godot --script res://tests/performance_stress.gd
+# An exported EXE can attach this controller with FREYA_EXPORTED_PERF_STRESS=1.
 # The live Main._process loop continues throughout the sample.
 
 const WARMUP_SECONDS := 15.0
@@ -42,9 +43,15 @@ var initial_freya_position := Vector3.ZERO
 var furthest_freya_distance := 0.0
 var recruited_count := 0
 var occupied_store_count := 0
+var initial_display_size := Vector2i.ZERO
+var display_size_changed := false
 
 
 func _initialize() -> void:
+	# Applies to both direct editor runs and the exported EXE route. No stress
+	# diagnostic may replace a player's single campaign save slot.
+	set_meta("freya_perf_stress_no_save", true)
+	set_meta("freya_flow_validation", true)
 	var requested_warmup := OS.get_environment("FREYA_PERF_STRESS_WARMUP_SECONDS")
 	if requested_warmup.is_valid_float():
 		warmup_seconds = maxf(0.0, float(requested_warmup))
@@ -104,6 +111,9 @@ func _mark_game_process_end() -> void:
 
 
 func _stage(scene) -> bool:
+	if scene._game_saving_allowed():
+		push_error("PERF_STRESS: campaign saving must be disabled")
+		return false
 	if scene.kennel == null or not scene.kennel.possessed:
 		push_error("PERF_STRESS: live possessed kennel is missing")
 		return false
@@ -129,12 +139,15 @@ func _stage(scene) -> bool:
 	var center: Vector2 = footprint.get_center()
 	var layout: Dictionary = target.get("store_layout", {})
 	var entry: Vector2 = layout.get("entry_outside_pos", center)
-	var outward: Vector2 = (entry - center).normalized()
-	if outward.length_squared() < 0.001:
-		outward = Vector2.DOWN if bool(target.get("front_is_south", true)) else Vector2.UP
+	# Store entrances face the north/south sidewalk. Do not normalize the
+	# doorway-to-center vector: an off-center door would aim diagonally into a
+	# neighboring building instead of the open road beside this storefront.
+	var outward := Vector2.DOWN if bool(target.get("front_is_south", true)) else Vector2.UP
 	var start: Vector2 = entry + outward * 6.0
 	if not scene._is_walkable(start.x, start.y, scene.FREYA_COLLISION_RADIUS):
 		start = entry + outward * 4.0
+	if not scene._is_walkable(start.x, start.y, scene.FREYA_COLLISION_RADIUS):
+		start = scene._nearest_walkable_position(start, scene.FREYA_COLLISION_RADIUS, store_index)
 	if not scene._is_walkable(start.x, start.y, scene.FREYA_COLLISION_RADIUS):
 		push_error("PERF_STRESS: no walkable storefront start")
 		return false
@@ -194,6 +207,11 @@ func _stage(scene) -> bool:
 	initial_kennel_spawns = scene.kennel.total_possessed_dogs_spawned
 	initial_dog_count = scene.dogs.size()
 	initial_freya_position = scene.freya.global_position
+	initial_display_size = DisplayServer.window_get_size()
+	print("PERF_STRESS_DISPLAY phase=start window=%dx%d screen=%dx%d" % [
+		initial_display_size.x, initial_display_size.y,
+		DisplayServer.screen_get_size().x, DisplayServer.screen_get_size().y
+	])
 	print("PERF_STRESS_START pid=%d seed=%s renderer=%s dogs=%d recruited=%d active=%d stores=%d kennel=%d free_aliens=%d" % [
 		OS.get_process_id(), OS.get_environment("FREYA_WORLD_SEED"), RenderingServer.get_current_rendering_method(),
 		scene.dogs.size(), recruited_count, scene._active_pack_dog_indices().size(), occupied_store_count,
@@ -203,6 +221,8 @@ func _stage(scene) -> bool:
 
 
 func _report(scene, elapsed: float, fps: float) -> void:
+	if DisplayServer.window_get_size() != initial_display_size:
+		display_size_changed = true
 	var memory_mb := _memory_mb()
 	var rss_mb := _rss_mb()
 	memory_end_mb = memory_mb
@@ -300,7 +320,13 @@ func _run() -> void:
 	var elapsed_seconds := float(Time.get_ticks_usec() - start_usec) / 1000000.0
 	var p95_ms: float = frame_ms[clampi(int(ceil(float(count) * 0.95)) - 1, 0, count - 1)]
 	var p99_ms: float = frame_ms[clampi(int(ceil(float(count) * 0.99)) - 1, 0, count - 1)]
-	print("PERF_STRESS_RESULT seconds=%.1f avg_fps=%.1f game_process_ms=%.2f min_5s_fps=%.1f max_5s_fps=%.1f p95_frame_ms=%.1f p99_frame_ms=%.1f p1_fps=%.1f mem_start_mb=%.1f mem_end_mb=%.1f mem_peak_mb=%.1f rss_start_mb=%.1f rss_end_mb=%.1f rss_peak_mb=%.1f world_advanced=%.1f kennel_spawns=%d dog_growth=%d furthest_freya_m=%.2f" % [
+	var final_display_size := DisplayServer.window_get_size()
+	if final_display_size != initial_display_size:
+		display_size_changed = true
+	print("PERF_STRESS_DISPLAY phase=end window=%dx%d stable=%s" % [
+		final_display_size.x, final_display_size.y, "false" if display_size_changed else "true"
+	])
+	print("PERF_STRESS_RESULT seconds=%.1f avg_fps=%.1f game_process_ms=%.2f min_5s_fps=%.6f max_5s_fps=%.1f p95_frame_ms=%.1f p99_frame_ms=%.1f p1_fps=%.1f mem_start_mb=%.1f mem_end_mb=%.1f mem_peak_mb=%.1f rss_start_mb=%.1f rss_end_mb=%.1f rss_peak_mb=%.1f world_advanced=%.1f kennel_spawns=%d dog_growth=%d furthest_freya_m=%.2f" % [
 		elapsed_seconds, float(count) / elapsed_seconds,
 		float(total_game_process_usec) / maxf(1.0, float(total_game_process_frames)) / 1000.0,
 		window_min_fps, window_max_fps, p95_ms, p99_ms,

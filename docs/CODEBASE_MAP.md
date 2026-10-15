@@ -10,10 +10,10 @@ remain authoritative when implementation details change.
 ## Runtime Flow
 
 ```text
-Startup.tscn / startup.gd
-├── Watch Intro → IntroCutscene.tscn / intro_cutscene.gd
+Startup.tscn / startup.gd / fresh_start_prompt.gd
+├── New Game: Watch Intro → IntroCutscene.tscn / intro_cutscene.gd
 │                  └── natural completion → Main.tscn with one-shot family flag
-├── Skip To Game ─────────────────────────→ Main.tscn / main.gd
+├── New Game: Skip Intro ─────────────────→ Main.tscn / main.gd
 └── Resume Game (valid save) ─────────────→ Main.tscn / main.gd
 
 Main.tscn
@@ -35,8 +35,8 @@ thin scene shells whose scripts construct most runtime content.
 
 | Area | Owning files | Useful symbols or notes |
 | --- | --- | --- |
-| Startup routes | `godot/scenes/Startup.tscn`, `godot/scripts/startup.gd` | Authored startup UI, `_select_destination`, `_run_startup_validation` |
-| Save and resume | `godot/scripts/game_save.gd`, `godot/scripts/main.gd`, `godot/scripts/startup.gd`, `godot/tests/save_resume.gd` | Versioned/checksummed save envelope, backup recovery, incompatible-version preservation, stable spatial IDs, gameplay snapshot/restore including reserve guard posts and dismissed results, title Resume route, and headless round-trip; failed Quit/ending saves keep the current game open |
+| Startup routes | `godot/scenes/Startup.tscn`, `godot/scripts/startup.gd`, `godot/scripts/fresh_start_prompt.gd` | Authored title UI, New Game intro choices, existing-save confirmation, `_select_destination`, `_run_startup_validation` |
+| Save and resume | `godot/scripts/game_save.gd`, `godot/scripts/main.gd`, `godot/scripts/startup.gd`, `godot/tests/save_resume.gd` | Versioned/checksummed save envelope, backup recovery, incompatible-version preservation, stable spatial IDs, gameplay snapshot/restore including reserve guard posts, selected guard-dog ID, and dismissed results, title Resume route, and headless round-trip; failed Quit/ending saves keep the current game open |
 | UFO intro timing/text | `godot/scripts/intro_timeline.gd` | Stable scene dictionaries and `time_for_view`; expected lines are also asserted by the renderer's validator |
 | UFO intro rendering | `godot/scripts/intro_cutscene.gd` | Camera, bubbles, Earth, fleet, audio events, and duplicated validation expectations |
 | UFO geometry | `godot/scripts/ufo_visual_factory.gd` | Bridge interior and opaque exterior factories |
@@ -45,18 +45,18 @@ thin scene shells whose scripts construct most runtime content.
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police/clinic services, pack orders, chapter objectives, interactions, AI, UI, and validation |
 | Carried supply targeting | `godot/scripts/main.gd`, `godot/tests/supply_targeting.gd` | One shared F/ring target, chapter-2 ally preference, duplicate-protection guards, clinic and grocery priority, cage priority, and no-target feedback |
-| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; lone-imp R defense, nearby storefront emergence, and first-time park drill reward coverage; a missing cue remains silent |
+| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby storefront emergence, and first-time park drill reward; a missing cue remains silent |
 | Render sightlines | `godot/scripts/sightline_cutaway.gd`, `godot/scripts/main.gd` | Temporary render-only occluder visibility, mesh bounds, camera safe framing; collision is unchanged |
 | Dogs and animation | `godot/scripts/dog_agent.gd`, `godot/scripts/main.gd` | DogAgent owns visuals/animation; Main owns definitions, spawn, state, and AI |
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
 | Residential shells/roofs | `godot/scripts/building_factory.gd` | Hollow procedural residential walls, transparent openings, ground/upper-floor separation, materials, roofs, porches, and metrics; Main owns interiors, yards, and alien mutations |
 | Dog lodge and preview | `godot/scripts/kennel_factory.gd`, `godot/scripts/kennel_building.gd`, `godot/scripts/main.gd`, `godot/scripts/kennel_concept.gd`, `godot/scenes/KennelConcept.tscn` | Guaranteed near-park lot, minimap marker, wall cleanse, six releasable captives, finite six-spawn budget, save snapshot, and isolated preview/validation |
-| Claims and campaign | `godot/scripts/claim_utils.gd`, `godot/scripts/main.gd`, `godot/scenes/CampaignEnding.tscn` | Ownership, scent and building claims, nearby claimed-site weakening bonus, territory visuals, three chapters (8/5/4 highlighted sites), occupation/ally/kennel objectives, generator output/radius guidance, a saved chapter-2 scent relay and final stronghold marker, contextual chapter guidance including the optional park drill, ally protection, pack recovery, and saved H dismissal, story continuation and finale, and optional full-map ownership |
-| Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data, M/F/A/C service markers, and a fixed cyan next-site diamond that stays at the map edge when the site is beyond the zoomed view; Main owns state and synchronization |
+| Claims and campaign | `godot/scripts/claim_utils.gd`, `godot/scripts/main.gd`, `godot/scenes/CampaignEnding.tscn` | Ownership, scent and building claims, nearby claimed-site weakening bonus, territory visuals, three chapters (8/5/4 highlighted sites), occupation/ally/kennel objectives, generator output/radius guidance, a saved chapter-2 scent relay and final signal marker, contextual chapter guidance including the optional park drill, ally protection, pack recovery, a deliberate clean-site guard finale when all sites are owned, and saved H dismissal, story continuation and finale, and optional full-map ownership |
+| Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data, M/F/A/C service markers, and a fixed cyan next-site or final-signal diamond that stays at the map edge when the site is beyond the zoomed view; Main owns state and synchronization |
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |
-| Regression automation | `scripts/`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic, and deterministic screenshot baselines |
-| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup smoke, exported campaign route on manual and tag runs, then tag-push GitHub Release publication |
+| Regression automation | `scripts/`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
+| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing, then tag-push GitHub Release publication |
 
 `godot/scripts/main.gd` is intentionally the integration point and is much
 larger than the focused factories. Search for the owning function or constant
@@ -120,34 +120,38 @@ After preparing imports, it runs focused validation processes and covers:
    dog state, supplies, meters, kennel, legacy migration, future-version
    preservation, backup recovery, final-site pack recovery, and failed-save
    exit guards;
-8. the three-chapter route and story handoff in `godot/tests/campaign_flow.gd`;
-9. five generated seeds with chapter entrance, mark, wall, cage, and territory
+8. New Game, Restart Story, and Replay Story confirm/cancel and keyboard focus,
+    plus future-version primary/backup save protection, in
+    `godot/tests/new_game_safety.gd`;
+9. the three-chapter route and story handoff in `godot/tests/campaign_flow.gd`;
+10. five generated seeds with chapter entrance, mark, wall, cage, and territory
    connection probes in `godot/tests/campaign_reachability.gd`;
-10. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
-11. ending layout and navigation in `godot/tests/campaign_ending.gd`;
-12. active and reserve pack behavior in `godot/tests/pack_squad.gd`, including
+11. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
+12. ending layout and navigation in `godot/tests/campaign_ending.gd`;
+13. active and reserve pack behavior in `godot/tests/pack_squad.gd`, including
     a seed-20260831 route around a blocking building and nearby reserve guard
     recovery at the cleared final signal;
-13. recorded action audio in `godot/tests/audio_actions.gd`, including a
-    successful lone-imp R bark, same-beat deduplication, nearby-dog restraint,
-    near-only occupied-storefront imp emergence without fallback, and the
-    first-time park drill reward;
-14. ending Keep Exploring and later save/resume in `godot/tests/ending_resume.gd`;
-15. chapter guidance, clean-first target priority, later ally protection and
+14. recorded action audio in `godot/tests/audio_actions.gd`, including a
+    successful lone-imp R or ally-intercept bark, same-beat deduplication,
+    nearby-dog restraint, captive whine, Ryah cry, pill landing, near-only
+    occupied-storefront imp emergence without fallback, and the first-time
+    park drill reward;
+15. ending Keep Exploring and later save/resume in `godot/tests/ending_resume.gd`;
+16. chapter guidance, clean-first target priority, later ally protection and
     final-signal recovery cues, saved dismissal, and
     800×450 guide/goals/pause panel bounds in `godot/tests/chapter_guide.gd`;
-16. occupation-margin recovery for Freya and dogs, including old-save restore,
+17. occupation-margin recovery for Freya and dogs, including old-save restore,
     in `godot/tests/occupation_collision_recovery.gd`;
-17. doorway-connected, Freya-width access to the four building services and
+18. doorway-connected, Freya-width access to the four building services and
     their `F` effects across five seeds in `godot/tests/service_reachability.gd`.
-18. carried supply targeting in `godot/tests/supply_targeting.gd`, including
+19. carried supply targeting in `godot/tests/supply_targeting.gd`, including
     the matching interaction ring, non-consuming invalid applications, chapter-2
     ally preference, mixed supplies, grocery and cage F priority, and 960×540
     clinic-hint bounds.
 
 Successful output contains `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `DEJANK_CAMERA_OK`,
-`SAVE_RESUME_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`,
+`SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SERVICE_REACHABILITY_OK`,
 `SUPPLY_TARGETING_OK`,
 `SCENT_SUPPORT_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`,
@@ -161,7 +165,10 @@ visually correct.
 
 The graphical `performance_stress.gd` harness is separate from predeploy. It
 stages a full recruited roster, two occupied generators, and kennel production
-while Main continues normal updates. Use the command in the
+while Main continues normal updates; it disables campaign saving. The Windows
+package includes a one-command runner at 1280×720 and 1920×1080 that checks the
+actual client size, records Windows process memory, and keeps full logs. Use the
+command or packaged runner in the
 [run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample).
 The separate `natural_campaign_route.gd` route sends keyboard input through
 Startup Skip, the meal, a dog cleanse and recruit, surrounding marks, building
@@ -198,6 +205,7 @@ These are automation interfaces, not player settings.
 | `FREYA_PERF_STRESS_SAMPLE_SECONDS` | Override the live stress harness's 135-second sample for a controlled comparison | Graphical stress launch |
 | `FREYA_PERF_STRESS_HIDE_LANE_DASHES` | Set to `1` to hide center-lane dashes in the staged stress scene for a test-only rendering comparison | Graphical stress launch |
 | `FREYA_EXPORTED_CAMPAIGN_QA` | Attach the bundled SceneTree keyboard route to an exported build for Windows campaign QA | Windows Actions manual and tag runs |
+| `FREYA_EXPORTED_PERF_STRESS` | Attach the bundled no-save stress controller to an exported build | Packaged Windows `RunPerformanceQA.cmd` and CI headless entry smoke |
 | `GODOT_BIN` | Select a direct Godot executable for validation/export automation | CI or local release tooling |
 | `FREYA_RELEASE_OUTPUT_DIR` | Override the Windows ZIP output directory | `build_windows_release.sh` |
 | `FREYA_EXPORT_GODOT_VERSION` | Override the build script's expected Godot version | Controlled release testing only |

@@ -19,8 +19,9 @@ outline fallback.
 
 ## Intro and Startup References
 
-- [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, now under a brighter, welcoming early-evening sky; `Watch Intro` remains focused, with `Skip To Game` and `Settings` available in the dark menu panel.
-- [startup_resume.png](startup_resume.png) — the same title layout with `Resume Game` available when a valid save exists; checks that all four choices remain visible and readable.
+- [startup_menu.png](startup_menu.png) — the first-launch choice over generated heroic Freya key art in a Northbrook-inspired urban streetscape, with `New Game: Watch Intro` focused and `New Game: Skip Intro` and `Settings` available in the dark menu panel.
+- [startup_resume.png](startup_resume.png) — the same title layout with `Resume Game` focused as it is when a valid save exists; checks that all four choices remain visible and readable.
+- [startup_new_game_confirm.png](startup_new_game_confirm.png) — the saved-campaign new-game warning with keyboard focus on `Keep Progress` before an existing save can be replaced.
 - [intro_01_establishing.png](intro_01_establishing.png) — Earth through the hero UFO bridge with exactly Aliens A, B, and silent C.
 - [intro_02_a_question_runes.png](intro_02_a_question_runes.png) — Alien A's speech bubble during the initial rune reveal.
 - [intro_02_a_question_morph.png](intro_02_a_question_morph.png) — the same bubble midway through visible rune-to-English transformation.
@@ -45,11 +46,13 @@ outline fallback.
 - [ending_01_signal_breaks.png](ending_01_signal_breaks.png) — the last alien signal fails and the captive transport returns Gene and Zoe alive, with Freya guarding Ryah until the beam fades.
 - [ending_02_family_reunion.png](ending_02_family_reunion.png) — Ryah reunites with Gene and Zoe, with Freya's recruited dogs acknowledged in the epilogue.
 - [ending_03_freya_rest.png](ending_03_freya_rest.png) — the freed Dog Lodge captives and Freya's care for Ryah pay off before the family rests.
-- [ending_04_credits.png](ending_04_credits.png) — the credits and focused Keep Exploring and Replay Story choices, with optional campaign summary metadata.
+- [ending_04_credits.png](ending_04_credits.png) — the scrollable credits, including the food recording's CC BY 4.0 credit, and focused Keep Exploring and Replay Story choices, with optional campaign summary metadata.
+- [ending_05_replay_confirm.png](ending_05_replay_confirm.png) — the ending's saved-campaign replay warning with keyboard focus on `Keep Credits` before a new story can replace completed progress.
 
 ## Gameplay and World References
 
-- [pause_menu.png](pause_menu.png) — the in-game pause menu with keyboard focus on Resume and `Watch Intro` available alongside the normal gameplay controls.
+- [pause_menu.png](pause_menu.png) — the in-game pause menu with keyboard focus on Resume and `Restart Story` available alongside the normal gameplay controls.
+- [pause_restart.png](pause_restart.png) — the pause-menu restart warning, focused on `Keep Playing` while the current session remains paused.
 - [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including the `G` goals pin, pack orders, and chapter continuation.
 - [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, ally defense, services, and lodge rescue.
 - [chapter_guide.png](chapter_guide.png) — the enlarged first-chapter guidance panel suggests an optional first park drill before the initial territory action and can be hidden with `H`; the minimap shows `M` medicine, `F` food, `A` armor, and `C` clinic care, plus a cyan diamond for the next highlighted site.
@@ -82,6 +85,8 @@ outline fallback.
 - [first_exit_immunity_thought.png](first_exit_immunity_thought.png) — Freya's exact immunity conclusion appears before cinematic control releases.
 - [dog_park_friendly.png](dog_park_friendly.png) — the reduced six-dog shared-rig cast inside a complete two-rail gated fence, with weave poles, hurdle, A-frame, crawl tunnel, and readable camouflage collars on recruited dogs.
 - [pack_squad.png](pack_squad.png) — three active recruited dogs near Freya, two reserve dogs holding posts, and the follow-order status with the active/reserve counts.
+- [pack_assist_context.png](pack_assist_context.png) — Pack Assist chooses the nearby highlighted residence and names it in the order status, with recruited allies beside Freya.
+- [pack_guard_dog.png](pack_guard_dog.png) — the guard order names a nearby clean independent dog while the three active recruited dogs remain available to protect it.
 - [supply_target.png](supply_target.png) — Freya carries dog armor near two allies; the nearer ally already wears a vest, so the single interaction ring marks the unarmored ally that `F` will protect.
 - [supply_target_960.png](supply_target_960.png) — at 960×540, Freya carries a clinic kit; the short persistent hint names the eligible dog state, and one ring marks the retaken ally that `F` will help.
 - [dog_park_training_weave.png](dog_park_training_weave.png) — Freya following the alternating slalom path with a fast gait and side-to-side body lean.
