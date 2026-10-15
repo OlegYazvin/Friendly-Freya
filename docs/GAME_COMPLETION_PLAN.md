@@ -337,14 +337,18 @@ hardware floor.
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. The route
   is headless and automated; it does not replace a graphical player run.
 - The current local Windows review ZIP,
-  `dist/Friendly-Freya-review-20261015i-Windows-x86_64.zip`, was exported with
+  `dist/Friendly-Freya-review-20261015j-Windows-x86_64.zip`, was exported with
   Godot 4.7.2 and verified against SHA-256
-  `0aee3d862a40a9a29022dfad18a4f2b4be1e8fd0c66c721b2bdcf8cddf522a8f`.
+  `48f5396e29e0a7fe514b0c1719081bc55f35774abc851ff275795b963a6a98b1`.
   Exported-PCK validation reported `RELEASE_CONTENT_OK` for the ending scene,
   active dog model, 24 recorded barks, all 32 exact cue mappings, and the bundled
-  normal-input campaign QA and performance routes. The extracted review-i PCK
+  normal-input campaign QA and performance routes. The extracted review-j PCK
   passed a six-second headless performance-entry smoke and a graphical
-  1280×720 smoke on Linux; those do not measure sustained FPS on the HP.
+  1280×720 smoke on Linux. A 10-second warm-up plus 55-second graphical source
+  run on the local Intel HD 4600 reached all six kennel births, moved Freya,
+  preserved the requested display size, and exited cleanly after the harness
+  progress check was corrected for slow frames. These checks do not measure
+  sustained FPS on the HP.
   A local Linux headless run of the earlier
   review-f extracted PCK secured chapter 1 at 8/8 sites and six lodge
   rescues, recovered from an ally's re-possession to protect two in chapter 2

@@ -23,14 +23,14 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015i-Windows-x86_64.zip`
-(SHA-256 `0aee3d862a40a9a29022dfad18a4f2b4be1e8fd0c66c721b2bdcf8cddf522a8f`).
+Current local review package: `dist/Friendly-Freya-review-20261015j-Windows-x86_64.zip`
+(SHA-256 `48f5396e29e0a7fe514b0c1719081bc55f35774abc851ff275795b963a6a98b1`).
 Verify it against the adjacent `.sha256` file before testing.
-The extracted review-i PCK passed a short exported performance-entry check
+The extracted review-j PCK passed a short exported performance-entry check
 headlessly and graphically at 1280×720 on Linux. The earlier review-f PCK
 passed a local Linux input route through credits; the earlier
 [Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
-passed its automated headless campaign route. Check the review-i Windows
+passed its automated headless campaign route. Check the review-j Windows
 Actions result on [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
 before using this package for player tests. Graphical manual checks remain open.
 

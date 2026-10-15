@@ -341,7 +341,10 @@ func _run() -> void:
 			print("PERF_STRESS_PROFILE category=%s ms_per_frame=%.3f" % [
 				category, float(scene.perf_profile_usec[category]) / maxf(1.0, float(total_game_process_frames)) / 1000.0
 			])
-	if scene.world_time - initial_world_time < warmup_seconds + sample_seconds - 10.0:
+	# At low frame rates, Godot clamps large frame deltas and simulated time can
+	# trail wall time. The FPS gate reports that slowdown; only reject a largely
+	# stalled gameplay loop here.
+	if scene.world_time - initial_world_time < maxf(1.0, (warmup_seconds + sample_seconds) * 0.6):
 		push_error("PERF_STRESS: live gameplay world did not advance")
 		quit(1)
 		return

@@ -393,12 +393,12 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
-review-i PCK passed exact-content export, checksum, and short exported
+review-j PCK passed exact-content export, checksum, and short exported
 performance-entry checks, including a graphical 1280×720 smoke on Linux.
 The prior [Windows Actions run 38752479431](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38752479431)
 passed the automated campaign route at the previous commit. Check the
 [draft PR's current Windows Actions result](https://github.com/OlegYazvin/Friendly-Freya/pull/1)
-for review-i; graphical playtesting on the HP Victus remains open.
+for review-j; graphical playtesting on the HP Victus remains open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
