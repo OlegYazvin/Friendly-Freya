@@ -31,11 +31,12 @@ passed. Release publication remains gated by the checks below.
    future-version save is preserved rather than overwritten. Run the focused
    keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md),
    including the default holds and optional press-once Space/C controls.
-3. Observe five players who have not seen the project, without control
-   coaching. Record where they lose the route, why they choose pack and
-   protection tactics, time to each chapter, and what feels rewarding or
-   repetitive. Players can give informal feedback; the [note guide](PLAYTEST_RUN_SHEET.md)
-   has optional prompts for whoever observes or receives their comments.
+3. Have about five players who have not seen the project play on the Victus
+   without control coaching. The owner will relay their informal feedback;
+   players do not need to fill out a form. Ask which moments felt rewarding,
+   repetitive, confusing, or unfair, and collect any reported sticking point.
+   If someone observes a session, the [note guide](PLAYTEST_RUN_SHEET.md)
+   offers optional prompts and chapter timing notes.
 4. Fix the three most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
@@ -429,7 +430,15 @@ hardware floor.
   settings persistence, and 800×450/960×540 UI bounds. The full
   `./scripts/predeploy_size_checks.sh` suite passed after the final focus-loss
   and chapter-result guards; the affected pause captures were regenerated and
-  inspected. A player accessibility pass remains open.
+  inspected. A separate live-process check taps and releases Space, completes
+  an interior claim over ten real seconds, then taps and releases C to recruit
+  a dog over normal gameplay frames. The complete source predeploy suite passed
+  with this route and the held-dialogue checks. A player accessibility pass
+  remains open.
+- The rendered 960×540 Watch Intro route passed held-dialogue viewport checks
+  for both the first translated UFO line and the first family line. Its two
+  opt-in captures were inspected: full text and Next/Skip remained visible.
+  Windows graphical readability still needs a player check.
 - The generated campaign reachability guard now tests ten fixed seeds with a
   Freya-radius, 0.5m connected grid from the home entrance. Its focused run
   passed 170 sequential chapter sites, 742 required mark approaches, 50

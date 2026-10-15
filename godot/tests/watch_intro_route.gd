@@ -28,6 +28,21 @@ func _wait_for_scene(path: String, seconds: float = 12.0) -> bool:
 	return false
 
 
+func _check_held_dialogue_layout(label: Label, advance: Button, skip: Button, context: String) -> bool:
+	var viewport: Rect2 = root.get_visible_rect()
+	if label == null or advance == null or skip == null:
+		_fail(context + " reading controls are missing")
+		return false
+	if not label.visible or not advance.visible or not skip.visible:
+		_fail(context + " reading controls are hidden")
+		return false
+	for control in [label, advance, skip]:
+		if not viewport.encloses(control.get_global_rect()):
+			_fail(context + " reading control leaves the viewport: " + control.name)
+			return false
+	return true
+
+
 func _watch_ufo_by_input() -> bool:
 	if not await _wait_for_scene(INTRO_SCENE_PATH):
 		return false
@@ -53,6 +68,9 @@ func _watch_ufo_by_input() -> bool:
 	if current_scene != intro or intro.current_scene_id != str(first_line["id"]) or intro.speech_text_label.text != str(first_line["english"]):
 		_fail("UFO English line disappeared before Space/Next")
 		return false
+	if not _check_held_dialogue_layout(intro.speech_text_label, intro.advance_button, intro.skip_button, "UFO"):
+		return false
+	await _capture("watch_intro_ufo_hold_960")
 	print("WATCH_INTRO_UFO_HOLD_OK scene=%s time=%.2f" % [intro.current_scene_id, intro.timeline_time])
 	await _tap(KEY_SPACE)
 	if intro.current_scene_id != str(IntroTimelineScript.SCENES[2]["id"]):
@@ -97,6 +115,9 @@ func _watch_family_by_input() -> bool:
 	if not game.family_intro_active or game.family_intro_current_scene_id != str(first_line["id"]) or game.family_dialogue_label.text != str(first_line["text"]):
 		_fail("family dialogue disappeared before Space/Next")
 		return false
+	if not _check_held_dialogue_layout(game.family_dialogue_label, game.family_advance_button, game.family_skip_button, "family"):
+		return false
+	await _capture("watch_intro_family_hold_960")
 	print("WATCH_INTRO_FAMILY_HOLD_OK scene=%s time=%.2f" % [game.family_intro_current_scene_id, game.family_intro_time])
 	await _tap(KEY_SPACE)
 	if game.family_intro_current_scene_id != str(FamilyIntroTimelineScript.SCENES[2]["id"]):

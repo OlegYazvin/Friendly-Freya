@@ -44,7 +44,7 @@ thin scene shells whose scripts construct most runtime content.
 | Family visuals | `godot/scripts/family_visual_factory.gd` | Gene, Zoe, pill bottles, transfer rings, bark waves |
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police/clinic services, pack orders, chapter objectives, interactions, AI, UI, and validation |
-| Long-action input preference | `godot/scripts/input_preferences.gd`, `godot/scripts/main.gd`, `godot/tests/claim_input_toggle.gd` | Pause > Controls offers an optional persisted press-once mode for Space scent actions and C socializing; target locks and movement, action, target-loss, and pause cancellation leave hold controls as the default |
+| Long-action input preference | `godot/scripts/input_preferences.gd`, `godot/scripts/main.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/claim_input_live.gd` | Pause > Controls offers an optional persisted press-once mode for Space scent actions and C socializing; target locks and movement, action, target-loss, and pause cancellation leave hold controls as the default; the live route checks claim and recruitment after key release |
 | Carried supply targeting | `godot/scripts/main.gd`, `godot/tests/supply_targeting.gd` | One shared F/ring target, chapter-2 ally preference, duplicate-protection guards, clinic and grocery priority, cage priority, and no-target feedback |
 | Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby storefront emergence, and first-time park drill reward; a missing cue remains silent |
 | Render sightlines | `godot/scripts/sightline_cutaway.gd`, `godot/scripts/main.gd` | Temporary render-only occluder visibility, mesh bounds, camera safe framing; collision is unchanged |
@@ -156,6 +156,10 @@ After preparing imports, it runs focused validation processes and covers:
 21. the keyboard Watch Intro route through held UFO/family dialogue, required
     meal, first-exit thought, and ordinary gameplay in
     `godot/tests/watch_intro_route.gd`.
+22. the saved press-once setting, target and cancellation guards, and small
+    window bounds in `godot/tests/claim_input_toggle.gd`.
+23. released Space and C completing an interior claim and dog recruitment
+    during normal Main processing in `godot/tests/claim_input_live.gd`.
 
 Successful output contains `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`, `DEJANK_CAMERA_OK`,
@@ -163,7 +167,7 @@ Successful output contains `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KE
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SERVICE_REACHABILITY_OK`,
 `SUPPLY_TARGETING_OK`,
 `SCENT_SUPPORT_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`,
-`ENDING_OK`, `ENDING_RESUME_OK`, and `CHAPTER_GUIDE_OK` before the wrapper reports
+`CLAIM_INPUT_TOGGLE_OK`, `CLAIM_INPUT_LIVE_OK`, `ENDING_OK`, `ENDING_RESUME_OK`, and `CHAPTER_GUIDE_OK` before the wrapper reports
 `Predeploy checks passed.`
 
 Deterministic visual output is a separate form of evidence. See

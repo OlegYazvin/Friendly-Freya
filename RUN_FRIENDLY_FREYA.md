@@ -132,8 +132,11 @@ It runs:
     target lock, focus loss and other interruptions, recruitment completion,
     and UI bounds at 800×450 and 960×540 in
     `godot/tests/claim_input_toggle.gd`.
+23. a live Main-process route in `godot/tests/claim_input_live.gd` that taps
+    and releases Space for a full ten-second interior claim and C for dog
+    recruitment, without calling the gameplay update methods directly.
 
-Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `CLAIM_INPUT_TOGGLE_OK`, `KENNEL_OK`, `SMOKE_OK`,
+Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `CLAIM_INPUT_TOGGLE_OK`, `CLAIM_INPUT_LIVE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`,
 `DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
 `CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
@@ -161,6 +164,22 @@ host-spawn env FREYA_WORLD_SEED=20260831 flatpak run org.godotengine.Godot \
 The route is in predeploy and the exported Windows smoke step. Its headless
 result checks interaction and state transitions; graphical Windows review of
 the opening remains part of release QA.
+
+For a 960×540 rendered check of the held English UFO and family dialogue,
+close other Godot sessions and run the same route with captures enabled:
+
+```sh
+host-spawn env FREYA_WORLD_SEED=20260831 \
+  FREYA_NATURAL_CAPTURE_DIR="$PWD/.watch_intro_960" \
+  flatpak run org.godotengine.Godot --path "$PWD/godot" \
+  --windowed --resolution 960x540 --script res://tests/watch_intro_route.gd
+```
+
+The route checks that both dialogue labels and their Next/Skip buttons fit
+inside the viewport. Its `watch_intro_ufo_hold_960.png` and
+`watch_intro_family_hold_960.png` captures were inspected at 960×540 on
+October 15, 2026; both full lines and both buttons were visible. This is
+source Linux rendering, so the Windows graphical check remains open.
 
 ## Optional Natural Input Route
 
