@@ -57,8 +57,8 @@ the English reference views show their fully readable held state.
 - [pause_menu.png](pause_menu.png) — the in-game pause menu with keyboard focus on Resume and `Restart Story` available alongside the normal gameplay controls.
 - [pause_restart.png](pause_restart.png) — the pause-menu restart warning, focused on `Keep Playing` while the current session remains paused.
 - [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including the keyboard-focused optional press-once Space/C setting, keyboard `-`/`=` zoom, the `G` goals pin, pack orders, and chapter continuation.
-- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, optional press-once long actions, keyboard camera control, ally defense, services, and lodge rescue.
-- [chapter_guide.png](chapter_guide.png) — the enlarged first-chapter guidance panel suggests an optional first park drill before the initial territory action and can be hidden with `H`; the minimap shows `M` medicine, `F` food, `A` armor, and `C` clinic care, plus a cyan diamond for the next highlighted site.
+- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, orange active-source badge, optional press-once long actions, keyboard camera control, ally defense, services, and lodge rescue.
+- [chapter_guide.png](chapter_guide.png) — the enlarged first-chapter guidance panel suggests an optional first park drill before the initial territory action and can be hidden with `H`; the minimap shows `M` medicine, `F` food, `A` armor, and `C` clinic care, plus a cyan diamond for the next highlighted site and an orange `!` for the nearest active source.
 - [chapter_guide_2.png](chapter_guide_2.png) — at 960×540, the larger skippable `H` panel persists into chapter 2 and tells Freya where to collect ally protection and which dog can receive it.
 - [chapter_guide_3.png](chapter_guide_3.png) — at 960×540, after the final signal is cleared without pack help, the larger panel explains the recoverable clean-ally guard action at the signal site without clipping.
 - [wide_gable.png](wide_gable.png) — long-axis gable ridge, shingles, soffit, fascia, and wall support.
@@ -73,8 +73,8 @@ the English reference views show their fully readable held state.
 - [home_outside.png](home_outside.png) — Freya's already-controlled home exterior, transparent windows, subtle Freya-territory tint, yard identity with a claimable mailbox, and roof connection.
 - [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane, framed by the two camera-away walls of the gameplay cutaway.
 - [kennel_live.png](kennel_live.png) — the guaranteed Northbrook Dog Lodge lot on the generated neighborhood map, showing its initial occupied façade, entry lock, Freya, and the teal paw minimap marker.
-- [chapter_goals.png](chapter_goals.png) — the scrollable `Tab`/`G` goals show the first chapter's highlighted-site, ally, lodge, stronghold, and generator tasks; an active storefront's imp output and 22m reinforcement range are spelled out. The cyan diamond shows the named next site, staying at the minimap edge when it is farther away.
-- [chapter_goals_status.png](chapter_goals_status.png) — at 960×540, a live imp warning stays readable in a reserved strip inside pinned goals while the tasks remain scrollable above it.
+- [chapter_goals.png](chapter_goals.png) — the scrollable `Tab`/`G` goals show the first chapter's highlighted-site, ally, lodge, stronghold, and generator tasks; an active storefront's imp output and 22m reinforcement range are spelled out. The cyan diamond shows the named next site, while the orange `!` identifies the nearest active source at the minimap edge.
+- [chapter_goals_status.png](chapter_goals_status.png) — at 960×540, the orange source badge and its legend remain visible while a live imp warning stays readable in a reserved strip inside pinned goals and the tasks remain scrollable above it.
 - [chapter_relay.png](chapter_relay.png) — the chapter 2 scent relay label above its seeded alien hold, with Freya at the site.
 - [chapter_relay_goals.png](chapter_relay_goals.png) — the chapter 2 objectives name the same relay building and give its distance and alien-wall action.
 - [chapter_final_recovery.png](chapter_final_recovery.png) — the final signal has been cleared and all four sites claimed; the goals explain the recoverable recruited-ally guard action while the cleared final site remains highlighted on the minimap.
@@ -89,7 +89,7 @@ the English reference views show their fully readable held state.
 - [first_exit_immunity_thought.png](first_exit_immunity_thought.png) — Freya's exact immunity conclusion and Continue button remain visible until the player advances the cinematic.
 - [dog_park_friendly.png](dog_park_friendly.png) — the reduced six-dog shared-rig cast inside a complete two-rail gated fence, with weave poles, hurdle, A-frame, crawl tunnel, and readable camouflage collars on recruited dogs.
 - [pack_squad.png](pack_squad.png) — three active recruited dogs near Freya, two reserve dogs holding posts, and the follow-order status with the active/reserve counts.
-- [pack_assist_context.png](pack_assist_context.png) — Pack Assist chooses the nearby highlighted residence and names it in the order status, with recruited allies beside Freya.
+- [pack_assist_context.png](pack_assist_context.png) — Pack Assist chooses the nearby highlighted residence and names it in the order status, with recruited allies beside Freya and the distant active-source badge separate from the next-site diamond.
 - [pack_guard_dog.png](pack_guard_dog.png) — the guard order names a nearby clean independent dog while the three active recruited dogs remain available to protect it.
 - [supply_target.png](supply_target.png) — Freya carries dog armor near two allies; the nearer ally already wears a vest, so the single interaction ring marks the unarmored ally that `F` will protect.
 - [supply_target_960.png](supply_target_960.png) — at 960×540, Freya carries a clinic kit; the short persistent hint names the eligible dog state, and one ring marks the retaken ally that `F` will help.
@@ -101,7 +101,7 @@ the English reference views show their fully readable held state.
 - [alien_model.png](alien_model.png) — the canonical grounded voxel-imp view: a slightly smaller imp in a deterministic mid-stride three-quarter close-up beside Freya for scale.
 - [alien_occupied.png](alien_occupied.png) — an occupied house, rooftop crown, façade mutation, minimap state, ordinary-looking possessed dog, and Freya's unease clue.
 - [alien_occupied_scent.png](alien_occupied_scent.png) — a neighboring Freya-owned building grants a visible scent support bonus on an occupied house, helping weaken its hold.
-- [alien_store_stronghold.png](alien_store_stronghold.png) — an occupied storefront labeled as a 22m imp source, with its capped free-alien pressure in neighborhood context.
+- [alien_store_stronghold.png](alien_store_stronghold.png) — an occupied storefront labeled as a 22m imp source, with its capped free-alien pressure and static orange `!` minimap badge in neighborhood context.
 - [ryah_defense.png](ryah_defense.png) — Freya's open home interior with Ryah Diane's tears and cry waves; the home remains unoccupied.
 
 ## Kennel Close-up References
@@ -147,6 +147,15 @@ name without `.png`:
 
 ```sh
 FREYA_CAPTURE_ONLY=wide_gable ./scripts/capture_visual_regressions.sh
+```
+
+If a host desktop popup appears through the captured window, move the capture
+window to a clear part of the desktop before its first frame. For a 960×540
+view on a 1920×1080 desktop, for example:
+
+```sh
+FREYA_CAPTURE_ONLY=chapter_guide_2 FREYA_CAPTURE_WINDOW_POSITION=900,120 \
+  ./scripts/capture_visual_regressions.sh
 ```
 
 To regenerate one startup/intro image, use `FREYA_INTRO_CAPTURE_ONLY`:

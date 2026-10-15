@@ -99,6 +99,11 @@ func _test_lone_imp_bark(scene: Node3D) -> void:
 		scene.pack_order = saved_order
 	scene.dogs = saved_dogs
 	scene.freya.global_position = saved_position
+	bark_player.stop()
+	bark_player.stream = null
+	scene.bark_sfx_players.erase(bark_player)
+	scene.bark_sfx_streams_aggressive.erase(bark_stream)
+	bark_player.free()
 	imp.queue_free()
 
 

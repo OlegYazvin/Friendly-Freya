@@ -189,7 +189,9 @@ backup cannot be resumed in this build because saving would fail.
   grocery food, `A` for police armor, and `C` for clinic care. A fixed cyan
   diamond marks the next site named in the Tab goals; when that site is beyond
   the current zoomed view, the diamond rests at the map edge in its direction.
-  At a service building, the diamond sits beside its letter so both stay visible.
+  A static orange `!` marks the nearest active imp generator, also at the map
+  edge when farther away. It replaces the unusable service letter while that
+  storefront is occupied. The cyan diamond stays clear of the source badge.
 - Scent claims cover trees, light poles, hydrants, and residential mailboxes.
   Bones raise Strength; sticks can be carried and increase run speed.
 - All mapped action effects use exact sourced recordings. If a mapped file is

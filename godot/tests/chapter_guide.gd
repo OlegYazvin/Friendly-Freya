@@ -30,6 +30,22 @@ func _run() -> void:
 	scene._seed_chapter_strongholds()
 	_check(scene.status_label.text.is_empty(), "initial strongholds announced over the home lesson")
 	_check("10–17s" in scene._chapter_objectives_text() and "22m" in scene._chapter_objectives_text(), "generator output and reinforcement radius are missing from goals")
+	var generator_index = scene._nearest_active_generator_index()
+	_check(generator_index >= 0, "initial chapter has no active source to mark")
+	if generator_index >= 0:
+		var generator_state: Dictionary = scene.buildings[generator_index].duplicate()
+		var generator_rect: Rect2 = generator_state.get("footprint", Rect2())
+		scene._update_minimap_dynamic(0.0)
+		_check(scene.minimap.active_generator_building == generator_rect, "minimap does not mark the nearest active source")
+		_check("Orange ! on minimap" in scene._chapter_objectives_text(), "generator badge has no goals legend")
+		var inactive_generator: Dictionary = generator_state.duplicate()
+		inactive_generator["alien_occupied"] = false
+		scene.buildings[generator_index] = inactive_generator
+		scene._update_minimap_dynamic(0.0)
+		_check(scene.minimap.active_generator_building == Rect2(), "inactive source kept its minimap badge")
+		scene.buildings[generator_index] = generator_state
+		scene._update_minimap_dynamic(0.0)
+		_check(scene.minimap.active_generator_building == generator_rect, "reactivated source lost its minimap badge")
 	var first_site = scene._next_chapter_target_index()
 	_check(first_site >= 0, "no first highlighted site")
 	if first_site >= 0:
@@ -158,7 +174,7 @@ func _run() -> void:
 	scene._update_chapter_guide()
 	_check(not scene.chapter_guide_panel.visible, "later-chapter guide overlaps held Tab goals")
 	if failures.is_empty():
-		print("CHAPTER_GUIDE_OK: first-chapter cues, later protection/pack/recovery cues, generator range/output, Tab suppression, 800x450 fit, and saved dismissal")
+		print("CHAPTER_GUIDE_OK: first-chapter cues, later protection/pack/recovery cues, active-source minimap badge, generator range/output, Tab suppression, 800x450 fit, and saved dismissal")
 		quit()
 	else:
 		push_error("CHAPTER_GUIDE_FAIL: " + ", ".join(failures))

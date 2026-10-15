@@ -103,7 +103,8 @@ It runs:
     `godot/tests/new_game_safety.gd`;
 11. chapter guidance, clean-first target priority, chapter-2 ally protection,
     chapter-3 pack and final-signal recovery cues, the named next-site
-    minimap diamond and legend, saved dismissal, and 800×450 guide/goals/pause
+    minimap diamond and legend, the active-source badge and clearing state,
+    saved dismissal, and 800×450 guide/goals/pause
     panel bounds in `godot/tests/chapter_guide.gd`;
 12. the three connected chapter routes, mandatory holds, ally protection, pack
    assistance, and credits handoff in `godot/tests/campaign_flow.gd`;

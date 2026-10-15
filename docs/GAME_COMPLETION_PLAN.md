@@ -14,11 +14,13 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The [review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+The local `review-20261015p` Windows ZIP passed export content and checksum
+checks after the complete source suite and inspected captures. The preceding
+[review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
 passed source validation, export, EXE startup, the short performance entry,
-the keyboard Watch Intro opening, credits, and Keep Exploring. The source
-suite, inspected captures, ZIP checksums, and local exported checks also
-passed. Release publication remains gated by the checks below.
+the keyboard Watch Intro opening, credits, and Keep Exploring. The newer
+source awaits its Windows CI review. Release publication remains gated by the
+checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -439,6 +441,11 @@ hardware floor.
   for both the first translated UFO line and the first family line. Its two
   opt-in captures were inspected: full text and Next/Skip remained visible.
   Windows graphical readability still needs a player check.
+- The minimap now gives the nearest active imp generator a static orange
+  exclamation badge, clamped to the edge when it is outside the zoomed view.
+  It replaces that occupied storefront's service letter and stays separate
+  from the cyan next-site diamond. Tab goals and How To Play explain it; the
+  source badge clears when its generator is inactive and returns after Resume.
 - The generated campaign reachability guard now tests ten fixed seeds with a
   Freya-radius, 0.5m connected grid from the home entrance. Its focused run
   passed 170 sequential chapter sites, 742 required mark approaches, 50
@@ -469,6 +476,20 @@ hardware floor.
   claimed sites, credits, and Keep Exploring. The game logged no error or
   warning. This was a headless automated route; graphical HP performance and
   player enjoyment still need direct observation.
+- The nearest active imp source now has a static orange exclamation marker on
+  the minimap, including an edge indicator when it is farther away than the
+  current map view. It updates when sources close and after Resume, and goals,
+  How To Play, and chapter guidance explain it. Six affected rendered PNGs
+  were regenerated and inspected at 1280×720 or 960×540. The complete
+  `./scripts/predeploy_size_checks.sh` suite passed after the final gameplay,
+  guidance, and test cleanup changes; the audio action test exited cleanly
+  without a shutdown resource warning. The local
+  `dist/Friendly-Freya-review-20261015p-Windows-x86_64.zip` was exported with
+  Godot 4.7.2, passed its exported PCK content check, and passed SHA-256
+  verification against
+  `bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`.
+  The updated source still needs an exported Windows CI route and HP graphical
+  review.
 
 ## The game to finish
 

@@ -172,8 +172,10 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** Service locations carry `M` medicine, `F` food, `A` armor,
   and `C` care minimap markers. A static cyan diamond identifies the next
   highlighted site named in Tab goals, including at the minimap edge when it
-  lies beyond the zoomed view. The pause and objectives panels scale for
-  smaller windows.
+  lies beyond the zoomed view. A static orange `!` identifies the nearest
+  active storefront imp generator, including at the map edge while distant;
+  it clears when that source is no longer occupied. The pause and objectives
+  panels scale for smaller windows.
 - **Implemented:** Public-building fixtures leave Freya-radius aisles from the
   entrance to each service. A five-seed doorway flood and F-effect regression
   covers grocery food, pharmacy medicine, police armor, and clinic care.

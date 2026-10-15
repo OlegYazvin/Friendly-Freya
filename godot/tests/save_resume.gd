@@ -138,6 +138,9 @@ func run() -> void:
 	check(scene._building_is_controlled_by_freya(claim_index), "claimed building was not restored")
 	check(scene._entry_is_claimed_by(scene.trees[0], "freya"), "tree claim was not restored")
 	check(bool(scene.buildings[occupied_index].get("alien_occupied", false)), "building occupation was not restored")
+	if generator_index >= 0:
+		scene._update_minimap_dynamic(0.0)
+		check(scene.minimap.active_generator_building == scene.buildings[generator_index].get("footprint", Rect2()), "restored generator lost its minimap source badge")
 	check(bool(scene.dogs[0].get("army_aligned", false)) and not bool(scene.dogs[0].get("alien_possessed", true)), "dog alignment or possession was not restored")
 	check(bool(scene.dogs[0].get("possession_immune", false)) and bool(scene.dogs[0].get("has_dog_armor", false)), "dog upgrades were not restored")
 	check(str(scene.dogs[0].get("pack_order", "")) == "guard", "pack order was not restored")

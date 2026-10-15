@@ -20198,6 +20198,7 @@ func _chapter_objectives_text() -> String:
 	text += "- %s Stop alien generators (%d active)\n" % ["[DONE]" if generators == 0 else "[ ]", generators]
 	if generators > 0:
 		text += "  Each source: 1 imp every 10–17s (8 free max); strengthens alien holds within 22m.\n"
+		text += "  Orange ! on minimap: nearest active source (edge = farther away).\n"
 		var generator_index = _nearest_active_generator_index()
 		if generator_index >= 0:
 			var generator: Dictionary = buildings[generator_index]
@@ -20512,7 +20513,7 @@ func _create_pause_menu() -> void:
 
 	var howto_text = Label.new()
 	howto_text.text = (
-		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Use Q/E to rotate the camera and -/= or the mouse wheel to zoom while exploring. Owning every building is an optional challenge.\n\n"
+		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. The orange ! on the minimap marks the nearest active imp source and stays at the edge when farther away; the cyan diamond marks the next highlighted site. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Use Q/E to rotate the camera and -/= or the mouse wheel to zoom while exploring. Owning every building is an optional challenge.\n\n"
 		+ "Freya alone marks nearby trees, poles, hydrants and mailboxes with Space. A clean building can be claimed after its nearby objects are marked and it connects to Freya territory. Hold Space inside for 10 seconds, or turn on Press once for long actions in Pause > Controls and tap Space. For an occupied building, first weaken its outer wall with Space, then claim the clean interior. In Press once mode, tap C near a dog to socialize and recruit without holding; tap again or move to stop.\n\n"
 		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Use C with a freed dog to recruit it. Use 1 to follow, 2 beside a clean dog to guard that dog (otherwise guard this spot), and 3 to assist a nearby building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
 		+ "Visible imps may flee into buildings or try to take a vulnerable dog. Their transfer gives a warning: bark at the imp or send the pack to guard it. A full Vomit meter lets Freya interrupt imps with X. Pharmacy medicine makes a dog permanently immune; police armor absorbs one attempt. The clinic gives a care kit that frees a taken ally or calms a frightened dog. The home and grocery bowls reset Hunger. Take supplies with F and use them near a dog with F. On the minimap, M marks medicine, F food, A armor, and C clinic care.\n\n"
@@ -20983,7 +20984,7 @@ func _chapter_guide_text() -> String:
 		if not chapter_two_site.is_empty():
 			return "Pack protected! " + chapter_two_site
 		if _chapter_active_generator_count() > 0:
-			return "Pack protected! Hold Tab to find the remaining alien generator, then hold Space at its wall."
+			return "Pack protected! Follow the orange ! to the alien generator, then hold Space at its wall."
 		return "Pack protected! Hold Tab to check the remaining chapter goals."
 	if campaign_chapter == 3:
 		if _chapter_real_ally_count() == 0:
@@ -20999,7 +21000,7 @@ func _chapter_guide_text() -> String:
 		if not chapter_three_site.is_empty():
 			return "Bring the pack (1: follow). " + chapter_three_site
 		if _chapter_active_generator_count() > 0:
-			return "Bring the pack to the remaining alien generator. Hold Tab for its location."
+			return "Bring the pack to the orange ! alien generator. Hold Space at its wall."
 		return "Hold Tab to check the remaining chapter goals."
 	if campaign_chapter != 1:
 		return ""
@@ -21031,6 +21032,8 @@ func _chapter_guide_text() -> String:
 			return "Lodge open! Hold R by a caged dog to free it, then press F at its cage to let it out."
 	if _chapter_claimed_target_count() < chapter_target_indices.size():
 		return "Lodge dogs safe! Follow the remaining yellow sites. Hold Tab to inspect marks and generators."
+	if _chapter_active_generator_count() > 0:
+		return "First route secured! Follow the orange ! to the last alien generator and hold Space at its wall."
 	return "First route secured! Hold Tab to inspect any remaining chapter goals."
 
 func _update_chapter_guide() -> void:
@@ -21166,6 +21169,10 @@ func _update_minimap_dynamic(delta: float) -> void:
 		alien_building_integrities.append(float(building.get("alien_integrity", 1.0)))
 	var chapter_rects: Array[Rect2] = []
 	var next_chapter_rect = Rect2()
+	var generator_rect = Rect2()
+	var nearest_generator_index = _nearest_active_generator_index()
+	if nearest_generator_index >= 0:
+		generator_rect = buildings[nearest_generator_index].get("footprint", Rect2())
 	if not chapter_complete:
 		for building_index in chapter_target_indices:
 			if building_index >= 0 and building_index < buildings.size() and not _building_is_controlled_by_freya(building_index):
@@ -21209,7 +21216,8 @@ func _update_minimap_dynamic(delta: float) -> void:
 		alien_building_rects,
 		alien_building_integrities,
 		chapter_rects,
-		next_chapter_rect
+		next_chapter_rect,
+		generator_rect
 	)
 
 func _collect_claimed_minimap_points() -> Dictionary:

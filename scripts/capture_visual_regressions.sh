@@ -103,6 +103,11 @@ do
 		cat "$log_file" >&2
 		exit 1
 	fi
+	if [ -n "${FREYA_CAPTURE_WINDOW_POSITION:-}" ]; then
+		# Move the game before capture if a host desktop overlay contaminates
+		# the X11 screenshot at the default window position.
+		host-spawn wmctrl -ir "$window_id" -e "0,${FREYA_CAPTURE_WINDOW_POSITION},-1,-1"
+	fi
 	for attempt in $(seq 1 480); do
 		if [ -f "$ready_file" ]; then break; fi
 		if ! kill -0 "$runner_pid" 2>/dev/null; then break; fi
