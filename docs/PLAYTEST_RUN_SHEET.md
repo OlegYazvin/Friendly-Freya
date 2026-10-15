@@ -3,31 +3,45 @@
 [Documentation hub](../README.md) · [Game completion plan](GAME_COMPLETION_PLAN.md) ·
 [Run guide](../RUN_FRIENDLY_FREYA.md)
 
-**Status:** Ready for external observation. Automated checks pass and local
-graphical measurements are recorded. Five unfamiliar-player tests, a measured
-minimum-Windows-PC performance floor, and Windows start-to-credits QA remain
-open.
+**Status:** Ready for external observation. Automated checks, including an
+exported Windows EXE start-to-credits route, pass, and local graphical
+measurements are recorded. Five unfamiliar-player tests, a measured
+minimum-Windows-PC performance floor, and graphical Windows start-to-credits
+QA remain open.
 
-The minimum supported Windows OS, CPU, GPU, RAM, and smallest supported window
-size still need to be specified before release QA. The automated 800×450
-panel-bound check verifies containment; it does not establish readability or
-make 800×450 a supported release size.
+The proposed minimum Windows test PC is the HP Victus 16-r0073cl (HP product
+7N4X6UA#ABA). Its factory configuration is Windows 11 Home, Core i7-13700HX,
+GeForce RTX 4060 Laptop GPU with 8 GB video memory, 32 GB RAM, and a 16.1-inch
+1920×1080 display. These are the [HP model listing](https://support.hp.com/us-en/product/details/victus-by-hp-16.1-inch-gaming-laptop-pc-16-r0000/model/2101566991?sku=7N4X6UA)
+and [HP-authored specification sheet](https://cdn.cs.1worldsync.com/syndication/mediaserverredirect/57144c439c7c79835145a69032b43a53/original.pdf)
+for the factory SKU; confirm the actual PC's installed OS, CPU, GPU, RAM, and
+display before recording a result. This is the stated test target, not a
+performance result or evidence for lower-spec PCs. Use 1280×720 as the
+candidate smallest supported window and test native 1920×1080 as well. Check
+960×540 for readability before deciding whether to support it. The automated
+800×450 panel-bound check verifies containment only.
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015f-Windows-x86_64.zip`
-(SHA-256 `dd53f2f1b01df61ba2e9b3ca2c8900fcc3488133a300633a7c7b6d5a5650ad32`).
+Current local review package: `dist/Friendly-Freya-review-20261015g-Windows-x86_64.zip`
+(SHA-256 `6a135eb0afb55676bf7e71546f93962ce2f6e406b164a4782bca1d5958f74ee1`).
 Verify it against the adjacent `.sha256` file before testing.
-The extracted PCK passed a local Linux headless start-to-credits input route;
-the Windows EXE has not yet passed the checks below.
+The earlier review-f extracted PCK passed a local Linux headless
+start-to-credits input route. A separate Windows export from the same review
+commit passed the automated
+[Windows review run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38747554956)
+through credits and Keep Exploring, but has not passed the graphical manual
+checks below.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
 `.pck`. Record the exact build label and SHA-256 manifest. Each of five players
 should start a new game without reading project documentation or receiving
 control coaching. Ask them to think aloud. Record the PC's Windows version,
-CPU, GPU, RAM, display size, and input device. Test at 1280×720 and repeat a
-short UI check at 960×540. Keep the game save and a screen recording if the
-player agrees.
+CPU, GPU, RAM, display size, and input device. Test the target PC at 1280×720
+or its native 1920×1080, using one recorded size for each uninterrupted blind
+session. Do the instrumented two-resolution performance run separately. After
+the blind session, repeat a short UI readability check at 960×540. Keep the
+game save and a screen recording if the player agrees.
 
 Use the same observation sheet for every player:
 
@@ -35,6 +49,7 @@ Use the same observation sheet for every player:
 | --- | --- |
 | Player ID and prior game familiarity | |
 | Build, machine, display, and input device | |
+| 960×540 readability and smallest acceptable window | |
 | Start route: Watch Intro or Skip To Game | |
 | Time to eat and leave home | |
 | Time to first independent dog decision and cleanse | |
@@ -58,15 +73,28 @@ they would want to play another route.
 
 ## Focused Windows release checks
 
-On the proposed minimum supported Windows PC, complete a natural run from
-startup through credits using keyboard controls. Test Resume Game after a
-building claim, after a lodge cleanse, during chapter 2 ally protection, and
-after the final result. Check that the restored dog, imp, claim, supply, and
-chapter states match what the player just saw. Try both ending choices. Keep
-one occupied storefront and a full active pack in view long enough to note
-frame rate, input delay, memory growth, and any sound that fails to play. Open
-pause with Escape, resume with Escape and the focused Enter button, then use
-Page Down and Page Up in both help panels with the keyboard alone.
+On the proposed HP Victus minimum Windows PC, record Windows build, actual
+hardware configuration, graphics driver, power mode, and active GPU. With the
+laptop plugged in and the dedicated RTX 4060 active, run the unprofiled
+135-second full-pack stress scenario described in the
+[run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample) and
+record each size separately:
+
+| Window | Average FPS | Worst five-second FPS | p95 / p99 frame time | Peak memory | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 1280×720 | | | | | |
+| 1920×1080 | | | | | |
+
+Separately, complete a graphical, natural run of the exported EXE from startup
+through credits using keyboard controls. Record the game window size. Test
+Resume Game after a building claim, after a lodge cleanse, during chapter 2
+ally protection, and after the final result. Check that the restored dog, imp,
+claim, supply, and chapter states match what the player just saw. Try both
+ending choices. Keep one occupied storefront and a full active pack in view
+long enough to note frame rate, input delay, memory growth, and any sound that
+fails to play. Open pause with Escape, resume with Escape and the focused Enter
+button, then use Page Down and Page Up in both help panels with the keyboard
+alone.
 
 ## Decision record
 

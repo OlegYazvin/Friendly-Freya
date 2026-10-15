@@ -194,8 +194,8 @@ passed chapter 1 with 8/8 sites, chapter 2 with 5/5 sites and two protected
 allies, and chapter 3 with 4/4 sites and an ally guarding the final signal.
 Right advanced to page 4 credits; Escape chose Keep Exploring and restored the
 completed neighborhood. The route uses one generated seed and a geometry-aware
-controller; unfamiliar-player playtests, Windows QA, and minimum-hardware
-measurement remain open.
+controller; unfamiliar-player playtests, graphical Windows QA, and
+minimum-hardware measurement remain open.
 
 An October 15 fresh keyboard run on that seed reached chapter 1 at 8/8
 claims, three cleared holds, zero generators, and six rescued lodge dogs.
@@ -248,7 +248,8 @@ game's 1.55m interaction range. These controller changes do not alter gameplay.
 The fixed seed determines the map layout, but live dog and occupation changes
 can alter the first claim. Together these runs verify technical
 start-to-credits paths on two generated layouts; unfamiliar-player discovery
-and enjoyment, Windows QA, and minimum-hardware performance remain unverified.
+and enjoyment, graphical Windows QA, and minimum-hardware performance remain
+unverified.
 
 ## Sustained Graphical Stress Sample
 
@@ -266,7 +267,31 @@ movement beside one storefront while normal gameplay updates run. After a
 population, node and draw-call counts, engine memory, Linux process RSS, and
 frame-time percentiles. It does not write a game save. This is a reproducible
 local stress diagnostic, not a release gate by itself; measure the natural
-playthrough on the stated minimum Windows machine as well.
+playthrough on the stated minimum Windows machine as well. The proposed test
+machine is the HP Victus 16-r0073cl (factory Windows 11 Home, i7-13700HX,
+RTX 4060 Laptop GPU, 32 GB RAM, 1920×1080 display). Confirm its actual
+configuration before testing. On that PC, run the unprofiled stress sample
+plugged in with the dedicated GPU at 1280×720 and native 1920×1080, then
+observe the exported EXE during a natural full-pack route. Record average and
+worst five-second FPS, frame-time percentiles, memory, and graphics settings
+in the [playtest sheet](docs/PLAYTEST_RUN_SHEET.md). The target is a floor of
+30 FPS in every five-second window on this machine; 960×540 remains a
+readability candidate pending manual review.
+
+On Windows, use a checkout of this exact review commit and the Godot 4.7.2
+editor, with no other Godot instance running. In PowerShell from the repository
+root, set `$godotExe` to the editor's actual path and run both sizes without
+`--headless` or `FREYA_PERF_PROFILE_GAMEPLAY`:
+
+```powershell
+$godotExe = 'C:\path\to\Godot_v4.7.2-stable_win64.exe'
+$projectPath = Join-Path (Get-Location).Path 'godot'
+$env:FREYA_WORLD_SEED = '20260831'
+& $godotExe --path $projectPath --resolution 1280x720 --script res://tests/performance_stress.gd
+& $godotExe --path $projectPath --resolution 1920x1080 --script res://tests/performance_stress.gd
+Remove-Item Env:FREYA_WORLD_SEED
+```
+
 Set `FREYA_PERF_PROFILE_GAMEPLAY=1` on the same command to print per-frame dog
 decision, collision, animation, and interaction costs, plus roof occlusion and
 sightline visibility timing. That diagnostic adds timing overhead, so use an
@@ -348,22 +373,28 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
-review-g PCK passed the exact-content export check; its exported Windows EXE
-still needs the Actions and manual Windows checks below.
+review-g PCK passed the exact-content export check. A separate Windows export
+from the same review commit passed the automated campaign route in
+[Actions run 38747554956](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38747554956),
+including all three completion markers. Graphical playtesting on the HP Victus
+remains open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
-the export metadata, release notes, and workflow tag together. The current
-`v0.1.2` settings describe the earlier published build.
+the export metadata and release notes to match the new `vMAJOR.MINOR.PATCH`
+tag. Review the notes' highlights and install filename against that build.
+The current `v0.1.2` metadata and notes describe the earlier published build.
 
-The currently configured `v0.1.2` tag runs
+Any pushed `vMAJOR.MINOR.PATCH` tag runs
 `.github/workflows/windows-release.yml` for release publication. The workflow
-downloads checksum-pinned official Godot files, repeats the full project
+first verifies that the Windows EXE versions, release notes heading, and install
+ZIP filename match that tag. It then downloads checksum-pinned official Godot
+files, repeats the full project
 validation and export, launches the package on `windows-latest`, and publishes
 the ZIP and checksum only after the Windows startup smoke and exported
-start-to-credits campaign route pass. Other `v*` tags
-trigger the workflow but fail its release-label guard until `RELEASE_TAG` is
-updated. A manual `workflow_dispatch` run from a pushed review branch builds
+start-to-credits campaign route pass. Other `v*` tags trigger the workflow but
+fail the version/metadata guard. A manual `workflow_dispatch` run from a
+pushed review branch builds
 an Actions artifact, smoke-tests the exported EXE on `windows-latest`, then
 runs the bundled keyboard campaign controller through credits and Keep
 Exploring in the extracted EXE/PCK. Tag pushes require the same route before

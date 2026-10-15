@@ -156,7 +156,8 @@ code and executable checks remain authoritative.
   controller-only changes. Fixed seeds reproduce layouts, while live dog and
   occupation behavior can change which site is claimed first. Together the two
   runs demonstrate technically playable start-to-credits routes on two layouts;
-  they do not measure new-player discovery, pacing, enjoyment, or Windows QA.
+  they do not measure new-player discovery, pacing, enjoyment, or graphical
+  Windows QA.
 - An earlier chapter-3 attempt found two immune active allies stuck about 23m
   from site 33 after a solo wall clear. Active dogs now compute a local A* path
   lazily when collision blocks direct movement. A nearby clean recruited
@@ -179,12 +180,19 @@ code and executable checks remain authoritative.
   retaken ally takes clinic priority over routine supplies. Focused regression
   and inspected 1280×720 and 960×540 captures cover target feedback.
 - **Five unfamiliar-player playtests, minimum-hardware performance measurement,
-  accessibility review, and a natural Windows start-to-credits QA run remain
-  open.** The first chapter's 30–45 minute pacing is still a playtest
-  hypothesis. Automated checks prove route and state transitions, not fun.
-  The minimum supported Windows OS, CPU, GPU, RAM, and smallest supported
-  window size have not been specified. The 800×450 panel-bound check does not
-  establish that size as readable or supported for release.
+  accessibility review, and a natural graphical Windows start-to-credits QA
+  run remain open.** The first chapter's 30–45 minute pacing is still a
+  playtest hypothesis. Automated checks prove route and state transitions, not
+  fun. The proposed minimum Windows test PC is the HP Victus 16-r0073cl
+  (7N4X6UA#ABA): factory Windows 11 Home, Core i7-13700HX, GeForce RTX 4060
+  Laptop GPU with 8 GB video memory, and 32 GB RAM, per the
+  [HP model listing](https://support.hp.com/us-en/product/details/victus-by-hp-16.1-inch-gaming-laptop-pc-16-r0000/model/2101566991?sku=7N4X6UA)
+  and [HP-authored specification sheet](https://cdn.cs.1worldsync.com/syndication/mediaserverredirect/57144c439c7c79835145a69032b43a53/original.pdf).
+  Verify the actual PC configuration before testing. Its factory screen is
+  1920×1080; 1280×720 is the candidate smallest supported game window,
+  pending a readability check. A passing RTX 4060 result cannot establish a
+  lower hardware floor. The 800×450 panel-bound check establishes containment
+  only.
 - A short 2.5-second warm-up plus five-second graphical sample on this Linux
   machine (Godot 4.7.2 Compatibility, Mesa Intel HD Graphics 4600) measured
   37.9 FPS at home, 37.8 FPS at the park, and 35.0 FPS near an occupied
@@ -279,9 +287,12 @@ code and executable checks remain authoritative.
   the extracted EXE/PCK through the bundled normal-input campaign controller,
   assert credits and Keep Exploring, and retain its log. Both manual review
   runs and tag publication require it; the release job depends on its success.
-  It depends on a pushed branch or tag and has not run on Windows. Its package
-  QA launcher passed a local source early-route probe and a full normal-input
-  campaign route from the extracted PCK after headless QA seeding was corrected.
+  [Review run 38747554956](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38747554956)
+  passed export validation, Windows EXE startup, and the exported Windows
+  start-to-credits route on seed 20260831; the publication job was skipped.
+  The uploaded Windows log contains `NATURAL_ROUTE_CREDITS_OK`,
+  `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. The route
+  is headless and automated; it does not replace a graphical player run.
 - The current local Windows review ZIP,
   `dist/Friendly-Freya-review-20261015g-Windows-x86_64.zip`, was exported with
   Godot 4.7.2 and verified against SHA-256
@@ -295,7 +306,11 @@ code and executable checks remain authoritative.
   `NATURAL_ROUTE_CREDITS_OK`, `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and
   `NATURAL_ROUTE_CAMPAIGN_OK` before exiting successfully. Those
   mappings use 18 recorded action files plus an existing attributed eating
-  recording. The executable has not been run on Windows from start to credits.
+  recording. A separate Windows export from the same review commit completed
+  the exported-EXE
+  controller route in 1187 simulated seconds, securing all three chapters with
+  18 claimed sites, six lodge rescues, and four allies. Graphical Windows
+  playtesting on the HP Victus remains open.
 
 ## The game to finish
 
@@ -529,8 +544,8 @@ Keep Exploring in a single process, without Resume or direct gameplay-state
 assignment. They demonstrate the technical route for this gate on two layouts.
 Fixed seeds reproduce layouts, while live dog and occupation behavior can alter
 the first claimed site. The geometry-aware controller does not establish that
-an unfamiliar player can discover or enjoy the route; Windows QA, minimum-PC
-performance, and player observation remain open under Gate 4.
+an unfamiliar player can discover or enjoy the route; graphical Windows QA,
+minimum-PC performance, and player observation remain open under Gate 4.
 
 ### 4. Polish, test, and release
 
@@ -542,9 +557,10 @@ performance, and player observation remain open under Gate 4.
   playtests call for them. Keep the skip route and pause behavior reliable.
 - Run long-session performance and memory checks with a full pack, occupied
   storefronts, and kennel production. Optimize measured bottlenecks; use a
-  release target of at least 30 FPS on the stated minimum machine, with
-  predictable input response. First specify the minimum Windows hardware and
-  smallest supported window size so this gate has a concrete test target.
+  release target of at least 30 FPS on the stated HP Victus minimum test
+  machine at 1280×720 and native 1920×1080, with predictable input response.
+  Confirm the actual hardware configuration and window readability before
+  treating those results as a release gate.
 - Run every required automated check after gameplay changes, regenerate and
   inspect affected deterministic PNGs after visual changes, and perform
   natural keyboard/controller-if-supported playthroughs on several seeds.

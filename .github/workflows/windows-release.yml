@@ -18,7 +18,6 @@ env:
   GODOT_VERSION: "4.7.2"
   GODOT_EDITOR_SHA256: "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4"
   GODOT_TEMPLATES_SHA256: "f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011"
-  RELEASE_TAG: "v0.1.2"
 
 jobs:
   build:
@@ -34,10 +33,29 @@ jobs:
         id: release-label
         shell: bash
         run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+              echo "Release pushes must target a version tag." >&2
+              exit 1
+            fi
             label="$GITHUB_REF_NAME"
-            if [[ "$label" != "$RELEASE_TAG" ]]; then
-              echo "Tag $label does not match configured release $RELEASE_TAG." >&2
+            if [[ ! "$label" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Release tag must have the form vMAJOR.MINOR.PATCH: $label" >&2
+              exit 1
+            fi
+            version="${label#v}"
+            if ! grep -Fqx "application/file_version=\"${version}.0\"" godot/export_presets.cfg || \
+               ! grep -Fqx "application/product_version=\"${version}.0\"" godot/export_presets.cfg; then
+              echo "Windows executable version must match release tag $label." >&2
+              exit 1
+            fi
+            if [[ "$(head -n 1 packaging/windows/RELEASE_NOTES.md)" != "# Friendly Freya $label" ]]; then
+              echo "Release notes heading must match release tag $label." >&2
+              exit 1
+            fi
+            expected_install_line="$(printf '1. Download \140Friendly-Freya-%s-Windows-x86_64.zip\140.' "$label")"
+            if ! grep -Fqx "$expected_install_line" packaging/windows/RELEASE_NOTES.md; then
+              echo "Release notes install ZIP must match release tag $label." >&2
               exit 1
             fi
           else
