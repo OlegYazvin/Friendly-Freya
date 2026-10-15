@@ -503,6 +503,16 @@ against SHA-256
 The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38811647736/artifacts/12010605810)
 records three secured chapters, six lodge rescues, four allies, 18 claimed
 sites, credits, and Keep Exploring without game errors or warnings.
+The [review-s Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477)
+passed source validation, export, EXE startup, packaged stress entry, Watch
+Intro, and the exported start-to-credits campaign at commit `afdf53a`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12012862554)
+contains `Friendly-Freya-manual-19-Windows-x86_64.zip`, independently verified
+against SHA-256
+`a8c6a547d0245b0e8a268e77e0425815cd04293a2246bb906a0b1a7a776ca7fe`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12013054384)
+records three secured chapters, six lodge rescues, two allies, 18 claimed
+sites, credits, and Keep Exploring without game errors or warnings.
 Graphical playtesting and sustained performance measurement on the HP Victus
 remain open.
 
