@@ -15,12 +15,11 @@ executable checks remain authoritative.
 ## Next release steps
 
 The local `review-20261015p` Windows ZIP passed export content and checksum
-checks after the complete source suite and inspected captures. The preceding
-[review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+checks after the complete source suite and inspected captures. The
+[review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
 passed source validation, export, EXE startup, the short performance entry,
-the keyboard Watch Intro opening, credits, and Keep Exploring. The newer
-source awaits its Windows CI review. Release publication remains gated by the
-checks below.
+the keyboard Watch Intro opening, credits, and Keep Exploring. Release
+publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -488,8 +487,18 @@ hardware floor.
   Godot 4.7.2, passed its exported PCK content check, and passed SHA-256
   verification against
   `bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`.
-  The updated source still needs an exported Windows CI route and HP graphical
-  review.
+  The [review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
+  passed source validation, export, EXE startup, packaged stress entry, Watch
+  Intro, and the exported three-chapter campaign at commit `e6ba0c4`. Its
+  [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12006173466)
+  contains `Friendly-Freya-manual-16-Windows-x86_64.zip`; its SHA-256 manifest
+  passed independent verification against
+  `48d3c8a2bd49a6028f921e4e11348bc65ea006207f244f6d64b5b04e70910db1`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12008431229)
+  records three completed chapters, six lodge rescues, three allied dogs, 18
+  claimed sites, credits, and Keep Exploring without game errors or warnings.
+  This automated route was headless; graphical HP performance and player
+  enjoyment still need direct observation.
 
 ## The game to finish
 

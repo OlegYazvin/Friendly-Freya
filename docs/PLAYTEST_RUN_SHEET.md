@@ -24,22 +24,24 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-o Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12001498322).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-15-Windows-x86_64.zip`
+For the HP, download the [review-p Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12006173466).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-16-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`2e6d1f4d9402694f1b82635a4be392a54a8905c782b0bd1f077fd1b12f79a5c0`),
+`48d3c8a2bd49a6028f921e4e11348bc65ea006207f244f6d64b5b04e70910db1`),
 then extract that game ZIP. The Actions artifact expires October 29, 2026.
 
-Local alternative: `dist/Friendly-Freya-review-20261015o-Windows-x86_64.zip`
-(SHA-256 `225d39a0aba03362b8436a03ab15e3742b708eabb411a799f73c1197685e1fd4`).
+Local alternative: `dist/Friendly-Freya-review-20261015p-Windows-x86_64.zip`
+(SHA-256 `bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+[review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12003200905)
-records three chapters, six lodge rescues, two allies, 18 claimed sites,
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12008431229)
+records three chapters, six lodge rescues, three allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-extracted PCK also passed the press-once keyboard route.
+review-p PCK passed exact-content verification; the preceding review-o PCK
+passed the press-once keyboard route.
+
 The review evidence is tracked in
 [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
 Graphical HP checks remain open.
@@ -81,6 +83,7 @@ Optional observer prompts (not a player questionnaire):
 | Time to lodge rescue and chapter 1 result | |
 | Time to chapters 2 and 3, credits, and return to exploration | |
 | Did the H next-step guide help with ally protection and the final signal? | |
+| If imp sources remained, could the player use the orange ! to find one? | |
 | If encountered: after owning the final site, could the player find and guard its clean signal with an ally? | |
 | Could the player read the G-pinned goals, scroll them, and return to play? | |
 | Did a threat or action warning remain readable with goals pinned? | |

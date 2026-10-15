@@ -439,9 +439,11 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
-`review-20261015o` PCK passed exact-content export, ZIP checksum, and the
-packaged press-once keyboard test; the prior review-k PCK passed a warmed
-graphical 1280×720 sample on Linux. The
+`review-20261015p` PCK passed exact-content export and its ZIP passed SHA-256
+verification against
+`bf254080089e41261577255d753a76027f73da9f7d574ff155a9e3f6d24bc5a9`.
+The preceding review-o PCK passed the packaged press-once keyboard test; the
+prior review-k PCK passed a warmed graphical 1280×720 sample on Linux. The
 [review-o Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
 passed export, EXE startup, packaged performance entry, Watch Intro, and the
 full headless campaign route with credits and Keep Exploring. Its
@@ -451,6 +453,16 @@ without a game error or warning. The
 [Windows review-o artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12001498322)
 contains `Friendly-Freya-manual-15-Windows-x86_64.zip` with SHA-256
 `2e6d1f4d9402694f1b82635a4be392a54a8905c782b0bd1f077fd1b12f79a5c0`.
+The updated [review-p Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748)
+passed the same export, Windows startup, packaged stress entry, Watch Intro,
+and exported three-chapter campaign checks at commit `e6ba0c4`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12006173466)
+contains `Friendly-Freya-manual-16-Windows-x86_64.zip`, independently verified
+against SHA-256
+`48d3c8a2bd49a6028f921e4e11348bc65ea006207f244f6d64b5b04e70910db1`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38806374748/artifacts/12008431229)
+records all three chapters, six lodge rescues, three allies, 18 claimed sites,
+credits, and Keep Exploring without game errors or warnings.
 Graphical playtesting and sustained performance measurement on the HP Victus
 remain open.
 
