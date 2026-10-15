@@ -400,10 +400,9 @@ normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
 review-m PCK passed exact-content export, checksum, and a short headless
 performance-entry check; review-k passed a warmed graphical 1280×720 sample
-on Linux. An earlier
-source live-input route passed the chapter-2
+on Linux. An earlier source live-input route passed the chapter-2
 checkpoint with two protected allies and five claimed sites. The
-[review-l Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
+[review-m Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
 passed export, EXE startup, packaged performance entry, and the full headless
 campaign route with credits and Keep Exploring markers. Graphical playtesting
 and sustained performance measurement on the HP Victus remain open.

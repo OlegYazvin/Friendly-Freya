@@ -14,7 +14,7 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The [review-l Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
+The [review-m Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
 passed export, EXE startup, performance entry, credits, and Keep Exploring.
 The source suite, inspected captures, ZIP checksum, and local exported checks
 also passed. Release publication was skipped.
@@ -368,9 +368,9 @@ hardware floor.
   A local live-input route at commit `be0398d` reached the chapter-2 checkpoint
   with all six lodge dogs rescued, 8/8 chapter-1 sites, 5/5 chapter-2 sites,
   and two separately recruited and protected clean allies. The post-refinement
-  `./scripts/predeploy_size_checks.sh` suite passed. The subsequent
-  [Windows review-l run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
-  at commit `06856aa` passed export, EXE startup/performance-entry smoke, and
+  `./scripts/predeploy_size_checks.sh` suite passed. The later
+  [Windows review-m run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
+  at commit `06bf6a9` passed export, EXE startup/performance-entry smoke, and
   the full headless campaign route. Its log records three chapters, six lodge
   rescues, 18 claimed sites, three allies, `NATURAL_ROUTE_CREDITS_OK`,
   `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`.
@@ -666,13 +666,15 @@ finish the route, understand their choices, and want to continue.
 
 ## How to tell whether it is fun
 
-The automated suite proves contracts; it cannot prove pacing. Observe at least
+The automated suite proves contracts; it cannot prove pacing. Hear from about
 five players unfamiliar with the project before freezing the first chapter.
-Ask them to think aloud, but do not teach the controls during the run. Record
-time to first independent dog decision, first recruited ally, first property
-claim, first stronghold clear, and chapter finish. Note repeated stationary
-holds, backtracking for food, missed possession tells, pack commands that fail
-to help, and any point where the player cannot name their next useful action.
+They can relay informal comments through the owner; no player form is needed.
+If someone observes, let a comfortable player think aloud without teaching
+controls. Optional notes include time to the first independent dog decision,
+recruited ally, property claim, stronghold clear, and chapter finish. Look for
+repeated stationary holds, backtracking for food, missed possession tells,
+pack commands that fail to help, and points where the player cannot name a
+useful next action.
 
 Use these findings to tune the number of required claims, claim duration,
 distance between landmarks, alien warning time, food availability, and

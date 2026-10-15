@@ -3,7 +3,7 @@
 [Documentation hub](../README.md) · [Game completion plan](GAME_COMPLETION_PLAN.md) ·
 [Run guide](../RUN_FRIENDLY_FREYA.md)
 
-**Status:** Ready for informal player feedback. An earlier review build passed an
+**Status:** Ready for informal player feedback. The current review build passed an
 exported Windows EXE start-to-credits route, and local graphical measurements
 are recorded. Five unfamiliar-player tests, a measured minimum-Windows-PC
 performance floor, focused accessibility, and graphical Windows
@@ -24,16 +24,22 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015m-Windows-x86_64.zip`
+For the HP, download the [review-m Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337/artifacts/11995368215).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-13-Windows-x86_64.zip`
+against the adjacent `.sha256` file (expected SHA-256
+`42a36af367eb2428eddf1bb20a5f6c41cdeca07bad4be7a6d21817b3c5660ade`),
+then extract that game ZIP. The Actions artifact expires October 29, 2026.
+
+Local alternative: `dist/Friendly-Freya-review-20261015m-Windows-x86_64.zip`
 (SHA-256 `d797428bea62c9098b174a641910d54a508ba2e46e96173ba3a46c6526e4094a`).
-Verify it against the adjacent `.sha256` file before testing.
+Verify it against its own adjacent `.sha256` file before testing.
 The extracted review-m PCK passed a short headless performance-entry check with
-two complete five-second windows;
-the earlier review-k PCK passed a warmed graphical 1280×720 sample on Linux.
+two complete five-second windows; the earlier review-k PCK passed a warmed
+graphical 1280×720 sample on Linux.
 A source live-input route at an earlier review commit reached chapter 2 with
 two protected allies and five claimed sites. The earlier review-f PCK passed a
-local Linux input route through credits. The earlier
-[review-l Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38777964026)
+local Linux input route through credits. The current
+[review-m Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
 passed its exported EXE route through credits and Keep Exploring, with three
 chapters, six lodge rescues, and 18 claimed sites. The review evidence is
 tracked in [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
@@ -47,12 +53,16 @@ No player needs to fill out a form. If someone observes a session, the prompts
 below can help them jot down useful moments; otherwise, record the comments the
 players volunteer and any issue they can reproduce. Send those comments back
 in whatever format is easiest; a game moment or screenshot helps locate an
-issue but is optional. Note the PC's Windows
-version, CPU, GPU, RAM, display size, and input device once. Test at 1280×720
-or native 1920×1080, using one size for each uninterrupted session. Do the
-instrumented two-resolution performance run separately. After a blind session,
+issue but is optional. Note the PC's Windows version, CPU, GPU, RAM, display
+size, and input device once. Test at 1280×720 or native 1920×1080, using one
+size for each uninterrupted session. Run the instrumented two-resolution
+performance check separately. After a blind session,
 check readability briefly at 960×540 if the player is willing. Keep the game
 save or a screen recording only with the player's agreement.
+
+If several players use the same Windows account, New Game can replace its
+single campaign save. Use separate Windows accounts or archive both the save
+and its `.bak` before the next session when an unfinished run should be kept.
 
 Optional observer prompts (not a player questionnaire):
 
