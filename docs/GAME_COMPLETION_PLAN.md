@@ -14,10 +14,11 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The [review-m Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
-passed export, EXE startup, performance entry, credits, and Keep Exploring.
-The source suite, inspected captures, ZIP checksum, and local exported checks
-also passed. Release publication was skipped.
+The [review-n Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
+passed export, EXE startup, performance entry, the keyboard Watch Intro
+opening, credits, and Keep Exploring. The source suite, inspected captures,
+ZIP checksum, and local exported checks also passed. Release publication was
+skipped.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -398,6 +399,24 @@ hardware floor.
   controller route in 1187 simulated seconds, securing all three chapters with
   18 claimed sites, six lodge rescues, and four allies. Graphical Windows
   playtesting on the HP Victus remains open.
+- The local `review-20261015n` Windows ZIP was exported from commit `0f66c22`
+  and verified against SHA-256
+  `77ad53e9ea5345df3223c18c66fd758f11d4f9cfca8dfb810d42b469d85b24bd`.
+  Its extracted PCK passed the bundled Watch Intro keyboard route through the
+  held UFO and family dialogue, meal, first-exit thought, and ordinary play.
+  The same route also passed in rendered 960×540 Linux windows from source and
+  the extracted PCK. These checks do not establish graphical Windows quality
+  or the HP performance floor.
+- The [review-n Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
+  passed all three jobs at commit `0f66c22`: export validation, Windows EXE
+  startup and packaged stress entry, the keyboard Watch Intro route, and the
+  exported start-to-credits campaign. Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905/artifacts/11999436575)
+  records three secured chapters, six rescued lodge dogs, three allied dogs,
+  18 claimed sites, credits, and Keep Exploring with no game error or warning.
+  The [Windows download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905/artifacts/11997189030)
+  contains `Friendly-Freya-manual-14-Windows-x86_64.zip` with verified SHA-256
+  `8724dafe102dc98eb489af1edd6c844e7fb22f1b1ea28a51ba1074e5d6be1ea9`.
+  The short CI stress entry is not a graphical HP performance result.
 
 ## The game to finish
 

@@ -20,7 +20,8 @@ remains available even when advancing early. The UFO timeline pauses just before
 the end of each dialogue scene with its complete English line visible until
 `Space` / Next. Its establishing and fleet shots still advance automatically;
 the fleet's natural end still begins the live-home family sequence. The authored
-`25.5s` is therefore a minimum rather than a fixed viewing duration.
+`25.5s` is a baseline timeline duration; waiting at dialogue holds can lengthen
+it, while using Next can shorten it.
 
 ## Editable Architecture
 

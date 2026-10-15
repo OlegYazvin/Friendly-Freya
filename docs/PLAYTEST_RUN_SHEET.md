@@ -24,22 +24,24 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-m Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337/artifacts/11995368215).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-13-Windows-x86_64.zip`
+For the HP, download the [review-n Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905/artifacts/11997189030).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-14-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`42a36af367eb2428eddf1bb20a5f6c41cdeca07bad4be7a6d21817b3c5660ade`),
+`8724dafe102dc98eb489af1edd6c844e7fb22f1b1ea28a51ba1074e5d6be1ea9`),
 then extract that game ZIP. The Actions artifact expires October 29, 2026.
 
-Local alternative: `dist/Friendly-Freya-review-20261015m-Windows-x86_64.zip`
-(SHA-256 `d797428bea62c9098b174a641910d54a508ba2e46e96173ba3a46c6526e4094a`).
+Local alternative: `dist/Friendly-Freya-review-20261015n-Windows-x86_64.zip`
+(SHA-256 `77ad53e9ea5345df3223c18c66fd758f11d4f9cfca8dfb810d42b469d85b24bd`).
 Verify it against its own adjacent `.sha256` file before testing.
-The extracted review-m PCK passed a short headless performance-entry check with
-two complete five-second windows; the earlier review-k PCK passed a warmed
-graphical 1280×720 sample on Linux.
+The review-n Windows workflow passed a short headless performance-entry check
+with two complete five-second windows, and its exported EXE passed the Watch
+Intro opening. The extracted local review-n PCK passed that opening in a
+rendered 960×540 Linux window; neither check measures the HP graphical floor.
+The earlier review-k PCK passed a warmed graphical 1280×720 sample on Linux.
 A source live-input route at an earlier review commit reached chapter 2 with
 two protected allies and five claimed sites. The earlier review-f PCK passed a
 local Linux input route through credits. The current
-[review-m Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38781287337)
+[review-n Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
 passed its exported EXE route through credits and Keep Exploring, with three
 chapters, six lodge rescues, and 18 claimed sites. The review evidence is
 tracked in [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
