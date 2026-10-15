@@ -70,13 +70,37 @@ run_scene_validation res://scenes/Startup.tscn FREYA_STARTUP_VALIDATE=1
 echo "Running Friendly Freya intro cut-scene validation..."
 run_scene_validation res://scenes/IntroCutscene.tscn FREYA_INTRO_VALIDATE=1
 
-echo "Running Friendly Freya placement-ready kennel validation..."
+echo "Running Friendly Freya kennel validation..."
 run_scene_validation res://scenes/KennelConcept.tscn FREYA_KENNEL_VALIDATE=1
 
 echo "Running Friendly Freya gameplay checks (smoke + targeted validation)..."
 run_scene_validation res://scenes/Main.tscn FREYA_VALIDATE=1 FREYA_SMOKE=1
+echo "Running Friendly Freya active pack and reserve guard checks..."
+run_scene_validation res://tests/pack_squad.gd
+echo "Running Friendly Freya recorded action audio coverage checks..."
+run_scene_validation res://tests/audio_actions.gd
 echo "Running Friendly Freya input and de-jankification regressions..."
 run_scene_validation res://tests/dejank_flow.gd
 echo "Running Friendly Freya generated-layout camera regressions..."
 run_scene_validation res://tests/dejank_cameras.gd
+echo "Running Friendly Freya save and resume regressions..."
+run_scene_validation res://tests/save_resume.gd
+echo "Running Friendly Freya three-chapter campaign flow..."
+run_scene_validation res://tests/campaign_flow.gd
+echo "Running Friendly Freya generated campaign reachability sweep..."
+run_scene_validation res://tests/campaign_reachability.gd
+echo "Running Friendly Freya service access routes..."
+run_scene_validation res://tests/service_reachability.gd
+echo "Running Friendly Freya carried-supply target and feedback checks..."
+run_scene_validation res://tests/supply_targeting.gd
+echo "Running Friendly Freya occupied-building collision recovery regression..."
+run_scene_validation res://tests/occupation_collision_recovery.gd FREYA_WORLD_SEED=20260831
+echo "Running Friendly Freya first-chapter guidance flow..."
+run_scene_validation res://tests/chapter_guide.gd
+echo "Running Friendly Freya claimed-territory scent support..."
+run_scene_validation res://tests/scent_support.gd
+echo "Running Friendly Freya ending navigation regressions..."
+run_scene_validation res://tests/campaign_ending.gd
+echo "Running Friendly Freya ending-to-neighborhood resume regressions..."
+run_scene_validation res://tests/ending_resume.gd
 echo "Predeploy checks passed."

@@ -1,8 +1,11 @@
 extends Control
 
 const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
+const ActionAudioScript = preload("res://scripts/action_audio.gd")
+const GameSaveScript = preload("res://scripts/game_save.gd")
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
+const EXPORTED_CAMPAIGN_ROUTE_PATH = "res://tests/natural_campaign_route.gd"
 const STARTUP_HERO_BACKGROUND_PATH = "res://assets/images/startup_freya_hero_v2.png"
 const TITLE_CARD_THEME_PATH = "res://assets/audio/menu/title_card_theme_8bit.wav"
 const RELEASE_REQUIRED_RESOURCES = [
@@ -55,6 +58,7 @@ const RELEASE_EXCLUDED_RESOURCES = [
 
 @onready var watch_intro_button: Button = %WatchIntroButton
 @onready var skip_to_game_button: Button = %SkipToGameButton
+@onready var resume_game_button: Button = %ResumeGameButton
 @onready var settings_button: Button = %SettingsButton
 @onready var settings_panel: PanelContainer = %SettingsPanel
 @onready var master_volume_slider: HSlider = %MasterVolumeSlider
@@ -66,19 +70,29 @@ const RELEASE_EXCLUDED_RESOURCES = [
 var selection_locked := false
 var title_card_theme_player: AudioStreamPlayer
 var title_card_theme_stream: AudioStream
+var action_audio: Node
 var master_volume := AudioPreferencesScript.DEFAULT_MASTER_VOLUME
+var resume_save_path: String = GameSaveScript.SAVE_PATH
 
 
 func _ready() -> void:
 	master_volume = AudioPreferencesScript.load_and_apply_master_volume()
 	_sync_audio_settings_ui()
 	_create_title_card_theme_player()
+	action_audio = ActionAudioScript.new()
+	add_child(action_audio)
 	watch_intro_button.pressed.connect(_on_watch_intro_pressed)
 	skip_to_game_button.pressed.connect(_on_skip_to_game_pressed)
+	resume_game_button.pressed.connect(_on_resume_game_pressed)
 	settings_button.pressed.connect(_on_settings_pressed)
 	settings_back_button.pressed.connect(_on_settings_back_pressed)
 	master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	_refresh_resume_button()
 	watch_intro_button.grab_focus()
+	if OS.get_environment("FREYA_EXPORTED_CAMPAIGN_QA") == "1" and not bool(get_tree().get_meta("freya_exported_campaign_qa_started", false)):
+		get_tree().set_meta("freya_exported_campaign_qa_started", true)
+		get_tree().set_meta("freya_flow_validation", true)
+		call_deferred("_launch_exported_campaign_qa")
 
 	if OS.get_environment("FREYA_RELEASE_CONTENT_VALIDATE") == "1":
 		_run_release_content_validation()
@@ -86,17 +100,63 @@ func _ready() -> void:
 		_run_startup_validation()
 
 
+func _launch_exported_campaign_qa() -> void:
+	# Official release templates do not accept --script path overrides. Attach
+	# the bundled SceneTree controller only for the exported Windows QA run.
+	var route_script := load(EXPORTED_CAMPAIGN_ROUTE_PATH) as Script
+	if route_script == null:
+		push_error("Exported campaign QA route is missing from the PCK.")
+		get_tree().quit(1)
+		return
+	var tree := get_tree()
+	tree.set_script(route_script)
+	if tree.get_script() != route_script:
+		push_error("Could not attach exported campaign QA route to SceneTree.")
+		tree.quit(1)
+		return
+	print("EXPORTED_CAMPAIGN_QA_START: bundled keyboard route attached")
+	tree.call("_initialize")
+
+
 func _on_watch_intro_pressed() -> void:
+	action_audio.play_persistent("button", -11.0)
 	_select_destination(INTRO_SCENE_PATH)
 
 
 func _on_skip_to_game_pressed() -> void:
+	action_audio.play_persistent("button", -11.0)
 	_select_destination(GAME_SCENE_PATH)
+
+
+func _on_resume_game_pressed() -> void:
+	if selection_locked:
+		return
+	var result = GameSaveScript.read_save(resume_save_path)
+	if not bool(result.get("ok", false)):
+		_refresh_resume_button()
+		return
+	action_audio.play_persistent("button", -11.0)
+	get_tree().set_meta(GameSaveScript.RESUME_META, result["state"])
+	_select_destination(GAME_SCENE_PATH)
+
+
+func _refresh_resume_button() -> void:
+	# Test and deterministic capture routes must remain independent of a local
+	# player's user:// data, while the ordinary menu offers a valid resume.
+	var automated = OS.get_environment("FREYA_STARTUP_VALIDATE") == "1" or bool(get_tree().get_meta("freya_flow_validation", false))
+	var capture_view = OS.get_environment("FREYA_STARTUP_VIEW").strip_edges().to_lower()
+	if capture_view == "menu":
+		resume_game_button.visible = false
+	elif capture_view == "resume":
+		resume_game_button.visible = true
+	else:
+		resume_game_button.visible = not automated and GameSaveScript.has_resume(resume_save_path)
 
 
 func _on_settings_pressed() -> void:
 	if selection_locked:
 		return
+	action_audio.play("button", -11.0)
 	settings_panel.visible = true
 	settings_back_button.grab_focus()
 
@@ -104,6 +164,7 @@ func _on_settings_pressed() -> void:
 func _on_settings_back_pressed() -> void:
 	if selection_locked:
 		return
+	action_audio.play("button", -11.0)
 	settings_panel.visible = false
 	settings_button.grab_focus()
 
@@ -136,6 +197,7 @@ func _lock_selection() -> void:
 	selection_locked = true
 	watch_intro_button.disabled = true
 	skip_to_game_button.disabled = true
+	resume_game_button.disabled = true
 	settings_button.disabled = true
 	settings_back_button.disabled = true
 	master_volume_slider.editable = false
@@ -226,6 +288,12 @@ func _run_startup_validation() -> void:
 		failures.append("skip_to_game_label_bad")
 	elif not skip_to_game_button.pressed.is_connected(_on_skip_to_game_pressed):
 		failures.append("skip_to_game_signal_missing")
+	if resume_game_button == null:
+		failures.append("resume_button_missing")
+	elif not resume_game_button.pressed.is_connected(_on_resume_game_pressed):
+		failures.append("resume_signal_missing")
+	elif resume_game_button.visible:
+		failures.append("resume_button_visible_during_validation")
 	if settings_button == null:
 		failures.append("settings_button_missing")
 	elif settings_button.text != "Settings":
@@ -277,7 +345,7 @@ func _run_startup_validation() -> void:
 		failures.append("startup_not_project_main_scene")
 
 	_lock_selection()
-	if not selection_locked or not watch_intro_button.disabled or not skip_to_game_button.disabled or not settings_button.disabled:
+	if not selection_locked or not watch_intro_button.disabled or not skip_to_game_button.disabled or not resume_game_button.disabled or not settings_button.disabled:
 		failures.append("selection_did_not_lock_main_buttons")
 	if settings_back_button != null and not settings_back_button.disabled:
 		failures.append("selection_did_not_lock_settings_back")
@@ -302,6 +370,16 @@ func _run_release_content_validation() -> void:
 			failures.append("required_resource_missing_%s" % resource_path.get_file())
 		if not _packed_import_exists(packed_imports, resource_path):
 			failures.append("required_import_missing_%s" % resource_path.get_file())
+	for cue_id in ActionAudioScript.CUE_PATHS:
+		var cue_path: String = ActionAudioScript.CUE_PATHS[cue_id]
+		if not ResourceLoader.exists(cue_path, "AudioStream"):
+			failures.append("action_cue_missing_%s" % cue_id)
+		if not _packed_import_exists(packed_imports, cue_path):
+			failures.append("action_cue_import_missing_%s" % cue_id)
+	if not ResourceLoader.exists("res://scenes/CampaignEnding.tscn", "PackedScene"):
+		failures.append("campaign_ending_scene_missing")
+	if not ResourceLoader.exists(EXPORTED_CAMPAIGN_ROUTE_PATH, "Script"):
+		failures.append("exported_campaign_route_missing")
 	for resource_path in RELEASE_EXCLUDED_RESOURCES:
 		if ResourceLoader.exists(resource_path):
 			failures.append("excluded_resource_present_%s" % resource_path.get_file())
@@ -316,7 +394,7 @@ func _run_release_content_validation() -> void:
 			failures.append("unexpected_building_reference_%s" % packed_file)
 
 	if failures.is_empty():
-		print("RELEASE_CONTENT_OK: heroic startup art, title-card theme, active CC0 model, and 24-bark library imports present; inactive reference models and imports excluded")
+		print("RELEASE_CONTENT_OK: startup art, title music, active CC0 model, 24 barks, %d exact recorded cue mappings, and campaign ending present; inactive reference models excluded" % ActionAudioScript.CUE_PATHS.size())
 		get_tree().quit()
 	else:
 		push_error("RELEASE_CONTENT_FAIL: " + ", ".join(failures))

@@ -111,7 +111,7 @@ func _create_ui() -> void:
 	concept_title = Label.new()
 	concept_title.position = Vector2(18.0, 10.0)
 	concept_title.size = Vector2(490.0, 32.0)
-	concept_title.text = "DOG KENNEL • PLACEMENT-READY CONCEPT"
+	concept_title.text = "NORTHBROOK DOG LODGE"
 	concept_title.add_theme_font_size_override("font_size", 20)
 	concept_title.add_theme_color_override("font_color", Color(0.6, 1.0, 0.91))
 	banner.add_child(concept_title)
@@ -129,10 +129,10 @@ func _create_ui() -> void:
 	not_placed.offset_right = -24.0
 	not_placed.offset_top = 28.0
 	not_placed.offset_bottom = 60.0
-	not_placed.text = "CONCEPT PREVIEW • NOT PLACED ON MAP"
+	not_placed.text = "PLAYABLE ON CHAPTER MAP"
 	not_placed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	not_placed.add_theme_font_size_override("font_size", 15)
-	not_placed.add_theme_color_override("font_color", Color(1.0, 0.91, 0.62))
+	not_placed.add_theme_color_override("font_color", Color(0.08, 0.24, 0.27))
 	overlay.add_child(not_placed)
 
 	entry_panel = Panel.new()

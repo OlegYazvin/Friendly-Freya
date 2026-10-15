@@ -241,16 +241,25 @@ Main thresholds, and the relevant reviewed captures.
 
 The UFO half has six deterministic authored sound events: rune reveal and
 translation resolve for each alien line. The family half maps the normal and
-super-loud Freya beats to two exact existing recorded bark files. The
-post-intro eat-first prompt and boundary reminder map only to the same exact
-normal Freya recording; a missing file produces silence. Dialogue remains
-text-only.
+super-loud Freya beats to two exact existing recorded bark files. It also has
+timed recorded Foley for the adults' laughter, pill-bottle reveal and landing,
+parent and Ryah beams, vanishing and beam collapse, Freya eating the spill, and
+her collar shaking during the comic convulsion. The first-exit dog-walker scene
+has recorded beam, disappearance, three possession-hit, Freya-target, and
+immunity-ricochet cues. Exact IDs, paths, sources, and times are in
+[audio attribution](godot/assets/audio/ATTRIBUTION.md#intro-story-event-mappings).
+The post-intro eat-first prompt and boundary reminder map only to the same
+exact normal Freya recording; a missing file produces silence. Dialogue remains
+text-only. Player-requested Next and Skip use the exact recorded mechanical
+button cue; timed scene progression has only the event cues above.
 
 - No sound is synthesized or generated at runtime.
 - There is no candidate list and no replacement clip.
 - If one mapped file is missing or fails to decode/play, only that event is
   silent. The other mapped file remains independent.
-- Skipping either half stops its active audio players before gameplay resumes.
+- Skipping either half stops its scene-owned cinematic audio players before
+  gameplay resumes. The short recorded button cue may finish across the scene
+  change.
 - The loud bark changes playback gain only; it does not synthesize or replace
   the authored recording.
 

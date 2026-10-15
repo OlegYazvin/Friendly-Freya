@@ -113,7 +113,7 @@ static func _create_materials() -> Dictionary:
 
 
 static func _build_shell(structure: Node3D, facade: Node3D, materials: Dictionary) -> void:
-	_box(structure, "Foundation", Vector3(10.9, 0.18, 7.7), Vector3(0.0, 0.0, 0.0), materials["brick_dark"])
+	_box(structure, "Foundation", Vector3(10.9, 0.08, 7.7), Vector3(0.0, 0.04, 0.0), materials["brick_dark"])
 	_box(structure, "InteriorFloor", Vector3(10.35, 0.08, 7.02), Vector3(0.0, 0.1, -0.02), materials["floor"])
 	_box(structure, "BackWall", Vector3(10.8, 3.2, 0.24), Vector3(0.0, 1.68, -3.68), materials["brick"])
 	_box(structure, "LeftWall", Vector3(0.24, 3.2, 7.36), Vector3(-5.28, 1.68, 0.0), materials["brick"])
@@ -332,9 +332,8 @@ static func _build_possession_overlay(overlay: Node3D, materials: Dictionary) ->
 	aperture.position = POSSESSED_DOG_SPAWN_LOCAL
 	overlay.add_child(aperture, true)
 	for ring_index in range(3):
-		var ring = _torus(aperture, "SpawnApertureRing%d" % ring_index, 0.32 + float(ring_index) * 0.12, 0.38 + float(ring_index) * 0.12, Vector3(0.0, 0.04 + float(ring_index) * 0.025, 0.0), materials["alien_hot"] if ring_index == 1 else materials["alien"])
-		ring.rotation.x = PI * 0.5
-	_box(aperture, "SpawnPad", Vector3(1.18, 0.06, 1.18), Vector3(0.0, -0.01, 0.0), materials["alien_glass"], false)
+		_torus(aperture, "SpawnApertureRing%d" % ring_index, 0.32 + float(ring_index) * 0.12, 0.38 + float(ring_index) * 0.12, Vector3(0.0, 0.09 + float(ring_index) * 0.025, 0.0), materials["alien_hot"] if ring_index == 1 else materials["alien"])
+	_box(aperture, "SpawnPad", Vector3(1.18, 0.06, 1.18), Vector3(0.0, 0.02, 0.0), materials["alien_glass"], false)
 
 	var warning = Label3D.new()
 	warning.name = "InfestedKennelWarning"

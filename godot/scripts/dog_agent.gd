@@ -42,6 +42,7 @@ var _breed_shape_signature = "voxel_default"
 var _cosmetic_root: Node3D
 var _army_collar_root: Node3D
 var _dog_armor_root: Node3D
+var _cached_neck_frame: Dictionary = {}
 var _discomfort_strength = 0.0
 var _discomfort_phase = 0.0
 var _training_pose_active = false
@@ -67,6 +68,8 @@ func _build_visual() -> void:
 	_training_node_base_scale = scale
 	if not _try_build_custom_model():
 		_build_model()
+	if not is_freya:
+		_cache_neck_frame()
 	_add_npc_cosmetic_variation()
 
 func _cosmetic_material(color: Color, metallic: float = 0.02) -> StandardMaterial3D:
@@ -96,12 +99,12 @@ func _add_npc_cosmetic_variation() -> void:
 	var style_index = cosmetic_rng.randi_range(0, 3)
 	_cosmetic_style = ["collar", "tagged_collar", "bandana", "wide_collar"][style_index]
 	var accent: Color = palette[_cosmetic_color_index]
-	var neck_frame = _accessory_neck_frame()
+	var neck_frame = _cached_neck_frame
 	var neck_radius = float(neck_frame.get("radius", 0.13)) * (1.08 if style_index == 3 else 1.0)
 
 	var root = Node3D.new()
 	root.name = "DogCosmetics"
-	add_child(root)
+	_visual_root.add_child(root)
 	_cosmetic_root = root
 	_apply_neck_frame(root, neck_frame)
 
@@ -180,6 +183,18 @@ func _accessory_neck_frame() -> Dictionary:
 		"radius": radius
 	}
 
+func _cache_neck_frame() -> void:
+	# Measure the shaped dog once, then keep the collar in the visual root's
+	# coordinates so gait bob and tilt move it without scanning every mesh.
+	var frame = _accessory_neck_frame()
+	var inverse = _visual_root.transform.affine_inverse()
+	var visual_scale = maxf(0.0001, _visual_root.transform.basis.get_scale().x)
+	_cached_neck_frame = {
+		"position": inverse * (frame.get("position", Vector3.ZERO) as Vector3),
+		"axis": (inverse.basis * (frame.get("axis", Vector3.FORWARD) as Vector3)).normalized(),
+		"radius": float(frame.get("radius", 0.13)) / visual_scale
+	}
+
 func _apply_neck_frame(root: Node3D, frame: Dictionary) -> void:
 	if root == null or not is_instance_valid(root):
 		return
@@ -219,11 +234,11 @@ func set_army_aligned(aligned: bool) -> void:
 	if not aligned:
 		return
 
-	var neck_frame = _accessory_neck_frame()
+	var neck_frame = _cached_neck_frame
 	var neck_radius = float(neck_frame.get("radius", 0.13)) * 1.18
 	var root = Node3D.new()
 	root.name = "ArmyCamoCollar"
-	add_child(root)
+	_visual_root.add_child(root)
 	_army_collar_root = root
 	_apply_neck_frame(root, neck_frame)
 	if _cosmetic_root != null and is_instance_valid(_cosmetic_root):
@@ -383,23 +398,18 @@ func set_dog_armor(equipped: bool) -> void:
 		band.material_override = trim_material
 		root.add_child(band)
 
-func _update_neck_accessory_poses() -> void:
-	if (_cosmetic_root == null or not is_instance_valid(_cosmetic_root)) and (_army_collar_root == null or not is_instance_valid(_army_collar_root)):
-		return
-	var frame = _accessory_neck_frame()
-	_apply_neck_frame(_cosmetic_root, frame)
-	_apply_neck_frame(_army_collar_root, frame)
-
 func army_collar_is_neck_mounted() -> bool:
-	if _army_collar_root == null or not is_instance_valid(_army_collar_root):
+	if _army_collar_root == null or not is_instance_valid(_army_collar_root) or _army_collar_root.get_parent() != _visual_root:
 		return false
-	var frame = _accessory_neck_frame()
+	var frame = _cached_neck_frame
 	var expected: Vector3 = frame.get("position", Vector3.ZERO)
 	var radius = float(frame.get("radius", 0.13))
 	if _army_collar_root.position.distance_to(expected) > maxf(0.035, radius * 0.35):
 		return false
 	var bounds = _compute_model_bounds(self)
-	if _army_collar_root.position.y >= bounds.end.y - radius * 0.15:
+	var visual_scale = maxf(0.0001, _visual_root.transform.basis.get_scale().x)
+	var collar_position = _visual_root.transform * _army_collar_root.position
+	if collar_position.y >= bounds.end.y - radius * visual_scale * 0.15:
 		return false
 	var base: MeshInstance3D = _army_collar_root.get_node_or_null("ArmyCollarBase")
 	if base == null or not (base.material_override is BaseMaterial3D):
@@ -418,15 +428,15 @@ func army_collar_is_neck_mounted() -> bool:
 func army_collar_is_clearly_visible() -> bool:
 	if not army_collar_is_neck_mounted():
 		return false
-	var frame = _accessory_neck_frame()
-	var frame_radius = float(frame.get("radius", 0.13))
+	var frame_radius = float(_cached_neck_frame.get("radius", 0.13))
 	var base: MeshInstance3D = _army_collar_root.get_node_or_null("ArmyCollarBase")
 	if base == null or not (base.mesh is TorusMesh):
 		return false
 	var torus = base.mesh as TorusMesh
 	var outer_diameter = torus.outer_radius * 2.0
 	var axial_width = (torus.outer_radius - torus.inner_radius) * base.scale.y
-	if outer_diameter < frame_radius * 2.65 or axial_width < maxf(0.075, frame_radius * 0.72):
+	var visual_scale = maxf(0.0001, _visual_root.transform.basis.get_scale().x)
+	if outer_diameter < frame_radius * 2.65 or axial_width < maxf(0.075 / visual_scale, frame_radius * 0.72):
 		return false
 	if _army_collar_root.get_node_or_null("ArmyCollarBuckle") == null or _army_collar_root.get_node_or_null("ArmyCollarBuckleInset") == null or _army_collar_root.get_node_or_null("ArmyCollarTopPanel") == null:
 		return false
@@ -1201,7 +1211,6 @@ func update_motion(delta: float, move_dir: Vector3, is_running: bool, is_vomitin
 			_visual_root.rotation.x = sin(_step_time * gait_hz * 0.52 + 0.8) * pitch
 		else:
 			_visual_root.rotation.x = 0.0
-	_update_neck_accessory_poses()
 
 func update_training_motion(delta: float, move_dir: Vector3, training_kind: String, progress: float, vertical_slope: float = 0.0) -> void:
 	if not _training_pose_active:
@@ -1242,7 +1251,6 @@ func update_training_motion(delta: float, move_dir: Vector3, training_kind: Stri
 				_head_pivot.rotation.x = 0.22 * crouch_blend
 		_:
 			pass
-	_update_neck_accessory_poses()
 
 func clear_training_pose() -> void:
 	if not _training_pose_active:
@@ -1259,7 +1267,6 @@ func clear_training_pose() -> void:
 	for leg in _leg_pivots:
 		if leg != null and is_instance_valid(leg):
 			leg.rotation.x = 0.0
-	_update_neck_accessory_poses()
 
 func training_pose_active() -> bool:
 	return _training_pose_active

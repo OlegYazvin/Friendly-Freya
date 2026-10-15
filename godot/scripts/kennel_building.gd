@@ -4,6 +4,7 @@ class_name KennelBuilding
 signal possessed_dog_spawn_requested(spawn_world_position: Vector3, spawn_number: int)
 signal freya_first_entry_message_requested(text: String)
 signal caged_dog_depossessed(cage_index: int, dog: Node3D)
+signal caged_dog_released(cage_index: int, dog: Node3D)
 
 const KennelFactoryScript = preload("res://scripts/kennel_factory.gd")
 
@@ -128,6 +129,91 @@ func depossess_caged_dog(cage_index: int) -> bool:
 	return true
 
 
+func release_caged_dog(cage_index: int) -> bool:
+	if possessed or not enterable:
+		return false
+	var caged_dogs: Array = visual_data.get("caged_dogs", [])
+	if cage_index < 0 or cage_index >= caged_dogs.size():
+		return false
+	var dog: Node3D = caged_dogs[cage_index]
+	if dog == null or not is_instance_valid(dog) or bool(dog.get_meta("kennel_released", false)) or bool(dog.get_meta("alien_possessed", false)):
+		return false
+	_set_cage_released(cage_index, true)
+	caged_dog_released.emit(cage_index, dog)
+	return true
+
+
+func rescued_dog_count() -> int:
+	var count = 0
+	for dog in visual_data.get("caged_dogs", []):
+		if dog is Node3D and is_instance_valid(dog) and bool(dog.get_meta("kennel_released", false)):
+			count += 1
+	return count
+
+
+func rescue_complete() -> bool:
+	return rescued_dog_count() == KennelFactoryScript.CAGED_DOG_COUNT
+
+
+func kennel_snapshot() -> Dictionary:
+	var cages: Array[Dictionary] = []
+	for dog in visual_data.get("caged_dogs", []):
+		cages.append({
+			"possessed": bool(dog.get_meta("alien_possessed", false)),
+			"released": bool(dog.get_meta("kennel_released", false))
+		})
+	return {
+		"possessed": possessed,
+		"total_spawned": total_possessed_dogs_spawned,
+		"spawn_budget_closed": spawn_budget_closed,
+		"spawn_timer": spawn_timer,
+		"freya_has_entered": freya_has_entered,
+		"cages": cages
+	}
+
+
+func can_restore_kennel_snapshot(snapshot: Dictionary) -> bool:
+	var cages_data = snapshot.get("cages", null)
+	var caged_dogs: Array = visual_data.get("caged_dogs", [])
+	if not (cages_data is Array) or cages_data.size() != KennelFactoryScript.CAGED_DOG_COUNT or caged_dogs.size() != KennelFactoryScript.CAGED_DOG_COUNT:
+		return false
+	for data in cages_data:
+		if not (data is Dictionary) or not data.has("possessed") or not data.has("released"):
+			return false
+		if bool(data.get("released", false)) and bool(data.get("possessed", false)):
+			return false
+	return true
+
+
+func restore_kennel_snapshot(snapshot: Dictionary) -> bool:
+	if not can_restore_kennel_snapshot(snapshot):
+		return false
+	var cages_data: Array = snapshot["cages"]
+	var caged_dogs: Array = visual_data.get("caged_dogs", [])
+	total_possessed_dogs_spawned = clampi(int(snapshot.get("total_spawned", 0)), 0, POSSESSED_DOG_SPAWN_LIMIT)
+	spawn_budget_closed = bool(snapshot.get("spawn_budget_closed", false))
+	spawn_timer = clampf(float(snapshot.get("spawn_timer", possessed_dog_spawn_interval)), 0.0, possessed_dog_spawn_interval)
+	spawn_request_pending = false
+	pending_spawn_number = 0
+	freya_has_entered = bool(snapshot.get("freya_has_entered", false))
+	set_meta("freya_first_entry_seen", freya_has_entered)
+	# The normal setter only closes the budget on a live cleansing transition.
+	possessed = bool(snapshot.get("possessed", false))
+	enterable = not possessed
+	set_meta("alien_possessed", possessed)
+	set_meta("enterable", enterable)
+	for cage_index in range(caged_dogs.size()):
+		var dog: Node3D = caged_dogs[cage_index]
+		var data: Dictionary = cages_data[cage_index]
+		var dog_possessed = bool(data.get("possessed", false))
+		dog.set_meta("alien_possessed", dog_possessed)
+		dog.set_meta("alien_expelled", not dog_possessed)
+		_set_cage_released(cage_index, bool(data.get("released", false)))
+	_update_caged_dog_possession_metadata()
+	_update_state_visuals()
+	return true
+
+
 func advance_spawn_clock(delta: float) -> int:
 	if not possessed or spawn_budget_closed or total_possessed_dogs_spawned >= POSSESSED_DOG_SPAWN_LIMIT or delta <= 0.0 or spawn_request_pending:
 		return 0
@@ -223,6 +309,9 @@ func placement_contract() -> Dictionary:
 		"spawn_retry_method": "reject_possessed_dog_spawn_request",
 		"kennel_cleanse_method": "cleanse_kennel_possession",
 		"caged_dog_depossession_method": "depossess_caged_dog",
+		"caged_dog_release_method": "release_caged_dog",
+		"rescued_dog_count_method": "rescued_dog_count",
+		"cage_release_requires_depossession": true,
 		"cleansing_forfeits_unspawned_dogs": true
 	}
 
@@ -251,12 +340,32 @@ func _update_capacity_pods() -> void:
 
 
 func _reset_caged_dog_possession() -> void:
-	for dog in visual_data.get("caged_dogs", []):
+	var caged_dogs: Array = visual_data.get("caged_dogs", [])
+	for cage_index in range(caged_dogs.size()):
+		var dog = caged_dogs[cage_index]
 		if dog is Node3D and is_instance_valid(dog):
 			dog.set_meta("alien_possessed", true)
 			dog.set_meta("alien_origin_possessed", true)
 			dog.set_meta("alien_expelled", false)
+			_set_cage_released(cage_index, false)
 	_update_caged_dog_possession_metadata()
+
+
+func _set_cage_released(cage_index: int, released: bool) -> void:
+	var cages: Array = visual_data.get("cage_roots", [])
+	var caged_dogs: Array = visual_data.get("caged_dogs", [])
+	if cage_index < 0 or cage_index >= cages.size() or cage_index >= caged_dogs.size():
+		return
+	var cage: Node3D = cages[cage_index]
+	var dog: Node3D = caged_dogs[cage_index]
+	if cage == null or dog == null:
+		return
+	cage.set_meta("contains_dog", not released)
+	dog.set_meta("kennel_released", released)
+	for part in cage.get_children():
+		if part is Node3D and (str(part.name).begins_with("CageDoor") or str(part.name) == "CageLatch"):
+			(part as Node3D).visible = not released
+	set_meta("caged_dogs_released", rescued_dog_count())
 
 
 func _update_caged_dog_possession_metadata() -> void:

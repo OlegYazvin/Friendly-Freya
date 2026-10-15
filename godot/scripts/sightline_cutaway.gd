@@ -5,6 +5,7 @@ extends RefCounted
 var hidden: Dictionary = {}
 var geometry_cache: Dictionary = {}
 var bounds_cache: Dictionary = {}
+var group_bounds_cache: Dictionary = {}
 var instance_cache: Dictionary = {}
 var hidden_instances: Dictionary = {}
 
@@ -102,6 +103,34 @@ func clear_sightlines(root: Node3D, camera: Vector3, subjects: Array[Vector3], p
 			if bounds.has_point(camera) or bounds.intersects_segment(camera, subject) != null:
 				hide(entry.group)
 				break
+
+func clear_sightlines_group(group_id: int, roots: Array, camera: Vector3, subjects: Array[Vector3], padding: float = 0.16) -> void:
+	# Most buildings cannot touch a camera-to-subject ray. One exact union of
+	# their cached rendered bounds rejects all five roots before the per-mesh
+	# checks. Keep the full 3D bounds: a footprint misses eaves and canopies.
+	var signature := PackedInt64Array()
+	for item in roots:
+		var root: Node3D = item if item is Node3D and is_instance_valid(item) else null
+		signature.append(root.get_instance_id() if root != null else 0)
+		signature.append(1 if root != null and root.is_visible_in_tree() else 0)
+	var cached: Dictionary = group_bounds_cache.get(group_id, {})
+	if cached.get("signature", PackedInt64Array()) != signature:
+		var merged := AABB()
+		var has_bounds := false
+		for item in roots:
+			var root: Node3D = item if item is Node3D and is_instance_valid(item) else null
+			if root == null or not root.is_visible_in_tree() or _geometry(root).is_empty():
+				continue
+			var root_bounds: AABB = bounds_cache[root.get_instance_id()]
+			merged = merged.merge(root_bounds) if has_bounds else root_bounds
+			has_bounds = true
+		cached = {"signature": signature, "bounds": merged, "has_bounds": has_bounds}
+		group_bounds_cache[group_id] = cached
+	if not bool(cached.get("has_bounds", false)) or not _blocks_subject(cached["bounds"].grow(padding), camera, subjects):
+		return
+	for item in roots:
+		if item is Node3D:
+			clear_sightlines(item, camera, subjects, padding)
 
 func _blocks_subject(bounds: AABB, camera: Vector3, subjects: Array[Vector3]) -> bool:
 	if bounds.has_point(camera):

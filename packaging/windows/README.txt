@@ -13,8 +13,9 @@ How to play
 Godot is not required. The included executable contains the Godot runtime.
 
 Windows may display a SmartScreen warning because this early build is not code
-signed. Only run a download obtained from the official Friendly Freya GitHub
-Release and verify its published SHA-256 checksum if you are unsure.
+signed. For a review build, obtain the ZIP and its SHA-256 checksum from the
+project team and verify them before running it. For a public build, use the
+official Friendly Freya GitHub Release and its published checksum.
 
 Basic controls
 --------------
@@ -22,18 +23,26 @@ WASD / Arrow keys  Move Freya
 Shift              Run
 Q / E              Rotate camera
 Mouse wheel        Zoom
-F                  Eat, collect/give supplies, pick up a stick, or train at the park
+F                  Eat, collect/give supplies, pick up a stick, train, or open safe lodge cages
 V                  Drop a carried stick
 C (hold)           Socialize with a nearby dog
 R (hold)           Bark at a suspicious dog
 Space (hold)       Claim objects/buildings or weaken an occupied building
-X                  Vomit when the meter is full
-Tab (hold)         Show objectives
+1 / 2 / 3          Pack follows, guards, or assists at a building
+X                  Vomit when the meter is full; spray can interrupt imps
+H                  Show or hide chapter tips
+Tab (hold)         Show objectives temporarily
+G                  Pin or unpin objectives
+Page Up/Down       Scroll objectives and pause help
+N                  Continue the story after a chapter result
 Esc                Pause menu (skip during cinematics)
 Space in intro     Complete the current line, then advance
 
 The pause menu contains the current full controls and How To Play guide.
 
-Skipping the intro starts Freya hungry near her home bowl with optional food
-guidance. Hold Tab near a building to inspect its scent-mark and territory
-requirements. Owning every building completes the neighborhood.
+Skipping the intro starts Freya hungry near her home bowl with eat-first
+guidance. Hold Tab or press G to see the highlighted sites, lodge rescue, ally,
+and alien goals for the current chapter. The three-chapter campaign ends with
+Gene and Zoe's return and credits. The pause menu saves the game. Resume Game
+appears on the title screen when a valid save exists. Owning every building is an
+optional neighborhood challenge.

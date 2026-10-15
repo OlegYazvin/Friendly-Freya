@@ -15,7 +15,8 @@ fi
 mkdir -p "$output_dir"
 
 for spec in \
-	startup_menu:Startup.tscn:none \
+	startup_menu:Startup.tscn:menu \
+	startup_resume:Startup.tscn:resume \
 	intro_01_establishing:IntroCutscene.tscn:establishing \
 	intro_02_a_question_runes:IntroCutscene.tscn:a_question_runes \
 	intro_02_a_question_morph:IntroCutscene.tscn:a_question_morph \
@@ -33,7 +34,11 @@ for spec in \
 	intro_13_family_ryah_saved:Main.tscn:family_ryah_saved \
 	intro_14_family_pill_eat:Main.tscn:family_pill_eat \
 	intro_15_family_convulsion:Main.tscn:family_convulsion \
-	intro_16_family_monologue:Main.tscn:family_monologue
+	intro_16_family_monologue:Main.tscn:family_monologue \
+	ending_01_signal_breaks:CampaignEnding.tscn:return \
+	ending_02_family_reunion:CampaignEnding.tscn:reunion \
+	ending_03_freya_rest:CampaignEnding.tscn:freya \
+	ending_04_credits:CampaignEnding.tscn:credits
 do
 	output_name=${spec%%:*}
 	remainder=${spec#*:}
@@ -44,10 +49,12 @@ do
 	fi
 	log_file="$capture_tmp/$output_name.log"
 	ready_file="$capture_tmp/$output_name.ready"
-	if [ "$view" = "none" ]; then
-		host-spawn env FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
+	if [ "$scene_name" = "Startup.tscn" ]; then
+		host-spawn env FREYA_STARTUP_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	elif [ "$scene_name" = "Main.tscn" ]; then
 		host-spawn env FREYA_FAMILY_INTRO_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
+	elif [ "$scene_name" = "CampaignEnding.tscn" ]; then
+		host-spawn env FREYA_ENDING_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	else
 		host-spawn env FREYA_INTRO_VIEW="$view" FREYA_CAPTURE_SCENE="res://scenes/$scene_name" FREYA_CAPTURE_READY_FILE="$ready_file" flatpak run org.godotengine.Godot --path "$godot_dir" --script res://tests/capture_ready.gd >"$log_file" 2>&1 &
 	fi

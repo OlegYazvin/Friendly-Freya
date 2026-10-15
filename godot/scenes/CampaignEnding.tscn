@@ -1,0 +1,172 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/campaign_ending.gd" id="1_ending"]
+[ext_resource type="Texture2D" path="res://assets/images/startup_freya_hero_v2.png" id="2_freya"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_story"]
+bg_color = Color(0.018, 0.031, 0.073, 0.94)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.38, 0.93, 0.71, 0.9)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 14
+
+[node name="CampaignEnding" type="CanvasLayer"]
+layer = 50
+process_mode = 3
+script = ExtResource("1_ending")
+
+[node name="Screen" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="TextureRect" parent="Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_freya")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Shade" type="ColorRect" parent="Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.008, 0.014, 0.045, 0.28)
+
+[node name="StoryPanel" type="PanelContainer" parent="Screen"]
+layout_mode = 1
+anchor_left = 0.035
+anchor_top = 0.055
+anchor_right = 0.56
+anchor_bottom = 0.945
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_story")
+
+[node name="Margin" type="MarginContainer" parent="Screen/StoryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 30
+
+[node name="Contents" type="VBoxContainer" parent="Screen/StoryPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Eyebrow" type="Label" parent="Screen/StoryPanel/Margin/Contents"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.43, 0.96, 0.74, 1)
+theme_override_font_sizes/font_size = 17
+text = "FRIENDLY FREYA  /  FINALE"
+
+[node name="Heading" type="Label" parent="Screen/StoryPanel/Margin/Contents"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 1, 0.95, 1)
+theme_override_font_sizes/font_size = 39
+text = "The signal breaks"
+autowrap_mode = 3
+
+[node name="Divider" type="ColorRect" parent="Screen/StoryPanel/Margin/Contents"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.38, 0.93, 0.71, 0.7)
+
+[node name="Body" type="RichTextLabel" parent="Screen/StoryPanel/Margin/Contents"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+size_flags_vertical = 3
+focus_mode = 2
+theme_override_colors/default_color = Color(0.83, 0.88, 0.94, 1)
+theme_override_font_sizes/normal_font_size = 21
+text = ""
+scroll_active = true
+
+[node name="Progress" type="Label" parent="Screen/StoryPanel/Margin/Contents"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.64, 0.75, 0.84, 1)
+theme_override_font_sizes/font_size = 16
+text = "1 / 4"
+
+[node name="Status" type="Label" parent="Screen/StoryPanel/Margin/Contents"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.58, 1)
+theme_override_font_sizes/font_size = 16
+text = ""
+autowrap_mode = 3
+
+[node name="Navigation" type="HBoxContainer" parent="Screen/StoryPanel/Margin/Contents"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BackButton" type="Button" parent="Screen/StoryPanel/Margin/Contents/Navigation"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 48)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Back"
+
+[node name="NextButton" type="Button" parent="Screen/StoryPanel/Margin/Contents/Navigation"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 48)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Continue"
+
+[node name="SkipButton" type="Button" parent="Screen/StoryPanel/Margin/Contents/Navigation"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 48)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Skip to credits"
+
+[node name="Choices" type="VBoxContainer" parent="Screen/StoryPanel/Margin/Contents"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ExploreButton" type="Button" parent="Screen/StoryPanel/Margin/Contents/Choices"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Keep Exploring"
+
+[node name="ReplayButton" type="Button" parent="Screen/StoryPanel/Margin/Contents/Choices"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Replay Story (New Game)"

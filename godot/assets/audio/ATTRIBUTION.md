@@ -126,10 +126,20 @@ Runtime uses four conversational clips for ordinary NPC replies, fourteen
 excited-social clips (the six new field trims plus eight `bark_real` clips),
 and six aggressive clips. Each category has an independent shuffle bag: all
 recordings in that category play before any is reused, and cycle boundaries
-cannot repeat the immediately previous recording. Missing clips stay silent;
-another category is never used as a fallback. Exact family-intro and
+cannot repeat the immediately previous recording. Every source keeps its own
+shuffle slot even when its file fails to load; drawing that slot stays silent
+and does not substitute another clip. Another category is never used as a
+fallback. Exact family-intro and
 post-intro tutorial mappings remain separate and are defined with the pools
 near the top of [main.gd](../../scripts/main.gd).
+
+Active bark recordings play at their original pitch. Gain is fixed for each
+bark category and for Freya versus another dog; nearby pack size changes the
+number and timing of barks, not the recording's pitch or gain.
+When `R` stops an imp with no dog or possessed lodge captive nearby, Freya
+plays one recorded aggressive bark from that same pool. A short fixed gap
+prevents several nearby imps from stacking duplicate barks; dog and captive
+interactions keep their existing recorded bark sequences.
 
 ## Urination
 
@@ -154,6 +164,15 @@ near the top of [main.gd](../../scripts/main.gd).
 
 - `dog_urination_stream_330024.mp3`: [CC0 (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/)
 - `urinating_bathroom_17120.mp3`: [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)
+
+### Runtime mapping
+
+Each valid claim target starts `pee/dog_urination_stream_330024.mp3` once,
+from a fixed 0.02-second offset, at original pitch and a fixed −12.6 dB gain.
+Playback stops when the claim ends or the target changes. It is not chopped
+into randomized bursts or mixed with another recording. The distributed
+`pee/urinating_bathroom_17120.mp3` remains attributed as a reference source
+but is not loaded for gameplay or used as a fallback.
 
 ## Eating
 
@@ -190,6 +209,14 @@ near the top of [main.gd](../../scripts/main.gd).
 ### License
 
 - [CC0 (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/)
+
+### Runtime mapping
+
+Food, bone, and poop each select only their matching recorded pool. The chosen
+recording plays at original pitch and a fixed −10.4 dB gain, with a fixed
+0.10-second start offset for food or poop and 0.05 seconds for bone. A missing
+selected recording leaves that eat event silent; an unknown kind selects no
+recording.
 
 ## Intro Speech Bubbles
 
@@ -250,3 +277,96 @@ Only `vomit/dog_wheezing_coughing_825417.mp3` is currently listed in
 [`VOMIT_SAMPLE_CANDIDATES`](../../scripts/main.gd). The shipped
 `vomit/dog_gagging_135415.mp3` file is retained as a source/reference asset; it
 is not currently selected by that mapping and must never be used as a fallback.
+The active recording plays at original pitch with a fixed −10.2 dB gain and
+a fixed 0.18-second start offset.
+
+## Recorded Action Cues
+
+The clips below are **real recordings or physical Foley**, edited only by
+cutting an excerpt, converting the linked source audio to mono Ogg Vorbis,
+and applying the stated fixed gain. No tone, oscillator, generated layer,
+replacement, or fallback was added. All source pages state
+[CC0](https://creativecommons.org/publicdomain/zero/1.0/). These files are
+available for specific runtime events; a source file's presence alone does not
+mean that the event is already wired to playback.
+
+| Distributed file under `actions/` | Intended event | Source recording (author) | Source audio used | Excerpt (seconds), gain |
+| --- | --- | --- | --- | --- |
+| `dog_paws_skitter_208654.ogg` | Quick dog run or agility movement | [Dog skitter on concrete](https://freesound.org/people/luckylittleraven/sounds/208654/) (`luckylittleraven`) | [HQ MP3](https://cdn.freesound.org/previews/208/208654_2112203-hq.mp3) | 0.00–3.78, unchanged |
+| `dog_sniff_pant_784915.ogg` | Freya sensing or dog breathing | [Dog panting and sniffing](https://freesound.org/people/Primitv094/sounds/784915/) (`Primitv094`) | [HQ MP3](https://cdn.freesound.org/previews/784/784915_9616274-hq.mp3) | 16.40–19.70, +13 dB |
+| `dog_whine_462660.ogg` | Kennel captive or vulnerable dog | [Whining Dog](https://freesound.org/people/Breviceps/sounds/462660/) (`Breviceps`) | [HQ MP3](https://cdn.freesound.org/previews/462/462660_9159316-hq.mp3) | 0.45–2.90, unchanged |
+| `collar_jingle_611827.ogg` | Recruit or pack order acknowledgment | [Dog Collar Jingling](https://freesound.org/people/AKFeniks/sounds/611827/) (`AKFeniks`) | [HQ MP3](https://cdn.freesound.org/previews/611/611827_7493314-hq.mp3) | 5.85–8.40, +18 dB |
+| `home_door_683434.ogg` | Opening a hinged wooden door, if such an action is added | [door open](https://freesound.org/people/saha213131/sounds/683434/) (`saha213131`) | [HQ MP3](https://cdn.freesound.org/previews/683/683434_14040168-hq.mp3) | 0.00–0.90, +10 dB |
+| `metal_gate_411884.ogg` | Open a kennel cage or heavy gate | [Metal Door](https://freesound.org/people/Yin_Yang_Jake007/sounds/411884/) (`Yin_Yang_Jake007`) | [HQ MP3](https://cdn.freesound.org/previews/411/411884_7919598-hq.mp3) | 0.48–2.08, unchanged |
+| `medicine_bottle_460153.ogg` | Collect or apply immunity medicine | [Pill Bottle, Shaking](https://freesound.org/people/AudioWay/sounds/460153/) (`AudioWay`) | [HQ MP3](https://cdn.freesound.org/previews/460/460153_9565159-hq.mp3) | 0.00–0.94, +9 dB |
+| `clinic_fabric_rustle.ogg` | Clinic care kit or bandage handling | [Fabric Rustling](https://opengameart.org/content/fabric-rustling) (`Iochi Glaucus`; a real leg warmer recorded with an AT2020) | [`rustling.ogg`](https://opengameart.org/sites/default/files/rustling.ogg) | 2.00–3.50, unchanged |
+| `armor_velcro_267713.ogg` | Attach or repair dog armor | [Velcro](https://freesound.org/people/WeeJee_vdH/sounds/267713/) (`WeeJee_vdH`) | [HQ MP3](https://cdn.freesound.org/previews/267/267713_3666787-hq.mp3) | 1.07–2.28, +7 dB |
+| `stick_pickup_qubodup_wobble2.ogg` | Pick up a loose wooden stick | [Wood Wobbling & Rattling](https://opengameart.org/content/wood-wobbling-rattling) (`qubodup`; a thin piece of real wood moved and stopped) | [`qubodup-wobble2.wav` in the CC0 archive](https://opengameart.org/sites/default/files/qubodup-wobble.7z) | Full 0.89, unchanged |
+| `stick_drop_593178.ogg` | Drop a carried stick | [dropping wooden stick](https://freesound.org/people/Stefan21100190/sounds/593178/) (`Stefan21100190`) | [HQ MP3](https://cdn.freesound.org/previews/593/593178_12589965-hq.mp3) | 1.93–2.48, +16 dB |
+| `dumpster_lid_254982.ogg` | Search a dumpster | [Trash Can Lid](https://freesound.org/people/deleted_user_958643/sounds/254982/) (`deleted_user_958643`) | [HQ MP3](https://cdn.freesound.org/previews/254/254982_958643-hq.mp3) | 2.69–3.55, unchanged |
+| `suction_pop_386885.ogg` | Imp transfer interruption | [Suction Cup](https://freesound.org/people/michorvath/sounds/386885/) (`michorvath`) | [HQ MP3](https://cdn.freesound.org/previews/386/386885_3094998-hq.mp3) | 0.00–0.68, unchanged |
+| `slime_squelch_433839.ogg` | Visible imp emerges or is expelled | [Slime 28](https://freesound.org/people/Archos/sounds/433839/) (`Archos`; squished rubber ball) | [HQ MP3](https://cdn.freesound.org/previews/433/433839_652422-hq.mp3) | 0.00–0.61, +8 dB |
+| `electric_arc_367456.ogg` | Stronghold or alien transfer warning | [Jacob's ladder](https://freesound.org/people/jensfelger/sounds/367456/) (`jensfelger`; recorded 50 kV arc) | [HQ MP3](https://cdn.freesound.org/previews/367/367456_6750383-hq.mp3) | 4.95–6.50, +8 dB |
+| `button_click_622060.ogg` | Menu, intro advance/skip, or order selection | [button click](https://freesound.org/people/rydra_wong/sounds/622060/) (`rydra_wong`; mechanical keyboard) | [HQ MP3](https://cdn.freesound.org/previews/622/622060_13685159-hq.mp3) | 0.00–0.66, −3 dB |
+| `bubble_pop_669918.ogg` | Territory or objective feedback | [The Best Bubble Pop Sound For Game and UI](https://freesound.org/people/el_boss/sounds/669918/) (`el_boss`; recorded bubble) | [HQ MP3](https://cdn.freesound.org/previews/669/669918_9129912-hq.mp3) | 0.00–0.32, unchanged |
+| `family_group_giggling.ogg` | Gene and Zoe laugh during the family prologue | [Group giggling](https://opengameart.org/content/group-giggling) (`Nocturnal_Vanguard` / AuraVoice; recorded human voice) | [`group_giggling.ogg`](https://opengameart.org/sites/default/files/group_giggling.ogg) | 0.00–1.95, unchanged gain |
+
+The action cue IDs in [action_audio.gd](../../scripts/action_audio.gd) map to
+these exact files, except `family_pills_eaten`, which maps directly to the
+already-attributed `eat/dog_chewing_crunchy_456376.mp3`. The group-giggling
+source is already mono Ogg; the distributed excerpt was cropped to 1.95 seconds
+and re-encoded as mono Vorbis without pitch change, synthesis, or layering.
+Its downloaded source SHA-256 was
+`2155db34a3d62290d3dfcb6429cfda2af4e3ff736d3b86bdebb78100598b95fe`.
+Every listed cue except `door` has a live event hook; `door` is reserved for a
+future visibly opening door. If an exact file is unavailable, its event stays
+silent.
+The `claim` cue also confirms the first completion of each dog-park drill;
+the drill itself begins with the recorded `dog_run` cue. Repeating an already
+learned drill does not replay the first-time reward cue.
+The `alien_emerge` cue also plays once when an occupied storefront generates a
+free imp within 14 world units of Freya. Distant storefront spawns stay silent;
+the event never selects another recording if its exact cue is unavailable.
+
+### Intro story event mappings
+
+These IDs intentionally reuse real recordings where the same physical Foley
+fits another visible event. Each ID still has one fixed path. Reuse never
+serves as a fallback when a different recording fails to load. The three
+staggered first-exit dog possession hits use separate players of the same
+exact stream so one hit cannot cut another short.
+
+| Story event / cue ID | Exact source path | Trigger |
+| --- | --- | --- |
+| `family_laugh` | `actions/family_group_giggling.ogg` | Gene and Zoe laugh at 23.0 s |
+| `family_pills_revealed` | `actions/medicine_bottle_460153.ogg` | Gene reveals the bottles at 28.4 s |
+| `family_abduction_beam` | `actions/electric_arc_367456.ogg` | The parents' beams appear at 45.0 s |
+| `family_pills_landed` | `actions/medicine_bottle_460153.ogg` | The pill bottles land at 46.35 s |
+| `family_parents_vanish` | `actions/suction_pop_386885.ogg` | Gene and Zoe disappear at 47.2 s |
+| `family_ryah_beam` | `actions/electric_arc_367456.ogg` | Ryah's beam appears at 48.0 s |
+| `family_ryah_beam_break` | `actions/suction_pop_386885.ogg` | Her beam collapses at 51.2 s |
+| `family_pills_eaten` | `eat/dog_chewing_crunchy_456376.mp3` | Freya eats the spill at 54.0 s |
+| `family_convulsion` | `actions/collar_jingle_611827.ogg` | Freya shakes and hops at 55.2 s |
+| `first_exit_abduction_beam` | `actions/electric_arc_367456.ogg` | Dog-walker beams appear at 0.9 s |
+| `first_exit_walkers_vanish` | `actions/suction_pop_386885.ogg` | The walkers vanish at 3.35 s |
+| `first_exit_dog_possession` | `actions/slime_squelch_433839.ogg` | Three possession hits at 4.81, 5.11, and 5.41 s |
+| `first_exit_freya_target` | `actions/electric_arc_367456.ogg` | Possession energy aims for Freya at 5.95 s |
+| `first_exit_immunity_bounce` | `actions/suction_pop_386885.ogg` | The energy ricochets at 6.85 s |
+
+### Action coverage notes
+
+- Freya's walking, running, and dog-park obstacle motion use the same real
+  dog-paws recording, at different gains and a sparse replay interval. The
+  same exact recorded stream is used for both movement speeds; no alternate
+  file is substituted if it is unavailable.
+- The `door` cue is reserved for a door that visibly opens. Home and store
+  doorways are already open, so crossing them is silent.
+- Camera rotation and zoom, the Tab objectives display, and key presses that
+  do not complete an in-world action are silent; they produce no physical
+  sound source. Menu selections and accepted pack orders use the recorded
+  mechanical button cue.
+- Player-requested Next and Skip in both intro sequences use that exact
+  recorded button cue. Timed, automatic scene progression stays silent.
+- Continuous volume-slider adjustment is silent to avoid a click for every
+  intermediate value. Quitting the process is immediate, so its last-frame
+  button press is silent rather than cutting a recorded cue short.

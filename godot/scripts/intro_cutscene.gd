@@ -3,6 +3,7 @@ extends Node3D
 const IntroTimeline = preload("res://scripts/intro_timeline.gd")
 const AlienVisualFactory = preload("res://scripts/alien_visual_factory.gd")
 const UFOVisualFactory = preload("res://scripts/ufo_visual_factory.gd")
+const ActionAudioScript = preload("res://scripts/action_audio.gd")
 
 const GAME_SCENE_PATH = "res://scenes/Main.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
@@ -35,6 +36,7 @@ var rune_audio_player: AudioStreamPlayer
 var translation_audio_player: AudioStreamPlayer
 var rune_audio_stream: AudioStream
 var translation_audio_stream: AudioStream
+var action_audio: Node
 
 var timeline_time := 0.0
 var static_view := false
@@ -47,6 +49,8 @@ var alien_palettes: Array[Dictionary] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	action_audio = ActionAudioScript.new()
+	add_child(action_audio)
 	_create_materials()
 	_create_space_environment()
 	_create_starfield()
@@ -96,10 +100,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_SPACE:
 			get_viewport().set_input_as_handled()
-			_advance_intro_scene()
+			_on_advance_intro_requested()
 		elif event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
-			_finish_to_game()
+			_on_skip_intro_requested()
+
+
+func _on_advance_intro_requested() -> void:
+	if static_view or transition_started:
+		return
+	action_audio.play_persistent("button", -11.0)
+	_advance_intro_scene()
+
+
+func _on_skip_intro_requested() -> void:
+	if static_view or transition_started:
+		return
+	action_audio.play_persistent("button", -11.0)
+	_finish_to_game()
 
 
 func _intro_scene_index_for_time(time_seconds: float) -> int:
@@ -478,7 +496,7 @@ func _create_cutscene_ui() -> void:
 	advance_button.offset_top = 12.0
 	advance_button.offset_bottom = 46.0
 	advance_button.focus_mode = Control.FOCUS_ALL
-	advance_button.pressed.connect(_advance_intro_scene)
+	advance_button.pressed.connect(_on_advance_intro_requested)
 	root.add_child(advance_button)
 
 	skip_button = Button.new()
@@ -491,7 +509,7 @@ func _create_cutscene_ui() -> void:
 	skip_button.offset_top = 12.0
 	skip_button.offset_bottom = 46.0
 	skip_button.focus_mode = Control.FOCUS_ALL
-	skip_button.pressed.connect(_finish_to_game)
+	skip_button.pressed.connect(_on_skip_intro_requested)
 	root.add_child(skip_button)
 
 	scene_id_label = Label.new()
@@ -875,7 +893,7 @@ func _validate_timeline(failures: Array[String]) -> void:
 func _validate_dialogue_advance_controls(failures: Array[String]) -> void:
 	if advance_button == null or not is_instance_valid(advance_button):
 		failures.append("intro_advance_button_missing")
-	elif advance_button.text != "NEXT  [SPACE]" or not advance_button.pressed.is_connected(_advance_intro_scene):
+	elif advance_button.text != "NEXT  [SPACE]" or not advance_button.pressed.is_connected(_on_advance_intro_requested):
 		failures.append("intro_advance_button_bad")
 	if skip_button == null or not is_instance_valid(skip_button):
 		failures.append("intro_skip_button_missing")

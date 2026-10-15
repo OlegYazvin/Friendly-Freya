@@ -4,7 +4,8 @@ Friendly Freya is a Godot 4 neighborhood game about a wonderful three-legged
 Portuguese Water Dog protecting Ryah Diane from a covert alien invasion. The
 current project includes the startup menu with audio settings, two-part intro,
 procedural neighborhood, dog socialization and possession systems, scent and
-building claims, occupied buildings, and deterministic visual regression views.
+building claims, a three-chapter rescue campaign with an ending, save/resume,
+recorded action sounds, and deterministic visual regression views.
 
 ## Start Here
 
@@ -26,8 +27,10 @@ building claims, occupied buildings, and deterministic visual regression views.
 | [Codebase map](docs/CODEBASE_MAP.md) | Runtime flow, file ownership, subsystem entry points, and test environment variables | Current architecture |
 | [Godot overview](godot/README_GODOT.md) | Controls and implemented gameplay at a glance | Current product reference |
 | [Gameplay audit and direction](GAMEPLAY_AUDIT.md) | Canonical gameplay rules, implementation status, and explicitly future work | Living design document |
+| [Game completion plan](docs/GAME_COMPLETION_PLAN.md) | Release scope, three implemented chapters, remaining production gates, and playtest criteria | Plan in progress |
+| [Playtest run sheet](docs/PLAYTEST_RUN_SHEET.md) | Five unfamiliar-player observations and minimum-Windows-machine release checks | Ready for external testing |
 | [Intro cut-scene guide](INTRO_CUTSCENE.md) | Exact UFO/family timelines, edit surfaces, handoff rules, and intro checks | Current subsystem reference |
-| [Dog kennel concept](KENNEL_CONCEPT.md) | Placement-ready but unplaced kennel visuals, entry promise, collision contract, and finite possessed-dog spawning | Prepared future archetype |
+| [Dog kennel concept](KENNEL_CONCEPT.md) | Live lodge placement, rescue contract, entry promise, and finite possessed-dog spawning | Current subsystem reference |
 | [Building program](BUILDING_PROGRAM.md) | Enterable residences, pharmacy/grocery/police/clinic roles, occupation locks, and service rules | Current subsystem reference |
 | [Dog breed definitions](godot/BREEDS.md) | Breed schema, shared-rig policy, and army-collar rules | Current subsystem reference |
 | [Visual implementation record](VISUAL_RECOMMENDATIONS.md) | Completed visual audit recommendations and their validation expectations | Completed implementation record |
@@ -94,7 +97,9 @@ Logs and Monitoring/    Packaged Windows snapshots; not authoritative source
 The repository contains a versioned Windows export preset, a local packaging
 script, and a tag-driven GitHub Actions workflow. Release jobs verify the Godot
 editor and export-template downloads, run all project checks, build the ZIP,
-and start the exported package on a Windows runner before publishing it.
+and start the exported package on a Windows runner before publishing it. A
+manual workflow run also drives the exported EXE/PCK through credits and Keep
+Exploring on a Windows runner and uploads the campaign log without publishing.
 
 The active dog model is documented CC0 material. Inactive reference models with
 unresolved provenance are explicitly excluded from release exports. See the
