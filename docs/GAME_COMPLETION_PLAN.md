@@ -14,11 +14,11 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The [review-n Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
-passed export, EXE startup, performance entry, the keyboard Watch Intro
-opening, credits, and Keep Exploring. The source suite, inspected captures,
-ZIP checksum, and local exported checks also passed. Release publication was
-skipped.
+The [review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+passed source validation, export, EXE startup, the short performance entry,
+the keyboard Watch Intro opening, credits, and Keep Exploring. The source
+suite, inspected captures, ZIP checksums, and local exported checks also
+passed. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
    active GPU. Run the packaged no-save graphical stress test at 1280×720 and
@@ -448,8 +448,18 @@ hardware floor.
   mappings, and ending; the extracted PCK passed the press-once keyboard test.
   The complete source predeploy suite passed after the final focus and chapter
   guards. Updated Controls and How To Play PNGs were regenerated and inspected.
-  Exported Windows review of this exact revision is still pending; review-n is
-  the latest completed Windows CI route until that run finishes.
+  The [review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+  passed source validation, export, EXE startup, the packaged short stress
+  entry, and the keyboard Watch Intro route at commit `0d088f3`. Its
+  [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12001498322)
+  contains `Friendly-Freya-manual-15-Windows-x86_64.zip`; its SHA-256 manifest
+  passed verification against
+  `2e6d1f4d9402694f1b82635a4be392a54a8905c782b0bd1f077fd1b12f79a5c0`.
+  Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12003200905)
+  records three completed chapters, six lodge rescues, two allied dogs, 18
+  claimed sites, credits, and Keep Exploring. The game logged no error or
+  warning. This was a headless automated route; graphical HP performance and
+  player enjoyment still need direct observation.
 
 ## The game to finish
 

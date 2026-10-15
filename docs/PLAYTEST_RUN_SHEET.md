@@ -24,28 +24,25 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-n Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905/artifacts/11997189030).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-14-Windows-x86_64.zip`
+For the HP, download the [review-o Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12001498322).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-15-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`8724dafe102dc98eb489af1edd6c844e7fb22f1b1ea28a51ba1074e5d6be1ea9`),
+`2e6d1f4d9402694f1b82635a4be392a54a8905c782b0bd1f077fd1b12f79a5c0`),
 then extract that game ZIP. The Actions artifact expires October 29, 2026.
 
-Local alternative: `dist/Friendly-Freya-review-20261015n-Windows-x86_64.zip`
-(SHA-256 `77ad53e9ea5345df3223c18c66fd758f11d4f9cfca8dfb810d42b469d85b24bd`).
-Verify it against its own adjacent `.sha256` file before testing.
-The review-n Windows workflow passed a short headless performance-entry check
-with two complete five-second windows, and its exported EXE passed the Watch
-Intro opening. The extracted local review-n PCK passed that opening in a
-rendered 960×540 Linux window; neither check measures the HP graphical floor.
-The earlier review-k PCK passed a warmed graphical 1280×720 sample on Linux.
-A source live-input route at an earlier review commit reached chapter 2 with
-two protected allies and five claimed sites. The earlier review-f PCK passed a
-local Linux input route through credits. The current
-[review-n Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
-passed its exported EXE route through credits and Keep Exploring, with three
-chapters, six lodge rescues, and 18 claimed sites. The review evidence is
-tracked in [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
-Graphical manual checks remain open.
+Local alternative: `dist/Friendly-Freya-review-20261015o-Windows-x86_64.zip`
+(SHA-256 `225d39a0aba03362b8436a03ab15e3742b708eabb411a799f73c1197685e1fd4`).
+Verify it against its own adjacent `.sha256` file before testing. The
+[review-o Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+passed export validation, EXE startup, the short headless performance entry,
+the keyboard Watch Intro opening, and an exported start-to-credits campaign.
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12003200905)
+records three chapters, six lodge rescues, two allies, 18 claimed sites,
+credits, and Keep Exploring without game errors or warnings. The local
+extracted PCK also passed the press-once keyboard route.
+The review evidence is tracked in
+[draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
+Graphical HP checks remain open.
 
 Use a freshly extracted Windows review ZIP with `FriendlyFreya.exe` beside its
 `.pck`. Record the exact build label and SHA-256 manifest. Aim for five people

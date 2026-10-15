@@ -422,11 +422,17 @@ review-f PCK passed this local Linux route on seed 20260831. The local
 `review-20261015o` PCK passed exact-content export, ZIP checksum, and the
 packaged press-once keyboard test; the prior review-k PCK passed a warmed
 graphical 1280×720 sample on Linux. The
-[review-n Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38786630905)
-passed export, EXE startup, packaged performance entry and Watch Intro, and
-the full headless campaign route with credits and Keep Exploring. The exact
-review-o revision still needs its Windows CI run. Graphical playtesting and
-sustained performance measurement on the HP Victus remain open.
+[review-o Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756)
+passed export, EXE startup, packaged performance entry, Watch Intro, and the
+full headless campaign route with credits and Keep Exploring. Its
+[campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12003200905)
+records three chapters, six lodge rescues, two allies, and 18 claimed sites
+without a game error or warning. The
+[Windows review-o artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38794653756/artifacts/12001498322)
+contains `Friendly-Freya-manual-15-Windows-x86_64.zip` with SHA-256
+`2e6d1f4d9402694f1b82635a4be392a54a8905c782b0bd1f077fd1b12f79a5c0`.
+Graphical playtesting and sustained performance measurement on the HP Victus
+remain open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update

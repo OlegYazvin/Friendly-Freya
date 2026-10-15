@@ -125,8 +125,10 @@ After preparing imports, it runs focused validation processes and covers:
     plus future-version primary/backup save protection, in
     `godot/tests/new_game_safety.gd`;
 9. the three-chapter route and story handoff in `godot/tests/campaign_flow.gd`;
-10. five generated seeds with chapter entrance, mark, wall, cage, and territory
-   connection probes in `godot/tests/campaign_reachability.gd`;
+10. ten generated seeds with paths from home to chapter entrances, required
+    marks, occupied walls, and lodge cages, using Freya's collision radius,
+    plus sequential territory connections in
+    `godot/tests/campaign_reachability.gd`;
 11. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
 12. ending layout and navigation in `godot/tests/campaign_ending.gd`;
 13. active and reserve pack behavior in `godot/tests/pack_squad.gd`, including
