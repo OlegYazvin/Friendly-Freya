@@ -61,6 +61,9 @@ hardware floor.
   sourced recordings with exact file mappings and silence for missing files;
   the active dog-food cue is CC BY 4.0, while the other mapped action excerpts
   are CC0. See [audio attribution](../godot/assets/audio/ATTRIBUTION.md).
+- Save loading checks the six-cage lodge state before choosing a slot. An
+  incomplete but checksummed primary can fall back to a valid backup, while
+  pre-lodge saves receive a fresh, playable lodge state.
 - New Game from the title, Restart Story from pause, and Replay Story from the
   ending now show a focused cancelable warning before replacing an existing
   save. A primary or backup save from a newer game version blocks any route
@@ -317,10 +320,16 @@ hardware floor.
   Controls and How To Play panels while they are open; the focused regression
   exercises these inputs. `G` now pins and unpins the goals, Page Up/Down
   scrolls them, `Tab` remains a temporary hold, and pausing clears the pin.
-  The chapter guide panel and its type are larger at 960×540. Repeated action
-  holds, fixed cinematic reading pace, and a master-only volume setting remain
+  The chapter guide panel and its type are larger at 960×540. Long family
+  dialogue and Freya's first-exit thought now wait for player advancement once
+  complete. Repeated action holds and a master-only volume setting remain
   items for unfamiliar-player review, along with readability at supported
   window sizes.
+- When goals are open, action and threat status now appears in a reserved strip
+  inside that panel. Its scrollable task list makes room for the message at
+  small window sizes, so warnings do not silently expire behind pinned goals.
+  The 800×450 keyboard regression checks legibility, containment, and scrolling;
+  a 960×540 reference view shows the same live warning.
 - The full gameplay/world deterministic PNG set was regenerated after the
   prop-occlusion and guide changes. Inspected residence/pharmacy interiors,
   home, pause controls, occupied buildings, goals, and both 960×540 later
@@ -573,13 +582,22 @@ resumed mid-run. Initial target: 30–45 minutes, adjusted by observed play.
 an ally or site has a readable cause and recoverable response; recruited dogs
 do more than wear collars.
 
-The mechanics currently support a quick pack-assisted wall break and a
-prepared approach that claims a neighboring property for scent support and
-guards an ally near the hold. The regressions check those effects separately;
-they have not compared both routes through the same hold with normal controls
-or recorded which one players choose. An unreinforced wall takes about 5.5
-seconds of continuous marking before bonuses, so the value of preparation
-relative to its travel and claim time remains an observed balance question.
+The mechanics support a quick pack-assisted wall break and a prepared
+approach that claims a neighboring property for scent support and guards an
+ally near the hold. The `tactical_routes.gd` probe tested both on seed 20260831
+from the same staged checkpoint: one clean ally, five ready marks, and the same
+full-strength occupied wall. It moved Freya and issued orders and claims with
+keyboard events after setup. Pack Assist broke the hold in 6.45 seconds total
+(4.42 seconds at the wall); claiming the prepared neighbor and ordering Guard
+broke it in 17.54 seconds total (4.86 seconds at the wall) and left that
+neighbor owned with a 14% scent bonus. Both routes are technically viable, but
+the prepared route takes longer to reach this wall clear. Both properties are
+highlighted chapter sites on this seed, so the prepared claim also advances a
+required objective; the comparison does not measure total chapter time. The
+probe has no live dog threat and does not establish the value of ownership for
+later holds, which route players choose, or whether the tradeoff feels
+worthwhile. Record those decisions in unfamiliar-player sessions before
+claiming this balance gate is satisfied.
 
 ### 3. Integrate content and resolve the story
 

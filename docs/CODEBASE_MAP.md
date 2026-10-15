@@ -148,9 +148,11 @@ After preparing imports, it runs focused validation processes and covers:
     the matching interaction ring, non-consuming invalid applications, chapter-2
     ally preference, mixed supplies, grocery and cage F priority, and 960×540
     clinic-hint bounds.
+20. `-` / `=` keyboard camera zoom through actual input dispatch, zoom limits,
+    pause behavior, and in-game help text in `godot/tests/camera_keyboard_zoom.gd`.
 
 Successful output contains `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
-`TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `DEJANK_CAMERA_OK`,
+`TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`, `DEJANK_CAMERA_OK`,
 `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SERVICE_REACHABILITY_OK`,
 `SUPPLY_TARGETING_OK`,

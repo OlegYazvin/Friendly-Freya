@@ -28,7 +28,8 @@ Basic controls
 WASD / Arrow keys  Move Freya
 Shift              Run
 Q / E              Rotate camera
-Mouse wheel        Zoom
+- / =              Zoom out / in with the keyboard
+Mouse wheel        Zoom out / in
 F                  Eat, collect/give supplies, pick up a stick, train, or open safe lodge cages
 V                  Drop a carried stick
 C (hold)           Socialize with a nearby dog

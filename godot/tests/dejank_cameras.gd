@@ -73,6 +73,15 @@ func run() -> void:
 		var s = current_scene
 		s.set_process(false)
 		check(s.family_intro_active, "seed %d family did not start" % city_seed)
+		s.family_intro_time = 2.0
+		s._apply_family_intro_time(s.family_intro_time)
+		s._update_family_intro(5.0)
+		var reading_hold_time: float = s.family_intro_time
+		check(reading_hold_time < 6.5 and s.family_dialogue_label.text == str(s.FamilyIntroTimeline.SCENES[1]["text"]), "long family line did not stop at full text")
+		s._update_family_intro(5.0)
+		check(is_equal_approx(s.family_intro_time, reading_hold_time), "long family line advanced without player input")
+		s._on_family_intro_advance_requested()
+		check(s.family_intro_current_scene_id == "family_02_gene_new_job", "Next did not release family reading hold")
 		for frame in range(192):
 			var time = float(frame) / 3.0
 			s._apply_family_intro_time(time)
@@ -112,7 +121,15 @@ func run() -> void:
 			s._apply_first_exit_abduction_time(time)
 			check_camera_clear(s, "first exit %.2f" % time)
 			await capture_frame("seed%d_exit_%04.1f" % [city_seed, time])
-		s._finish_first_exit_abduction()
+		s.first_exit_abduction_time = s.FIRST_EXIT_MONOLOGUE_START + 0.1
+		s._apply_first_exit_abduction_time(s.first_exit_abduction_time)
+		check(not s.first_exit_continue_button.visible, "first-exit Continue appeared before thought completed")
+		s._on_first_exit_advance_requested()
+		check(s.first_exit_abduction_active and s.first_exit_thought_label.text == s.FIRST_EXIT_IMMUNITY_TEXT, "first advance did not reveal complete immunity thought")
+		check(s.first_exit_continue_button.visible, "completed immunity thought has no Continue button")
+		s._update_first_exit_abduction(30.0)
+		check(s.first_exit_abduction_active, "first-exit thought advanced without player input")
+		s._on_first_exit_advance_requested()
 		check(s.sightline_cutaway.hidden_instances.is_empty(), "first exit did not restore batched scenery")
 		check(s.possessed_dog_behavior_enabled and not s.first_exit_abduction_pending, "first-exit handoff left gameplay locked")
 		check(is_equal_approx(s.camera_node.fov, 40.0), "first-exit handoff retained cinematic FOV")

@@ -81,6 +81,8 @@ echo "Running Friendly Freya recorded action audio coverage checks..."
 run_scene_validation res://tests/audio_actions.gd
 echo "Running Friendly Freya input and de-jankification regressions..."
 run_scene_validation res://tests/dejank_flow.gd
+echo "Running Friendly Freya keyboard camera zoom regression..."
+run_scene_validation res://tests/camera_keyboard_zoom.gd
 echo "Running Friendly Freya generated-layout camera regressions..."
 run_scene_validation res://tests/dejank_cameras.gd
 echo "Running Friendly Freya save and resume regressions..."
@@ -101,6 +103,8 @@ echo "Running Friendly Freya first-chapter guidance flow..."
 run_scene_validation res://tests/chapter_guide.gd
 echo "Running Friendly Freya claimed-territory scent support..."
 run_scene_validation res://tests/scent_support.gd
+echo "Running Friendly Freya same-checkpoint tactical routes..."
+run_scene_validation res://tests/tactical_routes.gd
 echo "Running Friendly Freya ending navigation regressions..."
 run_scene_validation res://tests/campaign_ending.gd
 echo "Running Friendly Freya ending-to-neighborhood resume regressions..."

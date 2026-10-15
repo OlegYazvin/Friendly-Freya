@@ -171,6 +171,16 @@ static func _normalize_state(value: Dictionary) -> Dictionary:
 	for category in ["buildings", "trees", "street_poles", "fire_hydrants", "mailboxes", "dogs"]:
 		if not collections.get(category, null) is Dictionary:
 			return {"ok": false, "error": "invalid_%s" % category}
+	var kennel: Dictionary = state["kennel"]
+	if kennel.is_empty():
+		# Older saves predate the lodge. An empty section can be migrated only if
+		# the saved dog roster has no lodge progress to lose.
+		for dog_id in collections["dogs"].keys():
+			if str(dog_id).begins_with("kennel_spawn:") or str(dog_id).begins_with("kennel_rescue:"):
+				return {"ok": false, "error": "invalid_kennel"}
+		state["kennel"] = _default_kennel_state()
+	elif not _valid_kennel_state(kennel):
+		return {"ok": false, "error": "invalid_kennel"}
 	var player: Dictionary = state["player"]
 	var position = player.get("position", null)
 	if not position is Array or position.size() != 2:
@@ -181,6 +191,41 @@ static func _normalize_state(value: Dictionary) -> Dictionary:
 		if not is_finite(float(coordinate)) or absf(float(coordinate)) > 10000.0:
 			return {"ok": false, "error": "invalid_player_position"}
 	return {"ok": true, "state": state}
+
+
+static func _default_kennel_state() -> Dictionary:
+	var cages: Array = []
+	for index in range(6):
+		cages.append({"possessed": true, "released": false})
+	return {
+		"possessed": true,
+		"total_spawned": 0,
+		"spawn_budget_closed": false,
+		"spawn_timer": 8.0,
+		"freya_has_entered": false,
+		"cages": cages
+	}
+
+
+static func _valid_kennel_state(kennel: Dictionary) -> bool:
+	for field in ["possessed", "spawn_budget_closed", "freya_has_entered"]:
+		if not kennel.get(field, null) is bool:
+			return false
+	var total_spawned = kennel.get("total_spawned", null)
+	if (not total_spawned is int and not total_spawned is float) or not is_finite(float(total_spawned)) or float(total_spawned) < 0.0 or float(total_spawned) > 6.0 or float(total_spawned) != floorf(float(total_spawned)):
+		return false
+	var spawn_timer = kennel.get("spawn_timer", null)
+	if (not spawn_timer is float and not spawn_timer is int) or not is_finite(float(spawn_timer)) or float(spawn_timer) < 0.0 or float(spawn_timer) > 60.0:
+		return false
+	var cages = kennel.get("cages", null)
+	if not cages is Array or cages.size() != 6:
+		return false
+	for cage in cages:
+		if not cage is Dictionary or not cage.get("possessed", null) is bool or not cage.get("released", null) is bool:
+			return false
+		if cage["possessed"] and cage["released"]:
+			return false
+	return true
 
 
 static func _is_unsupported_save(result: Dictionary) -> bool:

@@ -661,6 +661,7 @@ var first_exit_abduction_scene_label: Label
 var first_exit_thought_panel: Panel
 var first_exit_thought_speaker: Label
 var first_exit_thought_label: Label
+var first_exit_continue_button: Button
 var first_exit_freya_possession_effect: Node3D
 var first_exit_immunity_burst: Node3D
 var first_exit_freya_immunity_confirmed = false
@@ -830,6 +831,8 @@ var post_intro_meal_label: Label
 var objectives_panel: Panel
 var objectives_list_label: Label
 var objectives_scroll: ScrollContainer
+var objectives_status_panel: PanelContainer
+var objectives_status_label: Label
 var objectives_pinned = false
 var stats_panel: Panel
 var stats_list_label: Label
@@ -1076,6 +1079,15 @@ func _configure_alien_visual_view() -> void:
 		objectives_list_label.text = _objectives_text()
 		if status_panel != null:
 			status_panel.hide()
+		set_process(false)
+		return
+	if visual_view == "chapter_goals_status":
+		get_window().size = Vector2i(960, 540)
+		_seed_chapter_strongholds()
+		objectives_pinned = true
+		_update_objectives_overlay()
+		_show_status("An imp is reaching for a dog — bark or guard it!", 20.0, 2)
+		call_deferred("_layout_objectives_panel")
 		set_process(false)
 		return
 	if visual_view == "pack_assist_context" and freya != null:
@@ -1647,6 +1659,12 @@ func _process(delta: float) -> void:
 		_update_family_intro(delta)
 		return
 	if first_exit_abduction_active:
+		if not first_exit_abduction_static and Input.is_action_just_pressed("menu"):
+			_on_first_exit_skip_requested()
+			return
+		if not first_exit_abduction_static and Input.is_action_just_pressed("dialogue_advance"):
+			_on_first_exit_advance_requested()
+			return
 		_update_first_exit_abduction(delta)
 		return
 	if possessed_dog_tutorial_active:
@@ -1933,6 +1951,8 @@ func _configure_input() -> void:
 	_remove_action_key("camera_rotate_cw", int(Key.KEY_E))
 	_ensure_action("camera_rotate_ccw", [Key.KEY_E])
 	_ensure_action("camera_rotate_cw", [Key.KEY_Q])
+	_ensure_action("camera_zoom_in", [Key.KEY_EQUAL])
+	_ensure_action("camera_zoom_out", [Key.KEY_MINUS])
 	_remove_action_key("vomit", int(Key.KEY_SPACE))
 	_ensure_action("vomit", [Key.KEY_X])
 	_ensure_action("drop_stick", [Key.KEY_V])
@@ -1987,6 +2007,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 	if family_intro_active:
 		return
+	if event is InputEventKey and event.pressed:
+		if event.is_action_pressed("camera_zoom_in", true):
+			_adjust_camera_zoom(-CAMERA_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("camera_zoom_out", true):
+			_adjust_camera_zoom(CAMERA_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if not mouse_event.pressed:
@@ -5457,7 +5486,18 @@ func _update_family_intro(delta: float) -> void:
 		return
 	if not family_intro_static:
 		var previous_time = family_intro_time
-		family_intro_time = minf(FamilyIntroTimeline.TOTAL_DURATION, family_intro_time + delta)
+		var next_time = minf(FamilyIntroTimeline.TOTAL_DURATION, family_intro_time + delta)
+		# Long spoken lines and Freya's final thought wait at full text until Next.
+		# Their authored timestamps still define animation and review captures, but
+		# reading pace no longer decides when the player loses a line.
+		for scene in FamilyIntroTimeline.SCENES:
+			if not _family_scene_waits_for_advance(scene):
+				continue
+			var hold_time = float(scene["end"]) - 0.02
+			if family_intro_time <= hold_time + 0.001 and next_time >= hold_time:
+				next_time = hold_time
+				break
+		family_intro_time = next_time
 		_fire_family_intro_events(previous_time, family_intro_time)
 	_apply_family_intro_time(family_intro_time)
 	if freya != null:
@@ -5468,6 +5508,10 @@ func _update_family_intro(delta: float) -> void:
 		_apply_family_freya_pill_sequence_pose(family_intro_time)
 	if not family_intro_static and family_intro_time >= FamilyIntroTimeline.TOTAL_DURATION:
 		_finish_family_intro()
+
+
+func _family_scene_waits_for_advance(scene: Dictionary) -> bool:
+	return str(scene.get("speaker", "")) != "" and str(scene.get("text", "")).length() > 25
 
 
 func _family_intro_scene_index_for_time(time_seconds: float) -> int:
@@ -6221,9 +6265,10 @@ func _create_first_exit_abduction_ui() -> void:
 	first_exit_thought_panel.anchor_top = 1.0
 	first_exit_thought_panel.anchor_right = 0.5
 	first_exit_thought_panel.anchor_bottom = 1.0
-	first_exit_thought_panel.offset_left = -485.0
+	var thought_half_width = minf(485.0, maxf(160.0, get_viewport().get_visible_rect().size.x * 0.5 - 16.0))
+	first_exit_thought_panel.offset_left = -thought_half_width
 	first_exit_thought_panel.offset_top = -212.0
-	first_exit_thought_panel.offset_right = 485.0
+	first_exit_thought_panel.offset_right = thought_half_width
 	first_exit_thought_panel.offset_bottom = -66.0
 	var thought_style = StyleBoxFlat.new()
 	thought_style.bg_color = Color(0.035, 0.055, 0.075, 0.96)
@@ -6245,13 +6290,21 @@ func _create_first_exit_abduction_ui() -> void:
 	first_exit_thought_label = Label.new()
 	first_exit_thought_label.name = "Dialogue"
 	first_exit_thought_label.position = Vector2(22.0, 42.0)
-	first_exit_thought_label.size = Vector2(926.0, 90.0)
+	first_exit_thought_label.size = Vector2(thought_half_width * 2.0 - 44.0, 90.0)
 	first_exit_thought_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	first_exit_thought_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	first_exit_thought_label.add_theme_font_size_override("font_size", 25)
 	first_exit_thought_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.96))
 	first_exit_thought_panel.add_child(first_exit_thought_label)
 	first_exit_thought_panel.visible = false
+	first_exit_continue_button = Button.new()
+	first_exit_continue_button.name = "ContinueFirstExitButton"
+	first_exit_continue_button.text = "CONTINUE  [SPACE]"
+	first_exit_continue_button.position = Vector2(thought_half_width * 2.0 - 222.0, 10.0)
+	first_exit_continue_button.size = Vector2(200.0, 31.0)
+	first_exit_continue_button.visible = false
+	first_exit_continue_button.pressed.connect(_on_first_exit_advance_requested)
+	first_exit_thought_panel.add_child(first_exit_continue_button)
 
 
 func _update_first_exit_abduction(delta: float) -> void:
@@ -6264,8 +6317,24 @@ func _update_first_exit_abduction(delta: float) -> void:
 	_apply_first_exit_abduction_time(first_exit_abduction_time)
 	if freya != null:
 		freya.update_motion(maxf(delta, 0.0001), Vector3.ZERO, false, false)
-	if not first_exit_abduction_static and first_exit_abduction_time >= FIRST_EXIT_TOTAL_DURATION:
-		_finish_first_exit_abduction()
+
+
+func _on_first_exit_advance_requested() -> void:
+	if not first_exit_abduction_active or first_exit_abduction_static or first_exit_abduction_time < FIRST_EXIT_MONOLOGUE_START:
+		return
+	action_audio.play("button", -11.0)
+	if first_exit_thought_label != null and first_exit_thought_label.text.length() < FIRST_EXIT_IMMUNITY_TEXT.length():
+		first_exit_abduction_time = FIRST_EXIT_TOTAL_DURATION
+		_apply_first_exit_abduction_time(first_exit_abduction_time)
+		return
+	_finish_first_exit_abduction()
+
+
+func _on_first_exit_skip_requested() -> void:
+	if not first_exit_abduction_active or first_exit_abduction_static:
+		return
+	action_audio.play("button", -11.0)
+	_finish_first_exit_abduction()
 
 
 func _fire_first_exit_audio_events(previous_time: float, new_time: float) -> void:
@@ -6316,6 +6385,8 @@ func _apply_first_exit_abduction_time(time_seconds: float) -> void:
 	if first_exit_thought_label != null:
 		var thought_characters = clampi(int(floor(maxf(0.0, time_seconds - FIRST_EXIT_MONOLOGUE_START) * FIRST_EXIT_MONOLOGUE_TYPE_SPEED)), 0, FIRST_EXIT_IMMUNITY_TEXT.length())
 		first_exit_thought_label.text = FIRST_EXIT_IMMUNITY_TEXT.substr(0, thought_characters)
+		if first_exit_continue_button != null:
+			first_exit_continue_button.visible = thought_characters >= FIRST_EXIT_IMMUNITY_TEXT.length()
 	for pair_index in range(first_exit_abduction_pairs.size()):
 		var pair: Dictionary = first_exit_abduction_pairs[pair_index]
 		var owner: Node3D = pair.get("owner", null)
@@ -6519,6 +6590,7 @@ func _finish_first_exit_abduction() -> void:
 	first_exit_thought_panel = null
 	first_exit_thought_speaker = null
 	first_exit_thought_label = null
+	first_exit_continue_button = null
 	if ui_layer != null:
 		ui_layer.visible = true
 	if pause_menu_layer != null:
@@ -19813,6 +19885,29 @@ func _create_objectives_overlay() -> void:
 	objectives_panel.add_child(objectives_scroll)
 	objectives_scroll.add_child(objectives_list_label)
 
+	# Keep time-limited action and threat feedback readable while goals are pinned.
+	# The scroll area makes room for this strip instead of drawing text behind it.
+	objectives_status_panel = PanelContainer.new()
+	objectives_status_panel.name = "ObjectivesStatus"
+	objectives_status_panel.anchor_right = 1.0
+	objectives_status_panel.anchor_top = 1.0
+	objectives_status_panel.anchor_bottom = 1.0
+	objectives_status_panel.offset_left = 16.0
+	objectives_status_panel.offset_top = -140.0
+	objectives_status_panel.offset_right = -16.0
+	objectives_status_panel.offset_bottom = -16.0
+	objectives_status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	objectives_status_panel.add_theme_stylebox_override("panel", _feedback_panel_style())
+	objectives_status_panel.visible = false
+	objectives_panel.add_child(objectives_status_panel)
+	objectives_status_label = Label.new()
+	objectives_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	objectives_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	objectives_status_label.add_theme_font_size_override("font_size", 18)
+	objectives_status_label.add_theme_color_override("font_color", Color(0.9, 0.95, 0.98, 0.95))
+	objectives_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	objectives_status_panel.add_child(objectives_status_label)
+
 func _layout_objectives_panel() -> void:
 	if objectives_panel == null:
 		return
@@ -19833,8 +19928,7 @@ func _update_objectives_overlay() -> void:
 	objectives_panel.visible = should_show
 	if should_show and chapter_guide_panel != null:
 		chapter_guide_panel.hide()
-	if status_panel != null:
-		status_panel.visible = (not should_show) and not status_label.text.is_empty()
+	_sync_status_visibility()
 	if should_show and objectives_list_label != null:
 		objectives_list_label.text = _objectives_text()
 
@@ -20170,7 +20264,7 @@ func _create_pause_menu() -> void:
 	pause_controls_panel.add_child(pause_controls_scroll)
 
 	var controls = Label.new()
-	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nHold Space: Mark objects, claim eligible interiors, weaken alien walls\nSpace near dumpster: Search once\nHold R: Bark at dogs or interrupt a visible imp\nHold C near dogs: Socialize and recruit; possessed dogs raise Vomit\n1: Pack follows Freya\n2: Pack guards a nearby dog, or this spot\n3: Pack assists a nearby alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
+	controls.text = "WASD / Arrows: Move\nShift: Run (raises Hunger faster than walking)\nQ / E: Rotate camera\n- / = or mouse wheel: Zoom out / in\nF: Eat, take or give supplies, train at the park, release clean lodge dogs\nV: Drop carried stick\nHold Space: Mark objects, claim eligible interiors, weaken alien walls\nSpace near dumpster: Search once\nHold R: Bark at dogs or interrupt a visible imp\nHold C near dogs: Socialize and recruit; possessed dogs raise Vomit\n1: Pack follows Freya\n2: Pack guards a nearby dog, or this spot\n3: Pack assists a nearby alien hold or chapter site\nX: Vomit when full; spray interrupts nearby imps\nH: Show or hide chapter next-step tips\nTab (hold) or G (toggle): Goals; PgUp/PgDn scroll\nN: Continue after a chapter result\nEsc: Pause, save, resume or quit"
 	controls.custom_minimum_size = Vector2(482, 420)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD
 	controls.add_theme_font_size_override("font_size", 16)
@@ -20196,7 +20290,7 @@ func _create_pause_menu() -> void:
 
 	var howto_text = Label.new()
 	howto_text.text = (
-		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Owning every building is an optional challenge.\n\n"
+		"Protect Ryah by securing the highlighted Northbrook sites, breaking two alien holds, rescuing all six lodge dogs, recruiting an ally, and shutting down the occupied storefront generators. Later chapters ask Freya to protect two allies and bring the pack to the final stronghold. Hold Tab or press G to pin the current goals; Page Up/Down scrolls them. Press N after a chapter result to continue the story. Use Q/E to rotate the camera and -/= or the mouse wheel to zoom while exploring. Owning every building is an optional challenge.\n\n"
 		+ "Freya alone marks nearby trees, poles, hydrants and mailboxes with Space. A clean building can be claimed after its nearby objects are marked and it connects to Freya territory. Hold Space inside for 10 seconds. For an occupied building, first weaken its outer wall with Space, then claim the clean interior.\n\n"
 		+ "A possessed dog still looks like a real dog. Freya senses it by crouching and shivering. Hold R nearby to expel an alien; barking at a real dog scares it away temporarily. Hold C with a freed dog to recruit it. Use 1 to follow, 2 beside a clean dog to guard that dog (otherwise guard this spot), and 3 to assist a nearby building. Nearby assisting allies speed up a claim or wall break, especially when Social is high. Each first park obstacle gives the pack a lasting assist bonus.\n\n"
 		+ "Visible imps may flee into buildings or try to take a vulnerable dog. Their transfer gives a warning: bark at the imp or send the pack to guard it. A full Vomit meter lets Freya interrupt imps with X. Pharmacy medicine makes a dog permanently immune; police armor absorbs one attempt. The clinic gives a care kit that frees a taken ally or calms a frightened dog. The home and grocery bowls reset Hunger. Take supplies with F and use them near a dog with F. On the minimap, M marks medicine, F food, A armor, and C clinic care.\n\n"
@@ -20427,13 +20521,28 @@ func _feedback_panel_style() -> StyleBoxFlat:
 func _update_status_presentation() -> void:
 	if status_panel == null:
 		return
-	status_panel.visible = not status_label.text.is_empty() and (objectives_panel == null or not objectives_panel.visible)
 	var width = minf(520.0, get_viewport().get_visible_rect().size.x - 32.0)
 	# Supply the wrap width before asking the container for its minimum height.
 	# A newly shown label otherwise measures at zero width and creates a tall
 	# empty panel until the next HUD refresh corrects the container's layout.
 	status_label.size.x = maxf(1.0, width - status_panel.get_theme_stylebox("panel").get_minimum_size().x)
 	status_panel.size = Vector2(width, 0.0)
+	_sync_status_visibility()
+
+func _sync_status_visibility() -> void:
+	if status_panel == null or status_label == null:
+		return
+	var has_status = not status_label.text.is_empty()
+	var goals_open = objectives_panel != null and objectives_panel.visible
+	status_panel.visible = has_status and not goals_open
+	if objectives_status_panel == null:
+		return
+	var show_in_goals = has_status and goals_open
+	objectives_status_panel.visible = show_in_goals
+	if show_in_goals:
+		objectives_status_label.text = status_label.text
+	# The 800×450 keyboard view still has a scrollable goals list above this strip.
+	objectives_scroll.offset_bottom = -154.0 if show_in_goals else -16.0
 
 func _create_chapter_guide() -> void:
 	chapter_guide_panel = PanelContainer.new()

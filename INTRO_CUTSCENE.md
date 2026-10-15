@@ -175,7 +175,10 @@ Main thresholds, and the relevant reviewed captures.
 ## Scenes 06–25 — Family Prologue in the Live Map Home
 
 - Runtime scene: `Main.tscn`; this is not a duplicate cutscene house.
-- Timeline: `0.0–64.0s` relative to the start of the family segment.
+- Timeline: authored beats span `0.0–64.0s` relative to the start of the family
+  segment. Long lines pause on their complete text until the player chooses
+  Next with Space or the visible button; Space while text types first reveals
+  the full line. The actual viewing time can therefore exceed 64 seconds.
 - Stable data: `family_intro_timeline.gd`.
 - Set rule: Main first generates its normal randomized map, selects Freya's real
   home, builds the shell/interior/furniture, and creates the persistent Freya
@@ -215,8 +218,11 @@ Main thresholds, and the relevant reviewed captures.
   then descends into the dogs. The same energy targets Freya, strikes her, and
   visibly ricochets up and away while an immunity burst expands from her. Freya
   concludes, `Whatever's happening to those other dogs seems like I'm immune
-  from it. Interesting.` Only after that exact thought clears do the dogs resume
-  their ordinary autonomous behavior and control return.
+  from it. Interesting.` The full thought remains on screen until the player
+  chooses Continue with Space or the button. Space during its typing reveals
+  the complete line first; Escape can skip the transition. After Continue or
+  an explicit skip, the dogs resume their ordinary autonomous behavior and
+  control returns.
 - Character references: Gene uses dark hair, a full beard/mustache, rectangular
   glasses, a dark gray shirt, gray pants, and brown shoes. Zoe uses layered
   light-brown curls, a black top, dark pants, and dark shoes. Both are stylized
@@ -243,7 +249,7 @@ Main thresholds, and the relevant reviewed captures.
 | `family_16_freya_approaches_pills` | 52.4–54.0 | Freya turns toward and approaches the dropped bottles. |
 | `family_17_freya_eats_pills` | 54.0–55.2 | Freya eats the shrinking bottle-and-capsule spill. |
 | `family_18_freya_convulses` | 55.2–59.0 | Freya hops, squashes, wobbles, and spins through colorful comic reaction rings and stars. |
-| `family_19_internal_monologue` | 59.0–64.0 | Freya discovers her exact internal-monologue line; the cinematic then clears and fully hungry bowl guidance begins. |
+| `family_19_internal_monologue` | 59.0–64.0 | Freya discovers her exact internal-monologue line; Next clears the cinematic and begins fully hungry bowl guidance. |
 
 ## Speech-Bubble Audio Policy
 

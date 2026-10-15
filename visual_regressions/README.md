@@ -53,8 +53,8 @@ outline fallback.
 
 - [pause_menu.png](pause_menu.png) — the in-game pause menu with keyboard focus on Resume and `Restart Story` available alongside the normal gameplay controls.
 - [pause_restart.png](pause_restart.png) — the pause-menu restart warning, focused on `Keep Playing` while the current session remains paused.
-- [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including the `G` goals pin, pack orders, and chapter continuation.
-- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, ally defense, services, and lodge rescue.
+- [pause_controls.png](pause_controls.png) — the Page Up/Down scrollable control reference, including keyboard `-`/`=` zoom, the `G` goals pin, pack orders, and chapter continuation.
+- [pause_howto.png](pause_howto.png) — the Page Up/Down scrollable explanation of the three-chapter campaign, keyboard camera control, ally defense, services, and lodge rescue.
 - [chapter_guide.png](chapter_guide.png) — the enlarged first-chapter guidance panel suggests an optional first park drill before the initial territory action and can be hidden with `H`; the minimap shows `M` medicine, `F` food, `A` armor, and `C` clinic care, plus a cyan diamond for the next highlighted site.
 - [chapter_guide_2.png](chapter_guide_2.png) — at 960×540, the larger skippable `H` panel persists into chapter 2 and tells Freya where to collect ally protection and which dog can receive it.
 - [chapter_guide_3.png](chapter_guide_3.png) — at 960×540, after the final signal is cleared without pack help, the larger panel explains the recoverable clean-ally guard action at the signal site without clipping.
@@ -71,6 +71,7 @@ outline fallback.
 - [home_inside.png](home_inside.png) — the scaled, partitioned interior with Freya and Ryah Diane, framed by the two camera-away walls of the gameplay cutaway.
 - [kennel_live.png](kennel_live.png) — the guaranteed Northbrook Dog Lodge lot on the generated neighborhood map, showing its initial occupied façade, entry lock, Freya, and the teal paw minimap marker.
 - [chapter_goals.png](chapter_goals.png) — the scrollable `Tab`/`G` goals show the first chapter's highlighted-site, ally, lodge, stronghold, and generator tasks; an active storefront's imp output and 22m reinforcement range are spelled out. The cyan diamond shows the named next site, staying at the minimap edge when it is farther away.
+- [chapter_goals_status.png](chapter_goals_status.png) — at 960×540, a live imp warning stays readable in a reserved strip inside pinned goals while the tasks remain scrollable above it.
 - [chapter_relay.png](chapter_relay.png) — the chapter 2 scent relay label above its seeded alien hold, with Freya at the site.
 - [chapter_relay_goals.png](chapter_relay_goals.png) — the chapter 2 objectives name the same relay building and give its distance and alien-wall action.
 - [chapter_final_recovery.png](chapter_final_recovery.png) — the final signal has been cleared and all four sites claimed; the goals explain the recoverable recruited-ally guard action while the cleared final site remains highlighted on the minimap.
@@ -82,7 +83,7 @@ outline fallback.
 - [first_exit_owners_gone.png](first_exit_owners_gone.png) — the people, leashes, and beams are gone while the three dogs remain held for the next cinematic beat.
 - [first_exit_dog_possession.png](first_exit_dog_possession.png) — purple, cyan, and magenta energy visibly descends into the three ordinary-looking dogs.
 - [first_exit_freya_immunity.png](first_exit_freya_immunity.png) — the matching possession energy ricochets away from Freya while a mint immunity burst expands from her.
-- [first_exit_immunity_thought.png](first_exit_immunity_thought.png) — Freya's exact immunity conclusion appears before cinematic control releases.
+- [first_exit_immunity_thought.png](first_exit_immunity_thought.png) — Freya's exact immunity conclusion and Continue button remain visible until the player advances the cinematic.
 - [dog_park_friendly.png](dog_park_friendly.png) — the reduced six-dog shared-rig cast inside a complete two-rail gated fence, with weave poles, hurdle, A-frame, crawl tunnel, and readable camouflage collars on recruited dogs.
 - [pack_squad.png](pack_squad.png) — three active recruited dogs near Freya, two reserve dogs holding posts, and the follow-order status with the active/reserve counts.
 - [pack_assist_context.png](pack_assist_context.png) — Pack Assist chooses the nearby highlighted residence and names it in the order status, with recruited allies beside Freya.

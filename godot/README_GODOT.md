@@ -45,7 +45,7 @@ Freya in a Northbrook-inspired brick town-center streetscape.
 - Intro: `Space` / Next completes the current line, then advances the beat.
   `Esc` / Skip To Game skips the current cinematic.
 - `WASD` or Arrow keys: move Freya; `Shift`: run.
-- `Q` / `E`: rotate the camera; mouse wheel: zoom.
+- `Q` / `E`: rotate the camera; `-` / `=` or mouse wheel: zoom out / in.
 - `F`: eat nearby food or bones, use a dog-food bowl, pick up a stick, collect
   pharmacy medicine or police armor, give carried supplies to a freed dog, or
   use a park training obstacle from either end;

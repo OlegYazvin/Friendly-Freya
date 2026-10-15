@@ -407,8 +407,9 @@ exact stream so one hit cannot cut another short.
   do not complete an in-world action are silent; they produce no physical
   sound source. Menu selections and accepted pack orders use the recorded
   mechanical button cue.
-- Player-requested Next and Skip in both intro sequences use that exact
-  recorded button cue. Timed, automatic scene progression stays silent.
+- Player-requested Next and Skip in the UFO, family, and first-exit story
+  sequences use that exact recorded button cue. Timed, automatic scene
+  progression stays silent.
 - Continuous volume-slider adjustment is silent to avoid a click for every
   intermediate value. Quitting the process is immediate, so its last-frame
   button press is silent rather than cutting a recorded cue short.

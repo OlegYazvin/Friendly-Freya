@@ -110,6 +110,18 @@ func run() -> void:
 	corrupt.close()
 	var recovered = GameSaveScript.read_save(TEST_PATH)
 	check(bool(recovered.get("ok", false)) and recovered.get("source", "") == "backup", "backup recovery failed")
+	var incomplete_kennel = snapshot.duplicate(true)
+	incomplete_kennel["kennel"]["cages"] = []
+	var incomplete_payload = JSON.stringify(incomplete_kennel)
+	var incomplete_hasher = HashingContext.new()
+	incomplete_hasher.start(HashingContext.HASH_SHA256)
+	incomplete_hasher.update(incomplete_payload.to_utf8_buffer())
+	var incomplete_envelope = JSON.stringify({"format": "friendly_freya", "payload": incomplete_payload, "sha256": incomplete_hasher.finish().hex_encode()})
+	var incomplete_primary = FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	incomplete_primary.store_string(incomplete_envelope)
+	incomplete_primary.close()
+	var recovered_kennel = GameSaveScript.read_save(TEST_PATH)
+	check(bool(recovered_kennel.get("ok", false)) and recovered_kennel.get("source", "") == "backup", "incomplete but checksummed kennel did not recover from backup")
 	var future = snapshot.duplicate(true)
 	future["version"] = GameSaveScript.VERSION + 1
 	check(not GameSaveScript.write_save(future, TEST_PATH), "future save version was accepted")
@@ -232,6 +244,9 @@ func run() -> void:
 	legacy.erase("story")
 	legacy.erase("campaign")
 	legacy.erase("kennel")
+	for dog_id in legacy["collections"]["dogs"].keys():
+		if str(dog_id).begins_with("kennel_spawn:") or str(dog_id).begins_with("kennel_rescue:"):
+			legacy["collections"]["dogs"].erase(dog_id)
 	var legacy_payload = JSON.stringify(legacy)
 	hasher = HashingContext.new()
 	hasher.start(HashingContext.HASH_SHA256)
@@ -241,7 +256,7 @@ func run() -> void:
 	legacy_file.store_string(legacy_envelope)
 	legacy_file.close()
 	var migrated = GameSaveScript.read_save(LEGACY_PATH)
-	check(bool(migrated.get("ok", false)) and int(migrated.get("state", {}).get("version", -1)) == GameSaveScript.VERSION and migrated.get("state", {}).get("campaign", null) is Dictionary and migrated.get("state", {}).get("kennel", null) is Dictionary, "version 0 save did not migrate")
+	check(bool(migrated.get("ok", false)) and int(migrated.get("state", {}).get("version", -1)) == GameSaveScript.VERSION and migrated.get("state", {}).get("campaign", null) is Dictionary and migrated.get("state", {}).get("kennel", {}).get("cages", []).size() == 6, "version 0 save did not migrate with a playable kennel")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH + ".bak"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH + ".tmp"))

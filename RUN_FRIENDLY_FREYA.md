@@ -94,7 +94,8 @@ It runs:
    both entrance sides, four camera orbits, and both zoom extremes in
    `godot/tests/dejank_cameras.gd`, including actual rendered-mesh sightlines.
 9. a save/resume round trip in `godot/tests/save_resume.gd`, including backup
-   recovery, legacy migration, future-version preservation, all campaign
+   recovery from an incomplete lodge payload, legacy migration,
+   future-version preservation, all campaign
    state, old chapter-1 stronghold repair, dogs, claims, occupation, and kennel
    state;
 10. New Game, Restart Story, and Replay Story confirmation/cancel behavior,
@@ -120,9 +121,12 @@ It runs:
     state in `godot/tests/ending_resume.gd`;
 19. carried supply targeting, duplicate-use protection, clinic and grocery
     priority, and matching dog highlights in `godot/tests/supply_targeting.gd`.
+20. `-` / `=` keyboard camera zoom through actual input dispatch, both zoom
+    limits, pause behavior, and in-game help text in
+    `godot/tests/camera_keyboard_zoom.gd`.
 
 Successful output includes `STARTUP_OK`, `INTRO_OK`, `KENNEL_OK`, `SMOKE_OK`,
-`TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`,
+`TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`,
 `DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
 `CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SCENT_SUPPORT_OK`,
@@ -393,8 +397,9 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The current
-review-k PCK passed exact-content export, checksum, a short headless
-performance-entry check, and a warmed graphical 1280×720 sample on Linux. A
+review-l PCK passed exact-content export, checksum, and a short headless
+performance-entry check; review-k passed a warmed graphical 1280×720 sample
+on Linux. A
 source live-input route at the same controller commit passed the chapter-2
 checkpoint with two protected allies and five claimed sites. The
 [review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)

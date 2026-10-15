@@ -24,14 +24,15 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-Current local review package: `dist/Friendly-Freya-review-20261015k-Windows-x86_64.zip`
-(SHA-256 `dbc9068cbf4bcf482edd8f0d0a8c3487136d375b3e1e448c0113ae8d6b20b798`).
+Current local review package: `dist/Friendly-Freya-review-20261015l-Windows-x86_64.zip`
+(SHA-256 `571eb1652f5a29b8afd52e8477c8c2fbce4d33145a2d8c020752d44c1a41415e`).
 Verify it against the adjacent `.sha256` file before testing.
-The extracted review-k PCK passed a short headless performance-entry check
-and a warmed graphical 1280×720 sample on Linux. A source live-input route
+The extracted review-l PCK passed a short headless performance-entry check;
+the earlier review-k PCK passed a warmed graphical 1280×720 sample on Linux.
+A source live-input route
 at the same controller commit reached chapter 2 with two protected allies and
 five claimed sites. The earlier review-f PCK passed a local Linux input route
-through credits. The matching
+through credits. The earlier
 [review-k Windows Actions run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38771032897)
 passed its exported EXE route through credits and Keep Exploring, with three
 chapters, six lodge rescues, and 18 claimed sites. The review evidence is
@@ -56,6 +57,7 @@ Use the same observation sheet for every player:
 | Build, machine, display, and input device | |
 | 960×540 readability and smallest acceptable window | |
 | Start route: New Game: Watch Intro / New Game: Skip Intro | |
+| If watching: could the player read each family line, use Next, and continue after Freya's first-exit thought? | |
 | Time to eat and leave home | |
 | Time to first independent dog decision and cleanse | |
 | Time to first recruited ally and pack order | |
@@ -67,6 +69,8 @@ Use the same observation sheet for every player:
 | Did the H next-step guide help with ally protection and the final signal? | |
 | If encountered: after owning the final site, could the player find and guard its clean signal with an ally? | |
 | Could the player read the G-pinned goals, scroll them, and return to play? | |
+| Did a threat or action warning remain readable with goals pinned? | |
+| Could the player use keyboard `-`/`=` to zoom the camera? | |
 | Could the player read the chapter guide at the tested window size? | |
 | Missed prompt, wrong input, unclear marker, or stuck route | |
 | Chosen protection and stronghold tactics; why | |
@@ -116,7 +120,8 @@ that cannot save. Never use a playtester’s sole campaign save for this check.
 In a focused accessibility pass, finish a chapter using the keyboard alone.
 Check that sustained scent holds and repeated actions remain physically
 manageable, text and subtitles stay on screen long enough to read, critical
-markers and status text remain legible at both supported window sizes, and
+markers and status text remain legible at both supported window sizes, including
+while goals are pinned, and
 every audio cue needed for progress also has a visible or textual cue. Record
 each barrier, the setting or design change needed, and a repeat result. In a
 separate prepared chapter-3 save, own the final signal site before assigning a

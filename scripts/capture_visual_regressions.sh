@@ -55,6 +55,7 @@ for spec in \
 	FREYA_VISUAL_VIEW:chapter_guide_2 \
 	FREYA_VISUAL_VIEW:chapter_guide_3 \
 	FREYA_VISUAL_VIEW:chapter_goals \
+	FREYA_VISUAL_VIEW:chapter_goals_status \
 	FREYA_VISUAL_VIEW:chapter_relay \
 	FREYA_VISUAL_VIEW:chapter_relay_goals \
 	FREYA_VISUAL_VIEW:chapter_final_recovery \

@@ -256,7 +256,15 @@ func _walk_to(goal: Vector2, goal_range: float = 0.55, defend: bool = false, rec
 				if game.possessed_dog_tutorial_active:
 					_release_movement()
 					await _tap(KEY_SPACE)
-				if game.first_exit_abduction_active or game.freya_eat_timer > 0.0 or game.freya_vomit_timer > 0.0:
+				if game.first_exit_abduction_active:
+					_release_movement()
+					stuck_frames = 0
+					if game.first_exit_continue_button != null and game.first_exit_continue_button.visible:
+						await _tap(KEY_SPACE)
+					else:
+						await process_frame
+					continue
+				if game.freya_eat_timer > 0.0 or game.freya_vomit_timer > 0.0:
 					_release_movement()
 					stuck_frames = 0
 					await process_frame
