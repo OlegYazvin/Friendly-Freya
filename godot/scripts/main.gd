@@ -20236,6 +20236,8 @@ func _update_objectives_overlay() -> void:
 	var should_show = (not pause_menu_open) and (objectives_pinned or Input.is_action_pressed("objectives"))
 	if should_show and not objectives_panel.visible and not objectives_pinned and Input.is_action_just_pressed("objectives"):
 		_play_recorded_control_click()
+	elif not should_show and objectives_panel.visible and not pause_menu_open and not objectives_pinned and Input.is_action_just_released("objectives"):
+		_play_recorded_control_click(true)
 	if should_show:
 		_layout_objectives_panel()
 	objectives_panel.visible = should_show
