@@ -612,6 +612,25 @@ records three secured chapters, six lodge rescues, two allies, 18 claimed
 sites, credits, and Keep Exploring without game errors or warnings. The
 publication job was skipped. HP graphical and listening review remain open.
 
+The local `review-20261015x` ZIP passed exported-content validation with 24
+recorded barks and 33 exact cue mappings, ZIP integrity, and SHA-256
+verification against
+`14e39b09da9ace41a4b58467f3e77afb9b6f81f17b09d5c00fce565ae13c97ae`.
+Its extracted PCK passed the four-service route certificate and fallback
+regression. Releasing temporary Tab goals now plays the exact recorded button
+click when the panel closes, subject to the short shared click gap.
+The [review-x Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38840375548)
+passed source validation, export, EXE startup, packaged stress entry, Watch
+Intro, and the start-to-credits campaign at commit `5b1c047`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38840375548/artifacts/12020948674)
+contains `Friendly-Freya-manual-24-Windows-x86_64.zip`, independently verified
+against SHA-256
+`e1cf17b8bff272f9d283d48258abea4de54ab4cfb5cea05e88a3a0308318932d`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38840375548/artifacts/12021931261)
+records three secured chapters, six lodge rescues, four allies, 18 claimed
+sites, credits, and Keep Exploring without game errors or warnings. The
+publication job was skipped. HP graphical and listening review remain open.
+
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
 the export metadata and release notes to match the new `vMAJOR.MINOR.PATCH`
