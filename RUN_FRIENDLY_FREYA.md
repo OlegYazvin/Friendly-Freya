@@ -600,7 +600,17 @@ verification against
 `d6822c8806cc769e4f7b09a965f428b440aa32cef208bf4e39e8023330f2b28b`.
 Its extracted PCK passed the four-service route certificate, synthetic
 missing/blocked-service diagnostics, and one-shot fresh-layout fallback.
-Windows CI and HP graphical review remain open for this local build.
+The [review-w Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087)
+passed source validation, export, EXE startup, packaged stress entry, Watch
+Intro, and the start-to-credits campaign at commit `24a96fa`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020060624)
+contains `Friendly-Freya-manual-23-Windows-x86_64.zip`, independently verified
+against SHA-256
+`f5adfdb6b28b33a70a47bf018339ba8eb1fc904aa40e99a7f89711310c7bb67f`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020048864)
+records three secured chapters, six lodge rescues, two allies, 18 claimed
+sites, credits, and Keep Exploring without game errors or warnings. The
+publication job was skipped. HP graphical and listening review remain open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update

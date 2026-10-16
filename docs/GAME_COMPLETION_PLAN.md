@@ -14,12 +14,12 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The local `review-20261015v` Windows ZIP passed export content and checksum
+The local `review-20261015w` Windows ZIP passed export content and checksum
 checks after the complete source suite. The matching
-[review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
+[review-w Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087)
 passed source validation, export, EXE startup, the short performance entry,
 the keyboard Watch Intro opening, credits, and Keep Exploring. Its
-[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184)
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020060624)
 is the HP review build. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
@@ -677,8 +677,19 @@ hardware floor.
   SHA-256 verification against
   `d6822c8806cc769e4f7b09a965f428b440aa32cef208bf4e39e8023330f2b28b`.
   Its extracted PCK passed the new certificate and fallback regression.
-  Windows CI and HP graphical, listening, and performance review remain open
-  for review-w.
+  The [review-w Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087)
+  passed source validation, export, EXE startup, packaged stress entry,
+  keyboard Watch Intro, and the exported start-to-credits campaign at commit
+  `24a96fa`. Its
+  [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020060624)
+  contains `Friendly-Freya-manual-23-Windows-x86_64.zip`, independently
+  verified against SHA-256
+  `f5adfdb6b28b33a70a47bf018339ba8eb1fc904aa40e99a7f89711310c7bb67f`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020048864)
+  records three secured chapters, six lodge rescues, two allies, 18 claimed
+  sites, credits, and Keep Exploring without game errors or warnings. The
+  publication job was skipped. HP graphical, listening, and sustained
+  performance review remain open.
 
 ## The game to finish
 

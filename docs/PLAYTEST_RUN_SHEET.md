@@ -24,27 +24,31 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-v Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-22-Windows-x86_64.zip`
+For the HP, download the [review-w Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020060624).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-23-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`1aea30baea71f36fcc89786c8c05212b0863a31d0beb1eed31d4f32bb3f0f76b`),
+`f5adfdb6b28b33a70a47bf018339ba8eb1fc904aa40e99a7f89711310c7bb67f`),
 then extract that game ZIP. The Actions artifact expires October 30, 2026,
-at 01:07:04 UTC.
+at 01:51:20 UTC. In PowerShell inside the extracted wrapper, run
+`Get-FileHash .\Friendly-Freya-manual-23-Windows-x86_64.zip -Algorithm SHA256`
+and compare the result with the adjacent manifest.
 
-Local alternative: `dist/Friendly-Freya-review-20261015v-Windows-x86_64.zip`
-(SHA-256 `24bc82acb8c2d22da31df8f7eee08053d1ff3fe88d2dd240525cfe6d4c5a9b6c`).
+Local alternative: `dist/Friendly-Freya-review-20261015w-Windows-x86_64.zip`
+(SHA-256 `d6822c8806cc769e4f7b09a965f428b440aa32cef208bf4e39e8023330f2b28b`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
+[review-w Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018707657)
-records three chapters, six lodge rescues, three allies, 18 claimed sites,
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38836830087/artifacts/12020048864)
+records three chapters, six lodge rescues, two allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-review-v PCK passed exact-content verification and the route certificate
-regression. Fresh neighborhoods now get a route check before play; a rejected
-layout retries once on a known passing seed. Saved neighborhoods keep their
-seed and positional IDs. This build also carries the longer
-status display and single recorded pop when a claim also triggers a result;
+review-w PCK passed exact-content verification and the four-service route
+certificate regression. Fresh neighborhoods get a route check before play,
+including the four service interactions; a rejected layout retries once on a
+known passing seed. Saved neighborhoods keep their seed and positional IDs.
+The minimap zoom slider now plays one recorded click after a change settles.
+This build also carries the longer status display and a single recorded pop
+when a claim also triggers a result;
 an imp's contact warning remains visible throughout the 4.5-second window
 before an unopposed dog transfer, and the chapter-2 ambush warning remains
 visible. Resuming a late imp-to-dog transfer now restarts the full warning;
