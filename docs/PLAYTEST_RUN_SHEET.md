@@ -24,26 +24,27 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-s Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12012862554).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-19-Windows-x86_64.zip`
+For the HP, download the [review-t Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12014478524).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-20-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`a8c6a547d0245b0e8a268e77e0425815cd04293a2246bb906a0b1a7a776ca7fe`),
+`b66459496ff6ef6dcc8033891f34041e2380b299e596d8d718faf09b994e9521`),
 then extract that game ZIP. The Actions artifact expires October 29, 2026,
-at 23:09 UTC.
+at 23:48:58 UTC.
 
-Local alternative: `dist/Friendly-Freya-review-20261015s-Windows-x86_64.zip`
-(SHA-256 `bb4ab4419b608d8b4c22601fc64037311e48ed4ef75603b79ede2e33b34254f1`).
+Local alternative: `dist/Friendly-Freya-review-20261015t-Windows-x86_64.zip`
+(SHA-256 `d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-s Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477)
+[review-t Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12013054384)
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12016115823)
 records three chapters, six lodge rescues, two allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-review-s PCK passed exact-content verification. This build carries the longer
+review-t PCK passed exact-content verification. This build carries the longer
 status display and single recorded pop when a claim also triggers a result;
-an imp's contact warning gives 4.5 seconds before an unopposed dog transfer,
-and the chapter-2 ambush warning remains visible.
+an imp's contact warning remains visible throughout the 4.5-second window
+before an unopposed dog transfer, and the chapter-2 ambush warning remains
+visible.
 
 The review evidence is tracked in
 [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).

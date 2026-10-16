@@ -14,12 +14,12 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The local `review-20261015s` Windows ZIP passed export content and checksum
+The local `review-20261015t` Windows ZIP passed export content and checksum
 checks after the complete source suite. The matching
-[review-s Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477)
+[review-t Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204)
 passed source validation, export, EXE startup, the short performance entry,
 the keyboard Watch Intro opening, credits, and Keep Exploring. Its
-[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38821388477/artifacts/12012862554)
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12014478524)
 is the HP review build. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
@@ -574,7 +574,17 @@ hardware floor.
   `dist/Friendly-Freya-review-20261015t-Windows-x86_64.zip` passed exported
   content validation and SHA-256 verification against
   `d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`.
-  Windows CI and HP review remain open for this build.
+  The [review-t Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204)
+  passed source validation, export, EXE startup, the packaged stress entry,
+  Watch Intro, and the exported start-to-credits campaign at commit `193cdca`.
+  Its [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12014478524)
+  contains `Friendly-Freya-manual-20-Windows-x86_64.zip`, independently verified
+  against SHA-256
+  `b66459496ff6ef6dcc8033891f34041e2380b299e596d8d718faf09b994e9521`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12016115823)
+  records three secured chapters, six lodge rescues, two allies, 18 claimed
+  sites, credits, and Keep Exploring without game errors or warnings. HP
+  audible, graphical, and sustained performance review remain open.
 
 ## The game to finish
 
