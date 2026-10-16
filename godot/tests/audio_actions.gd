@@ -358,6 +358,95 @@ func _test_story_and_captive_cues(scene: Node3D) -> void:
 	probe.queue_free()
 
 
+func _test_kennel_spawn_cue(scene: Node3D) -> void:
+	var cue_path: String = str(ActionAudioScript.CUE_PATHS.get("kennel_spawn_bark", ""))
+	_check(cue_path == "res://assets/audio/barks/aggressive_bark_01.wav", "kennel spawn is not mapped to its exact recorded dog bark")
+	_check(ResourceLoader.exists(cue_path, "AudioStream"), "recorded kennel spawn bark is unavailable")
+	_check(scene.kennel != null and scene.kennel.possessed, "occupied kennel unavailable for spawn sound test")
+	if scene.kennel == null or not scene.kennel.possessed:
+		return
+	var saved_position: Vector3 = scene.freya.global_position
+	var saved_snapshot: Dictionary = scene._kennel_snapshot()
+	var saved_audio: Node = scene.action_audio
+	var probe = CueProbe.new()
+	scene.add_child(probe)
+	scene.action_audio = probe
+	var spawn_position: Vector3 = scene.kennel.get_possessed_dog_spawn_world_position()
+	scene.freya.global_position = spawn_position + Vector3(0.0, 0.0, 1.0)
+	scene.kennel.spawn_timer = 0.01
+	scene._update_kennel(0.02)
+	_check(scene.kennel.total_possessed_dogs_spawned == int(saved_snapshot.get("total_possessed_dogs_spawned", 0)) + 1, "nearby kennel dog did not spawn successfully")
+	_check(probe.cues == ["kennel_spawn_bark"], "nearby live kennel dog spawn did not request exactly one recorded bark")
+	scene.freya.global_position = spawn_position + Vector3(scene.KENNEL_DOG_SPAWN_AUDIO_RADIUS + 3.0, 0.0, 0.0)
+	scene.kennel.spawn_timer = 0.01
+	scene._update_kennel(0.02)
+	_check(scene.kennel.total_possessed_dogs_spawned == int(saved_snapshot.get("total_possessed_dogs_spawned", 0)) + 2, "distant kennel dog did not spawn successfully")
+	_check(probe.cues == ["kennel_spawn_bark"], "distant kennel spawn requested an audible cue")
+	scene.freya.global_position = spawn_position + Vector3(0.0, 0.0, 1.0)
+	scene._on_kennel_possessed_dog_spawn_requested(spawn_position, 99)
+	_check(probe.cues == ["kennel_spawn_bark"], "failed kennel registration requested a bark")
+	scene._on_kennel_possessed_dog_spawn_requested(spawn_position, 3)
+	_check(probe.cues == ["kennel_spawn_bark"], "unconfirmed kennel spawn requested a bark")
+	_check(scene._restore_kennel_snapshot(saved_snapshot), "could not restore kennel after spawn sound test")
+	_check(probe.cues == ["kennel_spawn_bark"], "restoring kennel dogs replayed the live spawn bark")
+	scene.freya.global_position = saved_position
+	scene.action_audio = saved_audio
+	probe.queue_free()
+	var strict_audio = ActionAudioScript.new()
+	var other_player = AudioStreamPlayer.new()
+	other_player.volume_db = -17.0
+	strict_audio.add_child(other_player)
+	strict_audio._players["claim"] = other_player
+	strict_audio.play("kennel_spawn_bark", -3.0)
+	_check(strict_audio._players.size() == 1 and other_player.volume_db == -17.0, "missing exact kennel bark player fell back to another recording")
+	strict_audio.free()
+
+
+func _test_quiet_occupation_restore(scene: Node3D) -> void:
+	var kennel_index: int = scene.kennel_building_index
+	_check(kennel_index >= 0 and scene.kennel != null, "kennel unavailable for quiet restore test")
+	if kennel_index < 0 or scene.kennel == null:
+		return
+	var clean_index = -1
+	for index in range(scene.buildings.size()):
+		if index != kennel_index and index != scene.freya_home_index and not bool(scene.buildings[index].get("alien_occupied", false)) and not scene._building_is_controlled_by_freya(index):
+			clean_index = index
+			break
+	_check(clean_index >= 0, "no clean building available for quiet restore test")
+	if clean_index < 0:
+		return
+	var saved_kennel: Dictionary = scene.buildings[kennel_index].duplicate()
+	var saved_clean: Dictionary = scene.buildings[clean_index].duplicate()
+	var saved_kennel_snapshot: Dictionary = scene._kennel_snapshot()
+	var saved_chapter_clears: int = scene.chapter_occupations_cleared
+	var saved_audio: Node = scene.action_audio
+	var saved_status: String = scene.status_label.text
+	var probe = CueProbe.new()
+	scene.add_child(probe)
+	scene.action_audio = probe
+	var kennel_id: String = scene._save_building_id_from_index(kennel_index)
+	var clean_id: String = scene._save_building_id_from_index(clean_index)
+	var saved_states: Dictionary = {}
+	saved_states[kennel_id] = {"owner": "none", "alien_occupied": false}
+	scene._restore_building_states(saved_states)
+	_check(not scene.kennel.possessed, "saved clean kennel remained occupied")
+	_check(probe.cues.is_empty() and scene.chapter_occupations_cleared == saved_chapter_clears, "clean-kennel restore played a cleanse cue or changed chapter progress")
+	saved_states.clear()
+	saved_states[clean_id] = {"owner": "none", "alien_occupied": true, "alien_occupant_serial": 444}
+	scene._restore_building_states(saved_states)
+	_check(bool(scene.buildings[clean_index].get("alien_occupied", false)), "saved alien hold was not restored")
+	_check(probe.cues.is_empty() and scene.status_label.text == saved_status, "occupation restore played an emergence cue or showed a new-threat status")
+	saved_states[clean_id] = {"owner": "none", "alien_occupied": false}
+	scene._restore_building_states(saved_states)
+	_check(probe.cues.is_empty() and scene.chapter_occupations_cleared == saved_chapter_clears, "clearing reconstructed alien hold played a cue or advanced the chapter")
+	scene.buildings[kennel_index] = saved_kennel
+	scene.buildings[clean_index] = saved_clean
+	_check(scene._restore_kennel_snapshot(saved_kennel_snapshot), "could not restore kennel after quiet restore test")
+	scene.chapter_occupations_cleared = saved_chapter_clears
+	scene.action_audio = saved_audio
+	probe.queue_free()
+
+
 func _run() -> void:
 	_check(change_scene_to_file("res://scenes/Main.tscn") == OK, "could not load Main")
 	await scene_changed
@@ -369,7 +458,9 @@ func _run() -> void:
 	_test_short_recorded_eating_and_vomit(scene)
 	_test_story_and_captive_cues(scene)
 	_check(_test_imp_transfer_window(scene), "timed imp transfer test aborted")
+	_test_kennel_spawn_cue(scene)
+	_test_quiet_occupation_restore(scene)
 	await process_frame
 	if failures.is_empty():
-		print("AUDIO_ACTIONS_OK: recorded imp barks, captive whine, Ryah cry, pill landing, storefront emergence, drill reward, short eating/vomit cues, and timed imp transfer defense")
+		print("AUDIO_ACTIONS_OK: recorded imp barks, captive whine, Ryah cry, pill landing, near-only kennel and storefront spawns, quiet occupation restore, drill reward, short eating/vomit cues, and timed imp transfer defense")
 	quit(0 if failures.is_empty() else 1)

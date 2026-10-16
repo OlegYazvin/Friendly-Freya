@@ -206,6 +206,7 @@ const MAX_FREE_ALIENS = 8
 const FREE_ALIEN_SPAWN_MIN_SEC = 10.0
 const FREE_ALIEN_SPAWN_MAX_SEC = 17.0
 const FREE_ALIEN_SPAWN_AUDIO_RADIUS = 14.0
+const KENNEL_DOG_SPAWN_AUDIO_RADIUS = 14.0
 const FREE_ALIEN_APPROACH_RADIUS = 5.4
 const FREE_ALIEN_ROAM_RADIUS = 5.8
 const FREE_ALIEN_ROAM_SPEED = 4.0
@@ -4191,6 +4192,7 @@ func _register_released_kennel_dog(cage_index: int) -> bool:
 	return true
 
 func _on_kennel_possessed_dog_spawn_requested(spawn_world_position: Vector3, spawn_number: int) -> void:
+	var dog_count_before = dogs.size()
 	if kennel == null or not _register_kennel_spawned_dog(spawn_number, false, spawn_world_position):
 		if kennel != null:
 			kennel.reject_possessed_dog_spawn_request(1.5)
@@ -4203,6 +4205,12 @@ func _on_kennel_possessed_dog_spawn_requested(spawn_world_position: Vector3, spa
 					dog.queue_free()
 				dogs.remove_at(dog_index)
 				break
+		return
+	if dogs.size() <= dog_count_before or action_audio == null or freya == null or not is_instance_valid(freya):
+		return
+	var spawned_dog: Node3D = dogs.back().get("node", null)
+	if spawned_dog != null and is_instance_valid(spawned_dog) and freya.global_position.distance_to(spawned_dog.global_position) <= KENNEL_DOG_SPAWN_AUDIO_RADIUS:
+		action_audio.play("kennel_spawn_bark", -10.0)
 
 func _register_kennel_spawned_dog(spawn_number: int, restoring: bool, preferred_position: Vector3 = Vector3.ZERO) -> bool:
 	if kennel == null or spawn_number < 1 or spawn_number > KennelBuildingScript.POSSESSED_DOG_SPAWN_LIMIT:
@@ -14515,7 +14523,7 @@ func _update_freya_claim_markers(delta: float) -> void:
 		else:
 			freya_claim_marker_animations[marker_index] = animation
 
-func _clear_alien_occupation(building_index: int) -> void:
+func _clear_alien_occupation(building_index: int, announce: bool = true) -> void:
 	if building_index < 0 or building_index >= buildings.size():
 		return
 	var building: Dictionary = buildings[building_index]
@@ -14537,9 +14545,10 @@ func _clear_alien_occupation(building_index: int) -> void:
 	buildings[building_index] = building
 	if was_occupied:
 		alien_building_occupation_count = maxi(0, alien_building_occupation_count - 1)
-		if action_audio != null:
+		if announce and action_audio != null:
 			action_audio.play("alien_interrupt", -6.0)
-		_note_chapter_occupation_cleared(building_index)
+		if announce:
+			_note_chapter_occupation_cleared(building_index)
 	_rebuild_walkability_cache()
 	_update_alien_reinforcement_fields()
 
@@ -21678,9 +21687,9 @@ func _restore_building_states(saved: Dictionary) -> void:
 		var owner = ClaimUtilsScript.normalized_owner(str(record.get("owner", "")))
 		var occupied = bool(record.get("alien_occupied", false)) and owner != CLAIM_OWNER_FREYA and index != freya_home_index
 		if not occupied and bool(buildings[index].get("alien_occupied", false)):
-			_clear_alien_occupation(index)
+			_clear_alien_occupation(index, false)
 		if occupied and not bool(buildings[index].get("alien_occupied", false)):
-			_occupy_building_with_alien(index, int(record.get("alien_occupant_serial", -1)))
+			_occupy_building_with_alien(index, int(record.get("alien_occupant_serial", -1)), false)
 		if not occupied:
 			_set_claim_owner(CLAIM_TARGET_BUILDING, index, owner)
 		var building: Dictionary = buildings[index]
@@ -21755,6 +21764,11 @@ func _restore_alien_states(collections: Dictionary) -> void:
 			var phase = str(record.get("phase", "roam"))
 			if target_dog_index < 0 and phase in ["seek_dog", "dog_transfer"]:
 				phase = "roam"
+			# A HUD warning is not saved. Renew an in-progress contact attempt so
+			# Resume shows its warning and gives the player a full response window.
+			var renew_dog_transfer = phase == "dog_transfer"
+			if renew_dog_transfer:
+				phase = "seek_dog"
 			var roam = _saved_position(record.get("roam_target", []), pos)
 			var serial = int(record.get("serial", alien_transfer_serial))
 			free_aliens.append({
@@ -21772,8 +21786,8 @@ func _restore_alien_states(collections: Dictionary) -> void:
 				"stuck_timer": maxf(0.0, float(record.get("stuck_timer", 0.0))),
 				"interrupt_progress": clampf(float(record.get("interrupt_progress", 0.0)), 0.0, 1.0),
 				"dog_attempt_cooldown": maxf(0.0, float(record.get("dog_attempt_cooldown", 0.0))),
-				"dog_transfer_timer": maxf(0.0, float(record.get("dog_transfer_timer", 0.0))),
-				"warning_pulse_timer": maxf(0.0, float(record.get("warning_pulse_timer", 0.0)))
+				"dog_transfer_timer": 0.0 if renew_dog_transfer else maxf(0.0, float(record.get("dog_transfer_timer", 0.0))),
+				"warning_pulse_timer": 0.0 if renew_dog_transfer else maxf(0.0, float(record.get("warning_pulse_timer", 0.0)))
 			})
 			alien_transfer_serial = maxi(alien_transfer_serial, serial + 1)
 	var saved_transfers = collections.get("alien_transfers", [])
@@ -21968,7 +21982,7 @@ func _repair_legacy_chapter_one_strongholds() -> void:
 		var building: Dictionary = buildings[index]
 		if bool(building.get("alien_occupied", false)) or _claim_owner_from_entry(building) != CLAIM_OWNER_NONE:
 			continue
-		if _occupy_building_with_alien(index, -900 - index):
+		if _occupy_building_with_alien(index, -900 - index, false):
 			held += 1
 			deficit -= 1
 	if deficit > 0:

@@ -136,6 +136,12 @@ When `R` stops an imp with no dog or possessed lodge captive nearby, Freya
 plays one recorded aggressive bark from that same pool. A short fixed gap
 prevents several nearby imps from stacking duplicate barks; dog and captive
 interactions keep their existing recorded bark sequences.
+The `kennel_spawn_bark` ID maps only to `barks/aggressive_bark_01.wav`, a
+recorded CC0 bark from `pauliuw`'s [Dog sounds](https://opengameart.org/content/dog-sounds)
+archive above. One confirmed live possessed-dog spawn at the lodge plays it
+when Freya is within 14 world units of the spawned dog. Distant spawns, failed
+registration or confirmation, and save restoration stay silent. The fixed
+mapping has no substitute if this recording is unavailable.
 
 ## Urination
 
@@ -337,7 +343,8 @@ mean that the event is already wired to playback.
 
 The action cue IDs in [action_audio.gd](../../scripts/action_audio.gd) map to
 these exact files, except `family_pills_eaten`, which maps directly to the
-already-attributed `eat/dog_chewing_crunchy_pills_456376.ogg`. The group-giggling
+already-attributed `eat/dog_chewing_crunchy_pills_456376.ogg`, and
+`kennel_spawn_bark`, which maps to the attributed bark above. The group-giggling
 source is already mono Ogg; the distributed excerpt was cropped to 1.95 seconds
 and re-encoded as mono Vorbis without pitch change, synthesis, or layering.
 Its downloaded source SHA-256 was

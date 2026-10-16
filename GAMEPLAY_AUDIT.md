@@ -311,7 +311,8 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 - **Implemented:** Free imps seek vulnerable real dogs, keep the contact warning
   visible through the 4.5-second bark-or-guard window, and possess on success
   without changing dog cosmetics. The scripted chapter-2 ambush keeps its
-  bark-or-guard warning visible when the chapter starts.
+  bark-or-guard warning visible when the chapter starts. Resuming a save made
+  during contact restarts that attempt's warning and full response window.
 - **Implemented:** Bark and assigned pack defense interrupt; armor absorbs one
   attempt, immunity blocks targeting, and a failed approach has a cooldown.
 

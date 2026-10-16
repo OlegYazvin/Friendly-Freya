@@ -7,6 +7,7 @@ const CUE_PATHS := {
 	"dog_run": "res://assets/audio/actions/dog_paws_skitter_208654.ogg",
 	"dog_sniff": "res://assets/audio/actions/dog_sniff_pant_784915.ogg",
 	"dog_whine": "res://assets/audio/actions/dog_whine_462660.ogg",
+	"kennel_spawn_bark": "res://assets/audio/barks/aggressive_bark_01.wav",
 	"ryah_cry": "res://assets/audio/actions/girl_crying_ryah_218184.ogg",
 	"recruit": "res://assets/audio/actions/collar_jingle_611827.ogg",
 	"door": "res://assets/audio/actions/home_door_683434.ogg",

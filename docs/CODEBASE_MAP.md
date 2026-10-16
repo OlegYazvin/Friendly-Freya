@@ -46,7 +46,7 @@ thin scene shells whose scripts construct most runtime content.
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police/clinic services, pack orders, chapter objectives, interactions, AI, UI, and validation |
 | Long-action input preference | `godot/scripts/input_preferences.gd`, `godot/scripts/main.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/claim_input_live.gd` | Pause > Controls offers an optional persisted press-once mode for Space scent actions and C socializing; target locks and movement, action, target-loss, and pause cancellation leave hold controls as the default; the live route checks claim and recruitment after key release |
 | Carried supply targeting | `godot/scripts/main.gd`, `godot/tests/supply_targeting.gd` | One shared F/ring target, chapter-2 ally preference, duplicate-protection guards, clinic and grocery priority, cage priority, and no-target feedback |
-| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby storefront emergence, and first-time park drill reward; a missing cue remains silent |
+| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby lodge dog and storefront imp spawns, and first-time park drill reward; a missing cue remains silent |
 | Render sightlines | `godot/scripts/sightline_cutaway.gd`, `godot/scripts/main.gd` | Temporary render-only occluder visibility, mesh bounds, camera safe framing; collision is unchanged |
 | Dogs and animation | `godot/scripts/dog_agent.gd`, `godot/scripts/main.gd` | DogAgent owns visuals/animation; Main owns definitions, spawn, state, and AI |
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
@@ -137,8 +137,8 @@ After preparing imports, it runs focused validation processes and covers:
 14. recorded action audio in `godot/tests/audio_actions.gd`, including a
     successful lone-imp R or ally-intercept bark, same-beat deduplication,
     nearby-dog restraint, captive whine, Ryah cry, pill landing, near-only
-    occupied-storefront imp emergence without fallback, and the first-time
-    park drill reward;
+    occupied-storefront imp and lodge dog spawns without fallback, quiet
+    occupation restoration, and the first-time park drill reward;
 15. ending Keep Exploring and later save/resume in `godot/tests/ending_resume.gd`;
 16. chapter guidance, clean-first target priority, later ally protection and
     final-signal recovery cues, saved dismissal, and

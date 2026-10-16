@@ -84,8 +84,9 @@ It runs:
    `godot/tests/pack_squad.gd`;
 6. isolated R and pack-dog bark defense of an imp with duplicate-bark
    restraint, the caged-dog whine on approach, Ryah's brief cry, the real
-   pill-bottle landing, near-only occupied-storefront imp emergence without
-   fallback, and the first-time park drill's recorded reward cue in
+   pill-bottle landing, near-only lodge dog and occupied-storefront imp spawns
+   without fallback, quiet save restoration, and the first-time park drill's
+   recorded reward cue in
    `godot/tests/audio_actions.gd`;
 7. input-driven skip/replay, food, rune/morph Next, recruitment, blocked gait,
    spatial collision equivalence, claim bounds, readable occupation status at
@@ -459,7 +460,12 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
-`review-20261015t` PCK passed exact-content export and its ZIP passed SHA-256
+`review-20261015u` PCK passed exact-content export with 24 barks and 33 exact
+recorded cue mappings; its ZIP passed SHA-256 verification against
+`3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`.
+It renews a saved imp-transfer warning, keeps save reconstruction quiet, and
+uses a recorded CC0 bark for a confirmed nearby lodge dog spawn. The preceding
+local `review-20261015t` PCK passed exact-content export and its ZIP passed SHA-256
 verification against
 `d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`.
 It keeps the bark-or-guard warning visible for the full imp transfer window.

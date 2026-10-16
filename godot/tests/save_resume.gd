@@ -28,6 +28,79 @@ func frames(count: int = 3) -> void:
 		await process_frame
 
 
+func check_mid_transfer_resume(scene: Node, baseline: Dictionary) -> void:
+	check(not scene.free_aliens.is_empty() and scene.dogs.size() > 1, "no imp and target dog for mid-transfer resume")
+	if scene.free_aliens.is_empty() or scene.dogs.size() <= 1:
+		return
+	var target: Dictionary = scene.dogs[1]
+	var dog: Node3D = target.get("node", null)
+	check(dog != null and is_instance_valid(dog), "mid-transfer target dog has no node")
+	if dog == null or not is_instance_valid(dog):
+		return
+	var park: Vector2 = scene.dog_park.get_center()
+	var dog_position = Vector3(park.x, 0.0, park.y)
+	dog.global_position = dog_position
+	target["alien_possessed"] = false
+	target["possession_immune"] = false
+	target["has_dog_armor"] = false
+	target["army_aligned"] = false
+	scene.dogs[1] = target
+	scene.pack_order = scene.PACK_ORDER_FOLLOW
+	var imp: Dictionary = scene.free_aliens[0]
+	var imp_node: Node3D = imp.get("node", null)
+	imp_node.global_position = dog_position + Vector3(0.3, 0.0, 0.0)
+	imp["phase"] = "dog_transfer"
+	imp["dog_target_index"] = 1
+	imp["dog_transfer_timer"] = scene.FREE_ALIEN_DOG_TRANSFER_TIME - 0.15
+	imp["warning_pulse_timer"] = 0.2
+	imp["interrupt_progress"] = 0.0
+	scene.free_aliens[0] = imp
+	var transfer_save: Dictionary = scene._snapshot_game_state()
+	var saved_imp: Dictionary = transfer_save["collections"]["free_aliens"][0]
+	check(str(saved_imp.get("phase", "")) == "dog_transfer" and float(saved_imp.get("dog_transfer_timer", 0.0)) > 4.0, "save did not contain a nearly complete dog transfer")
+	# Prevent unrelated storefronts spawning during the simulated response time.
+	for building_id in transfer_save["collections"]["buildings"]:
+		transfer_save["collections"]["buildings"][building_id]["alien_spawn_cooldown"] = 999.0
+	check(GameSaveScript.write_save(transfer_save, TEST_PATH), "mid-transfer save could not be written")
+	var loaded_transfer: Dictionary = GameSaveScript.read_save(TEST_PATH)
+	check(bool(loaded_transfer.get("ok", false)), "mid-transfer save could not be read")
+	check(scene._restore_game_state(loaded_transfer.get("state", transfer_save)), "mid-transfer save could not be restored")
+	scene.set_process(false)
+	check(scene.free_aliens.size() == 1 and str(scene.free_aliens[0].get("phase", "")) == "seek_dog" and absf(float(scene.free_aliens[0].get("dog_transfer_timer", -1.0))) < 0.001 and int(scene.free_aliens[0].get("dog_target_index", -1)) == 1, "resumed imp did not renew its target and response window")
+	scene.status_timer = 0.0
+	scene.status_priority = 0
+	scene.status_label.text = ""
+	scene._update_status_presentation()
+	scene._update_free_aliens(0.01)
+	check(scene.status_label.text == "An imp is reaching for a dog — bark or guard it!" and scene.status_timer >= scene.FREE_ALIEN_DOG_TRANSFER_TIME, "resumed dog transfer did not show a full-length warning")
+	scene._update_free_aliens(4.0)
+	check(scene.free_aliens.size() == 1 and not bool(scene.dogs[1].get("alien_possessed", false)), "resumed imp silently possessed the dog before the renewed window ended")
+	scene.freya.global_position = dog_position + Vector3(1.4, 0.0, 0.0)
+	Input.action_press("aggressive_social")
+	scene._update_free_aliens(scene.IMP_BARK_INTERRUPT_TIME + 0.01)
+	Input.action_release("aggressive_social")
+	check(scene.free_aliens.is_empty() and not bool(scene.dogs[1].get("alien_possessed", false)) and scene.status_label.text == "The imp was intercepted before it could take hold!", "resumed imp could not be intercepted before transfer")
+	check(scene._restore_game_state(loaded_transfer.get("state", transfer_save)), "undefended mid-transfer save could not be restored")
+	scene.set_process(false)
+	scene._update_free_aliens(0.01)
+	scene._update_free_aliens(scene.FREE_ALIEN_DOG_TRANSFER_TIME)
+	check(scene.free_aliens.is_empty() and bool(scene.dogs[1].get("alien_possessed", false)) and scene.status_label.text == "The imp slipped into a dog. Watch Freya's senses.", "renewed unopposed transfer did not resolve normally")
+	# A target made immune while the save is restored must still cancel contact.
+	var immune_save = transfer_save.duplicate(true)
+	var target_id: String = scene._save_dog_id_from_index(1)
+	immune_save["collections"]["dogs"][target_id]["possession_immune"] = true
+	check(scene._restore_game_state(immune_save), "immune-target save could not be restored")
+	scene.set_process(false)
+	scene.status_timer = 0.0
+	scene.status_priority = 0
+	scene.status_label.text = ""
+	scene._update_status_presentation()
+	scene._update_free_aliens(0.01)
+	check(scene.free_aliens.size() == 1 and str(scene.free_aliens[0].get("phase", "")) == "roam" and scene.status_label.text.is_empty(), "resume bypassed dog-target immunity validation")
+	check(scene._restore_game_state(baseline), "save test baseline could not be restored")
+	scene.set_process(false)
+
+
 func run() -> void:
 	check(change_scene_to_file("res://scenes/Main.tscn") == OK, "could not open Main")
 	await scene_changed
@@ -100,6 +173,7 @@ func run() -> void:
 	scene.chapter_final_stronghold_index = occupied_index
 	var kennel_before: Dictionary = scene._kennel_snapshot()
 	var snapshot: Dictionary = scene._snapshot_game_state()
+	check_mid_transfer_resume(scene, snapshot)
 	check(GameSaveScript.write_save(snapshot, TEST_PATH), "save write failed")
 	var loaded = GameSaveScript.read_save(TEST_PATH)
 	check(bool(loaded.get("ok", false)), "save read failed")
@@ -266,7 +340,7 @@ func run() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LEGACY_PATH))
 	await frames()
 	if failures.is_empty():
-		print("SAVE_RESUME_OK: versioned write, legacy migration, backup recovery, future-version preservation, seed, campaign, claims, occupation, dog state, supplies, meters, and kennel state restored")
+		print("SAVE_RESUME_OK: versioned write, legacy migration, backup recovery, future-version preservation, mid-transfer warning renewal, seed, campaign, claims, occupation, dog state, supplies, meters, and kennel state restored")
 		quit()
 	else:
 		push_error("SAVE_RESUME_FAIL: " + ", ".join(failures))

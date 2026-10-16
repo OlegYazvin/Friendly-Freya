@@ -39,7 +39,13 @@ is the HP review build. Release publication remains gated by the checks below.
    repetitive, confusing, or unfair, and collect any reported sticking point.
    If someone observes a session, the [note guide](PLAYTEST_RUN_SHEET.md)
    offers optional prompts and chapter timing notes.
-4. Fix the most common or severe problems, then repeat affected
+4. Close the all-seed physical-route guarantee in this plan. The existing
+   ten fixed seeds and 50 additional seeds passed, but target selection does
+   not check live walkability and those samples cannot prove every generated
+   layout. Add a generation-time route invariant or a deterministic recovery
+   for home, required marks and doors, occupied walls, and the lodge cages;
+   verify its startup cost and compatibility with saved worlds.
+5. Fix the most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
 
@@ -585,6 +591,22 @@ hardware floor.
   records three secured chapters, six lodge rescues, two allies, 18 claimed
   sites, credits, and Keep Exploring without game errors or warnings. HP
   audible, graphical, and sustained performance review remain open.
+- A saved near-complete imp-to-dog transfer previously resumed without its
+  warning and could possess a dog almost immediately. Resume now revalidates
+  the target and restarts a full 4.5-second warning window; the save regression
+  covers a late bark interception, unopposed success, and an immune target.
+  Reconstructing saved alien buildings and legacy strongholds is now quiet and
+  does not award a new chapter clear. The occupied lodge plays one exact
+  recorded CC0 bark when it successfully produces a possessed dog near Freya;
+  failed, distant, and restored spawns stay silent. The focused audio and save
+  regressions and full `./scripts/predeploy_size_checks.sh` suite passed. The
+  960×540 goals-status PNG was regenerated and inspected; its rendered pixels
+  matched the checked-in baseline. The local
+  `dist/Friendly-Freya-review-20261015u-Windows-x86_64.zip` passed exported
+  content validation with 24 barks and 33 exact recorded cue mappings, and
+  SHA-256 verification against
+  `3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`.
+  Windows CI and HP review remain open for this build.
 
 ## The game to finish
 

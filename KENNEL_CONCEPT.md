@@ -81,6 +81,9 @@ captives remain available for rescue after any early cleanse.
 Opening a cage plays a [recorded CC0 metal-gate cue](godot/assets/audio/ATTRIBUTION.md)
 when its mapped asset loads. Missing audio remains silent under the project
 audio policy.
+Each confirmed live possessed-dog spawn within 14 world units of Freya plays
+one exact [recorded CC0 bark](godot/assets/audio/ATTRIBUTION.md#dog-barks).
+Distant spawns, failed requests, and save restoration stay silent.
 
 ## Placement Contract
 
