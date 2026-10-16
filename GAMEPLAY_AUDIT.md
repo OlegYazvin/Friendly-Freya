@@ -341,6 +341,12 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
   optional.
 - **Implemented:** A versioned save stores world seed, buildings, dogs, pack,
   supplies, meters, kennel, and chapter state with startup resume.
+- **Implemented for fresh games:** A static Freya-radius route certificate
+  checks the home doorway, occupied wall approaches, nearby scent marks,
+  cleared entrances, and lodge cages before play. A rejected fresh layout
+  retries once on a known passing seed. Resume preserves its saved seed and
+  IDs; an ID-preserving repair for a genuinely failing legacy layout remains
+  future work.
 - **Future:** Distinct later maps or levels may vary layouts and resources;
   the current campaign uses the existing neighborhood for all three chapters.
 

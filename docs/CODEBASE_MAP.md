@@ -44,6 +44,7 @@ thin scene shells whose scripts construct most runtime content.
 | Family visuals | `godot/scripts/family_visual_factory.gd` | Gene, Zoe, pill bottles, transfer rings, bark waves |
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police/clinic services, pack orders, chapter objectives, interactions, AI, UI, and validation |
+| Generated route certificate | `godot/scripts/route_certificate.gd`, `godot/scripts/main.gd`, `godot/tests/route_certificate.gd`, `godot/tests/campaign_reachability.gd` | A conservative Freya-radius grid checks the home door, all wall and nearby-mark approaches, entrances, and six lodge cages with other buildings occupied; a rejected fresh layout retries once on a known passing seed, while Resume preserves its saved seed and IDs |
 | Long-action input preference | `godot/scripts/input_preferences.gd`, `godot/scripts/main.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/claim_input_live.gd` | Pause > Controls offers an optional persisted press-once mode for Space scent actions and C socializing; target locks and movement, action, target-loss, and pause cancellation leave hold controls as the default; the live route checks claim and recruitment after key release |
 | Carried supply targeting | `godot/scripts/main.gd`, `godot/tests/supply_targeting.gd` | One shared F/ring target, chapter-2 ally preference, duplicate-protection guards, clinic and grocery priority, cage priority, and no-target feedback |
 | Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby lodge dog and storefront imp spawns, and first-time park drill reward; a missing cue remains silent |
@@ -56,7 +57,7 @@ thin scene shells whose scripts construct most runtime content.
 | Minimap | `godot/scripts/minimap.gd`, `godot/scripts/main.gd` | Minimap draws supplied data, M/F/A/C service markers, a fixed cyan next-site or final-signal diamond, and a static orange exclamation badge for the nearest active imp source; both objective badges stay at the map edge when their target is beyond the zoomed view; Main owns state and synchronization |
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |
-| Regression automation | `scripts/`, `godot/tests/watch_intro_route.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/campaign_reachability.gd`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, keyboard Watch Intro and press-once input routes, generated-layout connectivity checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
+| Regression automation | `scripts/`, `godot/tests/watch_intro_route.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/campaign_reachability.gd`, `godot/tests/route_certificate.gd`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, keyboard Watch Intro and press-once input routes, generated-layout connectivity and fresh-game fallback checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
 | Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup, Watch Intro, and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing, then tag-push GitHub Release publication |
 
 `godot/scripts/main.gd` is intentionally the integration point and is much
@@ -125,10 +126,13 @@ After preparing imports, it runs focused validation processes and covers:
     plus future-version primary/backup save protection, in
     `godot/tests/new_game_safety.gd`;
 9. the three-chapter route and story handoff in `godot/tests/campaign_flow.gd`;
-10. ten generated seeds with paths from home to chapter entrances, required
-    marks, occupied walls, and lodge cages, using Freya's collision radius,
-    plus sequential territory connections in
-    `godot/tests/campaign_reachability.gd`;
+10. ten generated seeds with paths from the home interior through its door to
+    chapter entrances, required marks, occupied walls, and lodge cages, using
+    Freya's collision radius, plus sequential territory connections in
+    `godot/tests/campaign_reachability.gd`; the separate
+    `godot/tests/route_certificate.gd` proves that accepted fresh generation
+    preserves layout and RNG state, while a rejected seed retries once and a
+    legacy save keeps its seed;
 11. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
 12. ending layout and navigation in `godot/tests/campaign_ending.gd`;
 13. active and reserve pack behavior in `godot/tests/pack_squad.gd`, including
@@ -163,7 +167,7 @@ After preparing imports, it runs focused validation processes and covers:
 
 Successful output contains `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`, `DEJANK_CAMERA_OK`,
-`SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`,
+`SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CAMPAIGN_FLOW_OK`, `CAMPAIGN_REACHABILITY_OK`, `ROUTE_CERTIFICATE_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SERVICE_REACHABILITY_OK`,
 `SUPPLY_TARGETING_OK`,
 `SCENT_SUPPORT_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`,
@@ -213,6 +217,7 @@ These are automation interfaces, not player settings.
 | `FREYA_CAPTURE_ONLY` | Limit gameplay/world capture output | `capture_visual_regressions.sh` |
 | `FREYA_INTRO_CAPTURE_ONLY` | Limit startup/intro capture output | `capture_intro_regressions.sh` |
 | `FREYA_WORLD_SEED` | Reproduce a generated layout using an integer seed | Direct development launch |
+| `FREYA_ROUTE_CERT_TEST` | Force the production route certificate during its focused headless regression | `predeploy_size_checks.sh` |
 | `FREYA_START_AT_HOME` | Development spawn override | Direct development launch |
 | `FREYA_INTRO_SHOW_SCENE_ID` | Show stable scene-ID overlays in the UFO or family intro | Direct development launch |
 | `FREYA_PERF_BENCHMARK` | Emit aggregate rendering/runtime metrics | Direct benchmark launch |

@@ -264,6 +264,10 @@ func run() -> void:
 		# Chapter staging should not write a player's save from this geometry test.
 		scene.game_save_incompatible = true
 		var start = _home_start(scene)
+		var home_layout: Dictionary = scene.buildings[scene.freya_home_index].get("home_layout", {})
+		var home_inside: Vector2 = home_layout.get("entry_inside_pos", Vector2.ZERO)
+		check(scene._is_walkable(home_inside.x, home_inside.y, scene.FREYA_COLLISION_RADIUS), "seed %d home inside entrance is blocked" % seed)
+		check(_segment_walkable(scene, home_inside, start), "seed %d home inside-to-outside doorway has no Freya route" % seed)
 		scene._seed_chapter_strongholds()
 		var occupied_grid = _connected_grid(scene, start, seed, "chapter 1 occupied")
 		check(scene.kennel != null and scene.kennel_building_index >= 0, "seed %d has no lodge" % seed)

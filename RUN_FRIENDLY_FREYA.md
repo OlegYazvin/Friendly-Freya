@@ -113,10 +113,13 @@ It runs:
    assistance, one recorded reward cue for a final claim that completes a
    chapter or all-map victory, and credits handoff in
    `godot/tests/campaign_flow.gd`;
-13. ten generated seeds with home-connected Freya-radius routes to all chapter
-    entrances, required scent marks, occupied wall approaches, and lodge cages,
-    plus sequential territory connections in
-    `godot/tests/campaign_reachability.gd`;
+13. ten generated seeds with home-connected Freya-radius routes from the home
+    interior through its door to all chapter entrances, required scent marks,
+    occupied wall approaches, and lodge cages, plus sequential territory
+    connections in `godot/tests/campaign_reachability.gd`; the production
+    `godot/tests/route_certificate.gd` regression checks that accepted layouts
+    keep their seed and RNG state, a rejected fresh layout retries once, and a
+    legacy save keeps its saved seed;
 14. occupied-building margin recovery for Freya and dogs, plus old-save and
     interior-exit checks, in `godot/tests/occupation_collision_recovery.gd`;
 15. five-seed doorway-connected routes to grocery, pharmacy, police, and clinic
@@ -145,7 +148,7 @@ It runs:
 Successful output includes `STARTUP_OK`, `INTRO_OK`, `WATCH_INTRO_ROUTE_OK`, `CLAIM_INPUT_TOGGLE_OK`, `CLAIM_INPUT_LIVE_OK`, `KENNEL_OK`, `SMOKE_OK`,
 `TARGET_OK`, `FAMILY_INTRO_OK`, `PACK_SQUAD_OK`, `AUDIO_ACTIONS_OK`, `DEJANK_FLOW_OK`, `CAMERA_KEYBOARD_ZOOM_OK`,
 `DEJANK_CAMERA_OK`, `SAVE_RESUME_OK`, `NEW_GAME_SAFETY_OK`, `CHAPTER_GUIDE_OK`, `CAMPAIGN_FLOW_OK`,
-`CAMPAIGN_REACHABILITY_OK`, `SERVICE_REACHABILITY_OK`,
+`CAMPAIGN_REACHABILITY_OK`, `ROUTE_CERTIFICATE_OK`, `SERVICE_REACHABILITY_OK`,
 `OCCUPATION_COLLISION_RECOVERY PASS`, `SCENT_SUPPORT_OK`,
 `ENDING_OK`, `ENDING_RESUME_OK`, and `SUPPLY_TARGETING_OK`, followed by
 `Predeploy checks passed.`
@@ -168,6 +171,15 @@ Seeds 1001–1050 passed on October 15, 2026: 850 chapter sites, 3,800 marks,
 250 occupied-wall approaches, 850 entrances, and 300 lodge cages were
 home-connected on the Freya-radius grid. This sample reduces layout risk; it
 does not prove every possible seed.
+
+Ordinary graphical New Game now certifies a static Freya-radius route from the
+home door to every building wall, nearby scent mark, entrance, and lodge cage
+with the other buildings occupied. A rejected fresh layout retries once on
+seed 20260831 before gameplay or autosave. Resume keeps the saved seed and
+positional IDs; a failed certificate there emits a diagnostic rather than
+silently changing the world. The focused test measured about three seconds per
+certificate locally. This grid check is a conservative generation guard, not
+a player route or enjoyment result.
 
 For additional staged camera evidence, run the camera script graphically with
 `FREYA_REVIEW_DIR` pointing to an existing directory. It saves the cinematic
@@ -460,6 +472,11 @@ The route should log `NATURAL_ROUTE_CREDITS_OK`,
 `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and `NATURAL_ROUTE_CAMPAIGN_OK`. It drives
 normal gameplay input and may take a full campaign's play time. The earlier
 review-f PCK passed this local Linux route on seed 20260831. The local
+`review-20261015v` PCK passed exact-content export with 24 barks and 33 exact
+recorded cue mappings; its ZIP passed integrity and SHA-256 verification
+against `24bc82acb8c2d22da31df8f7eee08053d1ff3fe88d2dd240525cfe6d4c5a9b6c`.
+The extracted PCK passed the production route certificate, legacy diagnostic,
+and one-shot fallback regression. The local
 `review-20261015u` PCK passed exact-content export with 24 barks and 33 exact
 recorded cue mappings; its ZIP passed SHA-256 verification against
 `3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`.
@@ -537,6 +554,19 @@ records three secured chapters, six lodge rescues, two allies, 18 claimed
 sites, credits, and Keep Exploring without game errors or warnings. The
 warning for an imp's dog transfer remains visible for its full 4.5-second
 window in this build.
+The [review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
+passed the same source, export, startup, packaged stress entry, Watch Intro,
+and start-to-credits checks at commit `c672506`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715)
+contains `Friendly-Freya-manual-21-Windows-x86_64.zip`, independently verified
+against SHA-256
+`c29bdc282187dba53d5a154090453adaad38b8640548bafe015ebc7a78f61f2c`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12017785722)
+records three secured chapters, six lodge rescues, two allies, 18 claimed
+sites, credits, and Keep Exploring without game errors or warnings. This build
+adds the full warning after resuming a late dog transfer, quiet save-state
+reconstruction, and an attributed recorded bark for a confirmed nearby lodge
+spawn.
 Graphical playtesting and sustained performance measurement on the HP Victus
 remain open.
 

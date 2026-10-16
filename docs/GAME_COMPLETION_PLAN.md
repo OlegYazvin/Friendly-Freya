@@ -14,12 +14,12 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The local `review-20261015t` Windows ZIP passed export content and checksum
+The local `review-20261015u` Windows ZIP passed export content and checksum
 checks after the complete source suite. The matching
-[review-t Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204)
+[review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
 passed source validation, export, EXE startup, the short performance entry,
 the keyboard Watch Intro opening, credits, and Keep Exploring. Its
-[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12014478524)
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715)
 is the HP review build. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
@@ -39,12 +39,15 @@ is the HP review build. Release publication remains gated by the checks below.
    repetitive, confusing, or unfair, and collect any reported sticking point.
    If someone observes a session, the [note guide](PLAYTEST_RUN_SHEET.md)
    offers optional prompts and chapter timing notes.
-4. Close the all-seed physical-route guarantee in this plan. The existing
-   ten fixed seeds and 50 additional seeds passed, but target selection does
-   not check live walkability and those samples cannot prove every generated
-   layout. Add a generation-time route invariant or a deterministic recovery
-   for home, required marks and doors, occupied walls, and the lodge cages;
-   verify its startup cost and compatibility with saved worlds.
+4. Complete the saved-world side of the physical-route guarantee. Ordinary
+   fresh games now run a conservative Freya-radius certificate for the home
+   door, every wall and nearby mark, all entrances, and lodge cages with other
+   buildings occupied. A rejected fresh layout retries once on a known passing
+   seed before play or autosave. Existing saves keep their seed and positional
+   IDs and only report a diagnostic if they fail; an ID-preserving repair for
+   any genuinely failing legacy save still needs design and verification. The
+   ten fixed seeds and 50 additional seeds are samples, not a proof by
+   themselves. Measure the startup cost on the HP during its review.
 5. Fix the most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
@@ -606,7 +609,39 @@ hardware floor.
   content validation with 24 barks and 33 exact recorded cue mappings, and
   SHA-256 verification against
   `3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`.
-  Windows CI and HP review remain open for this build.
+  The [review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
+  passed source validation, export, EXE startup, the packaged stress entry,
+  Watch Intro, and the exported start-to-credits campaign at commit `c672506`.
+  Its [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715)
+  contains `Friendly-Freya-manual-21-Windows-x86_64.zip`, independently
+  verified against SHA-256
+  `c29bdc282187dba53d5a154090453adaad38b8640548bafe015ebc7a78f61f2c`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12017785722)
+  records three secured chapters, six lodge rescues, two allies, 18 claimed
+  sites, credits, and Keep Exploring without game errors or warnings. HP
+  audible, graphical, and sustained performance review remain open.
+- A production route certificate now runs before fresh graphical play. Its
+  all-occupied Freya-radius grid requires the home door, wall approaches,
+  nearby marks, each cleared doorway, and six lodge cage interactions to stay
+  connected even if any subset of buildings remains occupied. A rejected
+  fresh seed retries once on seed 20260831 before the UI or any save; accepted
+  layouts keep their RNG state. Existing saved seeds and spatial IDs are
+  preserved, with a diagnostic if a legacy layout fails the certificate.
+  Focused tests passed on seed 1 and the fallback seed, including a synthetic
+  rejected layout; their certificate times were 3.006 and 2.963 seconds in
+  local headless runs. The home inside-to-outside segment is also covered by
+  the ten-seed reachability sweep. The complete
+  `./scripts/predeploy_size_checks.sh` suite passed. This is a conservative
+  static-grid guarantee for newly accepted layouts, not human playability or
+  proof that a rejected continuous route is impossible. The local
+  `dist/Friendly-Freya-review-20261015v-Windows-x86_64.zip` passed exported
+  content validation with 24 barks and 33 exact recorded cue mappings, ZIP
+  integrity, and SHA-256 verification against
+  `24bc82acb8c2d22da31df8f7eee08053d1ff3fe88d2dd240525cfe6d4c5a9b6c`.
+  Its extracted PCK passed the production certificate and forced one-shot
+  fallback regression. This build also clears an inherited Watch Intro QA
+  setting in the packaged performance runner. Windows CI and HP review remain
+  open for review-v.
 
 ## The game to finish
 

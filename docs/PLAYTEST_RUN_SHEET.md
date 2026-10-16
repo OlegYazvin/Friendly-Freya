@@ -24,27 +24,30 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-t Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12014478524).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-20-Windows-x86_64.zip`
+For the HP, download the [review-u Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-21-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`b66459496ff6ef6dcc8033891f34041e2380b299e596d8d718faf09b994e9521`),
-then extract that game ZIP. The Actions artifact expires October 29, 2026,
-at 23:48:58 UTC.
+`c29bdc282187dba53d5a154090453adaad38b8640548bafe015ebc7a78f61f2c`),
+then extract that game ZIP. The Actions artifact expires October 30, 2026,
+at 00:33:30 UTC.
 
-Local alternative: `dist/Friendly-Freya-review-20261015t-Windows-x86_64.zip`
-(SHA-256 `d83180c0e29a9b5954d98876a704126d63f0e26c8c97d1c072278631ed482b9f`).
+Local alternative: `dist/Friendly-Freya-review-20261015u-Windows-x86_64.zip`
+(SHA-256 `3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-t Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204)
+[review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38825411204/artifacts/12016115823)
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12017785722)
 records three chapters, six lodge rescues, two allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-review-t PCK passed exact-content verification. This build carries the longer
+review-u PCK passed exact-content verification. This build carries the longer
 status display and single recorded pop when a claim also triggers a result;
 an imp's contact warning remains visible throughout the 4.5-second window
 before an unopposed dog transfer, and the chapter-2 ambush warning remains
-visible.
+visible. Resuming a late imp-to-dog transfer now restarts the full warning;
+loading a saved alien building does not trigger a live cue or chapter credit.
+A nearby occupied lodge's confirmed dog spawn plays an attributed recorded
+bark.
 
 The review evidence is tracked in
 [draft PR #1](https://github.com/OlegYazvin/Friendly-Freya/pull/1).
@@ -114,7 +117,10 @@ from the extracted review ZIP, as described in the
 [run guide](../RUN_FRIENDLY_FREYA.md#sustained-graphical-stress-sample). Keep
 the dated summary and full logs. The runner measures each size separately and
 samples process memory; confirm the dedicated GPU is active and record any
-visible or input issue during a separate natural playthrough:
+visible or input issue during a separate natural playthrough. Check the active
+GPU in Windows Task Manager while the game is rendering; the runner's hardware
+inventory lists installed adapters but cannot identify which one rendered the
+frames:
 
 | Window | Average FPS | Worst five-second FPS | p95 / p99 frame time | Peak memory | Notes |
 | --- | --- | --- | --- | --- | --- |

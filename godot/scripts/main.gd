@@ -14,10 +14,13 @@ const AudioPreferencesScript = preload("res://scripts/audio_preferences.gd")
 const InputPreferencesScript = preload("res://scripts/input_preferences.gd")
 const ActionAudioScript = preload("res://scripts/action_audio.gd")
 const GameSaveScript = preload("res://scripts/game_save.gd")
+const RouteCertificateScript = preload("res://scripts/route_certificate.gd")
 const FreshStartPromptScript = preload("res://scripts/fresh_start_prompt.gd")
 
 const INTRO_SCENE_PATH = "res://scenes/IntroCutscene.tscn"
 const FAMILY_INTRO_TREE_META = "friendly_freya_family_intro_pending"
+const ROUTE_CERT_RETRY_META = "friendly_freya_route_certificate_retry"
+const ROUTE_CERT_FALLBACK_SEED = 20260831
 const SightlineCutaway = preload("res://scripts/sightline_cutaway.gd")
 const GAMEPLAY_CAMERA_FOV = 40.0
 const FAMILY_BARK_AUDIO_PATH = "res://assets/audio/barks/bark_real_01.wav"
@@ -732,6 +735,7 @@ var camera_zoom_target = CAMERA_PLANAR_BASE
 var world_time = 0.0
 var game_autosave_timer = 45.0
 var game_resume_pending: Dictionary = {}
+var route_certificate_last_result: Dictionary = {}
 var game_save_incompatible = false
 # Set only by the headless campaign flow test; ordinary headless runs cannot save.
 var game_save_test_path = ""
@@ -955,6 +959,9 @@ var family_front_sign = 1.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var route_retry: Variant = get_tree().get_meta(ROUTE_CERT_RETRY_META, {})
+	if get_tree().has_meta(ROUTE_CERT_RETRY_META):
+		get_tree().remove_meta(ROUTE_CERT_RETRY_META)
 	var resume_meta = get_tree().get_meta(GameSaveScript.RESUME_META, {})
 	if get_tree().has_meta(GameSaveScript.RESUME_META):
 		get_tree().remove_meta(GameSaveScript.RESUME_META)
@@ -986,6 +993,10 @@ func _ready() -> void:
 		rng.seed = int(requested_seed)
 	if not game_resume_pending.is_empty() and str(game_resume_pending.get("world_seed", "")).is_valid_int():
 		rng.seed = int(str(game_resume_pending["world_seed"]))
+	elif route_retry is Dictionary and str(route_retry.get("seed", "")).is_valid_int():
+		# A rejected fresh neighborhood gets one known connected layout. Resume
+		# always keeps the seed stored with its building and claim identities.
+		rng.seed = int(str(route_retry["seed"]))
 	_configure_input()
 	AudioPreferencesScript.load_and_apply_master_volume()
 	var deterministic_input_review = run_headless_checks or get_tree().has_meta("freya_flow_validation") or not OS.get_environment("FREYA_VISUAL_VIEW").is_empty() or not OS.get_environment("FREYA_ALIEN_VIEW").is_empty()
@@ -1025,6 +1036,9 @@ func _ready() -> void:
 	_spawn_freya_and_dogs()
 	alien_building_occupation_count = _alien_occupied_building_count()
 	_initialize_chapter_progress()
+	var player_route_check = (not run_headless_checks and OS.get_environment("FREYA_VISUAL_VIEW").is_empty() and OS.get_environment("FREYA_ALIEN_VIEW").is_empty() and family_view.is_empty()) or OS.get_environment("FREYA_ROUTE_CERT_TEST") == "1"
+	if player_route_check and not _check_world_route_certificate(not game_resume_pending.is_empty(), route_retry is Dictionary and not route_retry.is_empty()):
+		return
 	_seed_poops(44)
 	_create_ui()
 	var resumed_game = not game_resume_pending.is_empty()
@@ -1072,6 +1086,38 @@ func _ready() -> void:
 			checks_failed = true
 	if checks_failed:
 		get_tree().quit(1)
+
+
+func _check_world_route_certificate(is_resume: bool, retry_used: bool, extra_blockers: Array[Rect2] = []) -> bool:
+	var started = Time.get_ticks_msec()
+	var result: Dictionary = RouteCertificateScript.evaluate(self, extra_blockers)
+	route_certificate_last_result = result
+	var elapsed = Time.get_ticks_msec() - started
+	if bool(result.get("ok", false)):
+		print("ROUTE_CERT_OK seed=%d duration_ms=%d nodes=%d walls=%d marks=%d doors=%d cages=%d" % [
+			int(rng.seed), elapsed, int(result.get("nodes", 0)), int(result.get("walls", 0)),
+			int(result.get("marks", 0)), int(result.get("doors", 0)), int(result.get("cages", 0))
+		])
+		return true
+	var issues: Array = result.get("issues", [])
+	var summary = str(issues.slice(0, 5))
+	if is_resume:
+		# An existing save owns its seed and positional claim IDs. Reporting an
+		# inaccessible legacy layout is safer than silently rebuilding that save.
+		push_warning("ROUTE_CERT_LEGACY_SAVE seed=%d duration_ms=%d issues=%s" % [int(rng.seed), elapsed, summary])
+		return true
+	game_save_incompatible = true
+	set_process(false)
+	if retry_used or int(rng.seed) == ROUTE_CERT_FALLBACK_SEED:
+		push_error("ROUTE_CERT_FALLBACK_FAILED seed=%d issues=%s" % [int(rng.seed), summary])
+		get_tree().call_deferred("change_scene_to_file", "res://scenes/Startup.tscn")
+		return false
+	push_warning("ROUTE_CERT_RETRY seed=%d fallback=%d issues=%s" % [int(rng.seed), ROUTE_CERT_FALLBACK_SEED, summary])
+	if family_intro_requested:
+		get_tree().set_meta(FAMILY_INTRO_TREE_META, true)
+	get_tree().set_meta(ROUTE_CERT_RETRY_META, {"seed": str(ROUTE_CERT_FALLBACK_SEED)})
+	get_tree().call_deferred("reload_current_scene")
+	return false
 
 func _configure_alien_visual_view() -> void:
 	var visual_view = OS.get_environment("FREYA_VISUAL_VIEW").strip_edges().to_lower()
@@ -4085,7 +4131,16 @@ func _nearest_caged_kennel_dog(max_range: float = 2.35) -> Dictionary:
 	if kennel == null or kennel.possessed or freya == null or not is_instance_valid(freya):
 		return {}
 	var freya_pos = Vector2(freya.global_position.x, freya.global_position.z)
-	if not _is_inside_store_interior(kennel_building_index, freya_pos):
+	return _caged_kennel_dog_for_position(freya_pos, max_range, true)
+
+
+func _caged_kennel_dog_for_position(point: Vector2, max_range: float = 2.35, require_clean: bool = true) -> Dictionary:
+	if kennel == null or (require_clean and kennel.possessed) or kennel_building_index < 0 or kennel_building_index >= buildings.size():
+		return {}
+	if require_clean and bool(buildings[kennel_building_index].get("alien_occupied", false)):
+		return {}
+	var interior_rect: Rect2 = buildings[kennel_building_index].get("store_interior_rect", Rect2())
+	if interior_rect.size.x <= 0.0 or interior_rect.size.y <= 0.0 or not interior_rect.grow(0.08).has_point(point):
 		return {}
 	var caged_dogs: Array = kennel.visual_data.get("caged_dogs", [])
 	var best_index = -1
@@ -4095,7 +4150,7 @@ func _nearest_caged_kennel_dog(max_range: float = 2.35) -> Dictionary:
 		if dog == null or not is_instance_valid(dog) or bool(dog.get_meta("kennel_released", false)):
 			continue
 		var dog_pos = Vector2(dog.global_position.x, dog.global_position.z)
-		var distance_sq = freya_pos.distance_squared_to(dog_pos)
+		var distance_sq = point.distance_squared_to(dog_pos)
 		if distance_sq < best_distance_sq:
 			best_distance_sq = distance_sq
 			best_index = cage_index
@@ -10886,15 +10941,19 @@ func _random_walkable_point(avoid_roads: bool, radius: float = 0.22) -> Vector3:
 		return Vector3(p.x, 0.0, p.y)
 	return Vector3(MAP_W * 0.5, 0.0, MAP_H * 0.5)
 
-func _is_walkable(x: float, z: float, radius: float = 0.22) -> bool:
+func _is_walkable(x: float, z: float, radius: float = 0.22, occupied_grid_override: Variant = null, blocking_grid_override: Variant = null) -> bool:
 	if x < radius or z < radius or x > MAP_W - radius or z > MAP_H - radius:
 		return false
 	var p = Vector2(x, z)
 	if _point_in_dog_park_fence(p, radius):
 		return false
-	if _point_in_occupied_store(p, radius):
+	var occupation_grid: Dictionary = occupied_building_grid if not (occupied_grid_override is Dictionary) else occupied_grid_override
+	if _point_in_collision_grid(occupation_grid, p, radius):
 		return false
-	if _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
+	if blocking_grid_override is Dictionary:
+		if _point_in_collision_grid(blocking_grid_override, p, radius + BUILDING_COLLISION_PAD):
+			return false
+	elif _point_in_blocking_building(p, radius + BUILDING_COLLISION_PAD):
 		return false
 	if _point_in_store_wall(p, maxf(0.04, radius * 0.72)):
 		return false

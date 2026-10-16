@@ -100,6 +100,8 @@ echo "Running Friendly Freya three-chapter campaign flow..."
 run_scene_validation res://tests/campaign_flow.gd
 echo "Running Friendly Freya generated campaign reachability sweep..."
 run_scene_validation res://tests/campaign_reachability.gd
+echo "Running Friendly Freya production route certificate and fallback regression..."
+run_scene_validation res://tests/route_certificate.gd
 echo "Running Friendly Freya service access routes..."
 run_scene_validation res://tests/service_reachability.gd
 echo "Running Friendly Freya carried-supply target and feedback checks..."
