@@ -74,6 +74,8 @@ save or a screen recording only with the player's agreement.
 If several players use the same Windows account, New Game can replace its
 single campaign save. Use separate Windows accounts or archive both the save
 and its `.bak` before the next session when an unfinished run should be kept.
+On Windows, press Win+R and open
+`%APPDATA%\Godot\app_userdata\Friendly Freya` to find those files.
 If a resumed game appears to have an unreachable objective, close the game and
 copy `friendly_freya_save.json` and `friendly_freya_save.json.bak` out of its
 save folder before trying a new game. Send the saved files, the seed and game

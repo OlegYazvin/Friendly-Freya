@@ -60,6 +60,14 @@ Gene and Zoe's return and credits. The pause menu saves the game. Resume Game
 appears on the title screen when a valid save exists. Owning every building is an
 optional neighborhood challenge.
 
+Save folder
+-----------
+Close the game before copying a save. Press Win+R, paste
+%APPDATA%\Godot\app_userdata\Friendly Freya, and press Enter. Copy
+friendly_freya_save.json and friendly_freya_save.json.bak (if present) to a
+separate folder before another player starts New Game or before investigating a
+blocked objective. A save file appears after the game first saves.
+
 Graphical performance QA
 ------------------------
 On the nominated Windows test PC, plug in the laptop, select the dedicated GPU,

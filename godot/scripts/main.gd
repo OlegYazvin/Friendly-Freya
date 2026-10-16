@@ -877,6 +877,7 @@ var interact_highlights := {}
 
 var minimap
 var minimap_zoom_slider: HSlider
+var minimap_zoom_click_timer: Timer
 var store_focus_layer: CanvasLayer
 var store_focus_overlay: ColorRect
 var pause_menu_layer: CanvasLayer
@@ -1094,9 +1095,10 @@ func _check_world_route_certificate(is_resume: bool, retry_used: bool, extra_blo
 	route_certificate_last_result = result
 	var elapsed = Time.get_ticks_msec() - started
 	if bool(result.get("ok", false)):
-		print("ROUTE_CERT_OK seed=%d duration_ms=%d nodes=%d walls=%d marks=%d doors=%d cages=%d" % [
+		print("ROUTE_CERT_OK seed=%d duration_ms=%d nodes=%d walls=%d marks=%d doors=%d cages=%d services=%d/%d" % [
 			int(rng.seed), elapsed, int(result.get("nodes", 0)), int(result.get("walls", 0)),
-			int(result.get("marks", 0)), int(result.get("doors", 0)), int(result.get("cages", 0))
+			int(result.get("marks", 0)), int(result.get("doors", 0)), int(result.get("cages", 0)),
+			int(result.get("services", 0)), int(result.get("service_count", 0))
 		])
 		return true
 	var issues: Array = result.get("issues", [])
@@ -19937,6 +19939,10 @@ func _create_ui() -> void:
 	minimap_zoom_slider.value = 2.6
 	minimap_zoom_slider.value_changed.connect(_on_minimap_zoom_changed)
 	minimap_header.add_child(minimap_zoom_slider)
+	minimap_zoom_click_timer = Timer.new()
+	minimap_zoom_click_timer.one_shot = true
+	minimap_zoom_click_timer.timeout.connect(_on_minimap_zoom_click_settled)
+	add_child(minimap_zoom_click_timer)
 
 	minimap = MiniMapScript.new()
 	minimap.anchor_left = 0.0
@@ -21368,6 +21374,14 @@ func _collect_claimed_minimap_points() -> Dictionary:
 func _on_minimap_zoom_changed(value: float) -> void:
 	if minimap != null and minimap.has_method("set_zoom"):
 		minimap.set_zoom(value)
+		if minimap_zoom_click_timer != null and minimap_zoom_slider.is_visible_in_tree():
+			# A drag or held arrow changes zoom continuously; acknowledge it once
+			# after the player stops adjusting the slider.
+			minimap_zoom_click_timer.start(0.25)
+
+func _on_minimap_zoom_click_settled() -> void:
+	if not pause_menu_open and minimap_zoom_slider != null and minimap_zoom_slider.is_visible_in_tree():
+		_play_recorded_control_click()
 
 func _on_minimap_zoom_step(delta_zoom: float) -> void:
 	if minimap_zoom_slider == null:

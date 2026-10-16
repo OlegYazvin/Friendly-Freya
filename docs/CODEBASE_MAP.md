@@ -44,10 +44,10 @@ thin scene shells whose scripts construct most runtime content.
 | Family visuals | `godot/scripts/family_visual_factory.gd` | Gene, Zoe, pill bottles, transfer rings, bark waves |
 | Family staging/handoff | `godot/scripts/main.gd` | Search for `_begin_family_intro` and `_run_family_intro_validation` |
 | Main gameplay/world | `godot/scripts/main.gd` | Procedural layout, all-building interior roster, pharmacy/grocery/police/clinic services, pack orders, chapter objectives, interactions, AI, UI, and validation |
-| Generated route certificate | `godot/scripts/route_certificate.gd`, `godot/scripts/main.gd`, `godot/tests/route_certificate.gd`, `godot/tests/campaign_reachability.gd` | A conservative Freya-radius grid checks the home door, all wall and nearby-mark approaches, entrances, and six lodge cages with other buildings occupied; a rejected fresh layout retries once on a known passing seed, while Resume preserves its saved seed and IDs |
+| Generated route certificate | `godot/scripts/route_certificate.gd`, `godot/scripts/main.gd`, `godot/tests/route_certificate.gd`, `godot/tests/campaign_reachability.gd` | A conservative Freya-radius grid checks the home door, all wall and nearby-mark approaches, entrances, six lodge cages, and four doorway-connected service interactions with other buildings occupied; a rejected fresh layout retries once on a known passing seed, while Resume preserves its saved seed and IDs |
 | Long-action input preference | `godot/scripts/input_preferences.gd`, `godot/scripts/main.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/claim_input_live.gd` | Pause > Controls offers an optional persisted press-once mode for Space scent actions and C socializing; target locks and movement, action, target-loss, and pause cancellation leave hold controls as the default; the live route checks claim and recruitment after key release |
 | Carried supply targeting | `godot/scripts/main.gd`, `godot/tests/supply_targeting.gd` | One shared F/ring target, chapter-2 ally preference, duplicate-protection guards, clinic and grocery priority, cage priority, and no-target feedback |
-| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby lodge dog and storefront imp spawns, and first-time park drill reward; a missing cue remains silent |
+| Recorded action audio | `godot/scripts/action_audio.gd`, `godot/assets/audio/actions/`, `godot/assets/audio/eat/`, `godot/assets/audio/ATTRIBUTION.md`, `godot/tests/audio_actions.gd` | Exact recorded cue paths and source/license record; imp bark defense, captive whine, family cry and pill landing, food/pill bites, nearby lodge dog and storefront imp spawns, first-time park drill reward, and changed minimap zoom; a missing cue remains silent |
 | Render sightlines | `godot/scripts/sightline_cutaway.gd`, `godot/scripts/main.gd` | Temporary render-only occluder visibility, mesh bounds, camera safe framing; collision is unchanged |
 | Dogs and animation | `godot/scripts/dog_agent.gd`, `godot/scripts/main.gd` | DogAgent owns visuals/animation; Main owns definitions, spawn, state, and AI |
 | Alien character art/lifecycle | `godot/scripts/alien_visual_factory.gd`, `godot/scripts/main.gd` | Factory owns imp mesh/pose; Main owns movement, transfers, and occupation |
@@ -58,7 +58,7 @@ thin scene shells whose scripts construct most runtime content.
 | Trees | `godot/scripts/tree_factory.gd`, `godot/scripts/main.gd` | Factory owns visual batching; Main owns placement, collision, and claims |
 | Runtime assets | `godot/assets/` | Read the local model/audio Markdown before changing assets |
 | Regression automation | `scripts/`, `godot/tests/watch_intro_route.gd`, `godot/tests/claim_input_toggle.gd`, `godot/tests/campaign_reachability.gd`, `godot/tests/route_certificate.gd`, `godot/tests/natural_campaign_route.gd`, `godot/tests/performance_stress.gd`, `visual_regressions/` | Headless checks, keyboard Watch Intro and press-once input routes, generated-layout connectivity and fresh-game fallback checks, a separate graphical keyboard route through the three chapters, credits, and Keep Exploring, a live-simulation stress diagnostic with saving disabled, and deterministic screenshot baselines |
-| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup, Watch Intro, and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing, then tag-push GitHub Release publication |
+| Windows releases | `godot/export_presets.cfg`, `scripts/build_windows_release.sh`, `packaging/windows/`, `.github/workflows/windows-release.yml` | Filtered export, player/legal files, Windows startup, Watch Intro, and exported stress entry smoke, exported campaign route on manual and tag runs, packaged `RunPerformanceQA.cmd`/`.ps1` for graphical two-resolution testing; publication requires a separate manual dispatch on the version tag after release signoff |
 
 `godot/scripts/main.gd` is intentionally the integration point and is much
 larger than the focused factories. Search for the owning function or constant
@@ -130,9 +130,9 @@ After preparing imports, it runs focused validation processes and covers:
     chapter entrances, required marks, occupied walls, and lodge cages, using
     Freya's collision radius, plus sequential territory connections in
     `godot/tests/campaign_reachability.gd`; the separate
-    `godot/tests/route_certificate.gd` proves that accepted fresh generation
-    preserves layout and RNG state, while a rejected seed retries once and a
-    legacy save keeps its seed;
+    `godot/tests/route_certificate.gd` checks that accepted fresh generation
+    preserves layout and RNG state and keeps four F services reachable, while
+    a rejected seed retries once and a legacy save keeps its seed;
 11. claimed-neighbor scent support in `godot/tests/scent_support.gd`;
 12. ending layout and navigation in `godot/tests/campaign_ending.gd`;
 13. active and reserve pack behavior in `godot/tests/pack_squad.gd`, including

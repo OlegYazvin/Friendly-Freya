@@ -417,13 +417,14 @@ exact stream so one hit cannot cut another short.
 - The `door` cue is reserved for a door that visibly opens. Home and store
   doorways are already open, so crossing them is silent.
 - Successful Q/E camera rotation, changed keyboard or wheel zoom, opening
-  unpinned goals with Tab, and Page Up/Down scrolling that moves a panel use
-  the exact recorded mechanical `button` cue at a lower gain. Held rotation
-  clicks once on key press; rapid zoom or scrolling shares a short click gap
-  instead of restarting the recording for every intermediate step. Zoom at a
-  limit, scrolling at an edge, Tab while goals are already pinned, and keys
-  that complete no action are silent. G/H toggles, menu selections, and
-  accepted pack orders also use the recorded mechanical button cue.
+  unpinned goals with Tab, Page Up/Down scrolling that moves a panel, and a
+  changed minimap zoom slider use the exact recorded mechanical `button` cue
+  at a lower gain. Held rotation clicks once on key press; rapid camera zoom
+  or scrolling shares a short click gap, while a minimap slider drag clicks
+  once after it settles. Zoom at a limit, scrolling at an edge, Tab while
+  goals are already pinned, and keys that complete no action are silent. G/H
+  toggles, menu selections, and accepted pack orders also use the recorded
+  mechanical button cue.
 - Player-requested Next and Skip in the UFO, family, and first-exit story
   sequences use that exact recorded button cue. Timed, automatic scene
   progression stays silent.

@@ -95,12 +95,13 @@ Logs and Monitoring/    Packaged Windows snapshots; not authoritative source
 ## Release Readiness
 
 The repository contains a versioned Windows export preset, a local packaging
-script, and a tag-driven GitHub Actions workflow. Release jobs verify the Godot
-editor and export-template downloads, run all project checks, build the ZIP,
-and start the exported package on a Windows runner before publishing it. A
-manual workflow run also checks the exported Watch Intro opening, drives the
-EXE/PCK through credits and Keep Exploring on a Windows runner, and uploads the
-campaign log without publishing.
+script, and a GitHub Actions workflow. Tag pushes and ordinary manual runs
+verify the Godot downloads, run all project checks, build the ZIP, and test the
+exported package on Windows without publishing it. After the HP, accessibility,
+and player gates pass, a manual run on the version tag with `publish_release`
+enabled repeats those checks before publishing the ZIP and checksum. The
+Windows checks include Watch Intro, credits, Keep Exploring, and an uploaded
+campaign log.
 
 The active dog model is documented CC0 material. Inactive reference models with
 unresolved provenance are explicitly excluded from release exports. See the

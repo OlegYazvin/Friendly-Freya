@@ -4,8 +4,15 @@ on:
   push:
     tags:
       - "v*"
-  # Run from a review branch to build and test Windows without publishing.
+  # Review runs and tag pushes validate without publishing. Publish only by
+  # manually dispatching this workflow on a version tag after release signoff.
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish the selected version tag after HP and player signoff"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -32,12 +39,10 @@ jobs:
       - name: Resolve artifact label
         id: release-label
         shell: bash
+        env:
+          PUBLISH_RELEASE: ${{ inputs.publish_release }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
-              echo "Release pushes must target a version tag." >&2
-              exit 1
-            fi
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             label="$GITHUB_REF_NAME"
             if [[ ! "$label" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
               echo "Release tag must have the form vMAJOR.MINOR.PATCH: $label" >&2
@@ -58,8 +63,15 @@ jobs:
               echo "Release notes install ZIP must match release tag $label." >&2
               exit 1
             fi
-          else
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+              echo "Publishing requires manually running this workflow on a version tag." >&2
+              exit 1
+            fi
             label="manual-$GITHUB_RUN_NUMBER"
+          else
+            echo "Unsupported workflow ref: $GITHUB_REF" >&2
+            exit 1
           fi
           case "$label" in
             *[!A-Za-z0-9._-]*|'')
@@ -305,7 +317,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && inputs.publish_release == true
     needs:
       - build
       - windows-smoke
@@ -313,7 +325,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      RELEASE_LABEL: ${{ needs.build.outputs.release-label }}
     steps:
+      - name: Confirm manual version-tag publication
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" || "$RELEASE_LABEL" != "$GITHUB_REF_NAME" ]]; then
+            echo "A public release requires manual dispatch on its matching version tag." >&2
+            exit 1
+          fi
+
       - name: Check out release notes
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

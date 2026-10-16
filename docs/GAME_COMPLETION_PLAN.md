@@ -42,17 +42,22 @@ is the HP review build. Release publication remains gated by the checks below.
 4. Complete the saved-world side of the physical-route guarantee. Ordinary
    fresh games now run a conservative Freya-radius certificate for the home
    door, every wall and nearby mark, all entrances, and lodge cages with other
-   buildings occupied. A rejected fresh layout retries once on a known passing
-   seed before play or autosave. Existing saves keep their seed and positional
-   IDs and only report a diagnostic if they fail. That check runs before saved
-   progress is restored, so its warning alone does not establish a blocked
-   route. Preserve both save files and diagnose an observed blockage on that
-   exact saved world before designing an ID-preserving repair. The ten fixed
-   seeds and 50 additional seeds are samples, not a proof by themselves.
+   buildings occupied. Current source also requires grocery, pharmacy, police,
+   and clinic to have reachable in-range `F` service positions after their
+   buildings are cleared. A rejected fresh layout retries once on a known
+   passing seed before play or autosave. Existing saves keep their seed and
+   positional IDs and only report a diagnostic if they fail. That check runs
+   before saved progress is restored, so its warning alone does not establish
+   a blocked route. Preserve both save files and diagnose an observed blockage
+   on that exact saved world before designing an ID-preserving repair. The ten
+   fixed seeds and 50 additional seeds are samples, not a proof by themselves.
    Measure the startup cost on the HP during its review.
 5. Fix the most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
+   Publish only with a manual workflow run on the version tag after those
+   checks pass; a tag push now validates and uploads a review artifact without
+   publishing.
 
 The proposed 30–45 minute first chapter is a hypothesis. A passing automated
 route and a powerful Victus result do not establish enjoyment or a lower
@@ -655,6 +660,25 @@ hardware floor.
   records three secured chapters, six lodge rescues, three allies, 18 claimed
   sites, credits, and Keep Exploring without game errors or warnings. HP
   audible, graphical, and sustained performance review remain open.
+- After review-v, the production route certificate also requires the actual
+  grocery, pharmacy, police, and clinic service records and Freya-width paths
+  from a cleared doorway to an in-range `F` position. An omitted or blocked
+  service rejects a fresh layout through the existing one-shot fallback; a
+  saved world still keeps its seed and positional IDs. The focused certificate
+  and five-seed real-service interaction tests passed, as did the complete
+  `./scripts/predeploy_size_checks.sh` suite. The accepted seed-1 and fallback
+  certificates took 3.050 and 3.073 seconds locally, with four services each.
+  The minimap zoom slider now uses the exact attributed recorded button click
+  once after a changed drag settles. Tag pushes now validate and upload a
+  Windows artifact without publishing; a public release needs a manual
+  workflow dispatch on the version tag after release signoff. The packaged
+  Windows instructions now locate the save folder. The local
+  `review-20261015w` ZIP passed exact-content export, ZIP integrity, and
+  SHA-256 verification against
+  `d6822c8806cc769e4f7b09a965f428b440aa32cef208bf4e39e8023330f2b28b`.
+  Its extracted PCK passed the new certificate and fallback regression.
+  Windows CI and HP graphical, listening, and performance review remain open
+  for review-w.
 
 ## The game to finish
 

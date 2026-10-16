@@ -6,12 +6,20 @@ extends RefCounted
 # one target can only open its doorway and interior. This uses the same Freya
 # collision predicate as movement; it does not mutate the live world.
 const GRID_STEP = 0.5
+const SERVICE_GRID_STEP = 0.1
 const CARDINAL_OFFSETS = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+const REQUIRED_SERVICE_TYPES = ["infinite_dog_food", "possession_immunity_medicine", "dog_armor", "clinic_recovery_kit"]
+const SERVICE_BUILDING_TYPES = {
+	"infinite_dog_food": "grocery",
+	"possession_immunity_medicine": "pharmacy",
+	"dog_armor": "police_station",
+	"clinic_recovery_kit": "medical_clinic"
+}
 
 
 static func evaluate(scene: Node, extra_blockers: Array[Rect2] = []) -> Dictionary:
 	var issues: Array[String] = []
-	var result = {"ok": false, "issues": issues, "nodes": 0, "walls": 0, "marks": 0, "doors": 0, "cages": 0}
+	var result = {"ok": false, "issues": issues, "nodes": 0, "walls": 0, "marks": 0, "doors": 0, "cages": 0, "service_count": scene.building_services.size(), "services": 0}
 	if scene.freya_home_index < 0 or scene.freya_home_index >= scene.buildings.size():
 		issues.append("home_missing")
 		return result
@@ -71,6 +79,29 @@ static func evaluate(scene: Node, extra_blockers: Array[Rect2] = []) -> Dictiona
 		else:
 			issues.append("door:%d" % index)
 
+	# F only uses live service records. Check their count and each cleared
+	# building's doorway-to-interior route, rather than assuming that an
+	# interior layout generated a usable service prop.
+	var service_by_type: Dictionary = {}
+	for item in scene.building_services:
+		if not (item is Dictionary):
+			issues.append("service_invalid")
+			continue
+		var service_type = str(item.get("service_type", ""))
+		if not REQUIRED_SERVICE_TYPES.has(service_type):
+			issues.append("service_unknown:%s" % service_type)
+		elif service_by_type.has(service_type):
+			issues.append("service_duplicate:%s" % service_type)
+		else:
+			service_by_type[service_type] = item
+	for service_type in REQUIRED_SERVICE_TYPES:
+		if not service_by_type.has(service_type):
+			issues.append("service_missing:%s" % service_type)
+		elif _service_has_approach(scene, exterior_grid, extra_blockers, service_type, service_by_type[service_type]):
+			result["services"] += 1
+		else:
+			issues.append("service_unreachable:%s" % service_type)
+
 	# The lodge is the only required interior with six distinct positional
 	# interactions. Flood its local footprint after clearing only the lodge,
 	# seeding the small search from the certified home-connected exterior.
@@ -101,6 +132,76 @@ static func evaluate(scene: Node, extra_blockers: Array[Rect2] = []) -> Dictiona
 			issues.append("cage:%d" % cage_index)
 	result["ok"] = issues.is_empty()
 	return result
+
+
+static func _service_grid_point(id: Vector2i) -> Vector2:
+	return Vector2(float(id.x) * SERVICE_GRID_STEP, float(id.y) * SERVICE_GRID_STEP)
+
+
+static func _service_edge_walkable(scene: Node, start: Vector2, finish: Vector2, occupation: Dictionary, extra_blockers: Array[Rect2], blocking_override: Dictionary) -> bool:
+	return _walkable(scene, (start + finish) * 0.5, occupation, extra_blockers, blocking_override) and _walkable(scene, finish, occupation, extra_blockers, blocking_override)
+
+
+static func _service_has_approach(scene: Node, exterior_grid: Dictionary, extra_blockers: Array[Rect2], service_type: String, service: Dictionary) -> bool:
+	var index = int(service.get("building_index", -1))
+	if index < 0 or index >= scene.buildings.size() or index == scene.freya_home_index:
+		return false
+	var node: Node3D = service.get("node", null)
+	if node == null or not is_instance_valid(node):
+		return false
+	var position: Vector2 = service.get("pos", Vector2(-1.0, -1.0))
+	if Vector2(node.global_position.x, node.global_position.z).distance_to(position) > 0.01:
+		return false
+	var building: Dictionary = scene.buildings[index]
+	if str(building.get("building_type", "")) != str(SERVICE_BUILDING_TYPES[service_type]):
+		return false
+	var interior: Rect2 = building.get("store_interior_rect", Rect2())
+	if interior.size.x <= 0.0 or interior.size.y <= 0.0 or not interior.grow(-0.05).has_point(position):
+		return false
+	var layout: Dictionary = building.get("store_layout", {})
+	var inside: Vector2 = layout.get("entry_inside_pos", Vector2.ZERO)
+	var outside: Vector2 = layout.get("entry_outside_pos", Vector2.ZERO)
+	var cleared = _occupation_grid(scene, index)
+	var blocking = _blocking_grid_without(scene, index)
+	if not _connected_point(scene, exterior_grid, outside, cleared, extra_blockers, blocking) or not _walk_segment(scene, outside, inside, cleared, extra_blockers, blocking):
+		return false
+	if not _walkable(scene, position, cleared, extra_blockers, blocking):
+		return false
+	var search_rect = interior.grow(0.25)
+	var valid_interior = interior.grow(-0.05)
+	var entry_id = Vector2i(roundi(inside.x / SERVICE_GRID_STEP), roundi(inside.y / SERVICE_GRID_STEP))
+	var queue: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var id = entry_id + Vector2i(dx, dz)
+			var point = _service_grid_point(id)
+			if point.distance_to(inside) > 0.17 or not search_rect.has_point(point):
+				continue
+			if not _service_edge_walkable(scene, inside, point, cleared, extra_blockers, blocking):
+				continue
+			seen[id] = true
+			queue.append(id)
+	var cursor = 0
+	while cursor < queue.size():
+		var id = queue[cursor]
+		cursor += 1
+		var point = _service_grid_point(id)
+		if valid_interior.has_point(point) and point.distance_to(position) <= scene.BUILDING_SERVICE_RANGE - 0.05:
+			# F rejects an occupied store. Once this store is cleared,
+			# _is_inside_store_index accepts every point in valid_interior.
+			if bool(building.get("alien_occupied", false)) or scene._is_inside_store_index(index, point):
+				return true
+		for offset in CARDINAL_OFFSETS:
+			var next = id + offset
+			if seen.has(next):
+				continue
+			var next_point = _service_grid_point(next)
+			if not search_rect.has_point(next_point) or not _service_edge_walkable(scene, point, next_point, cleared, extra_blockers, blocking):
+				continue
+			seen[next] = true
+			queue.append(next)
+	return false
 
 
 static func _occupation_grid(scene: Node, except_index: int = -1) -> Dictionary:

@@ -117,9 +117,9 @@ It runs:
     interior through its door to all chapter entrances, required scent marks,
     occupied wall approaches, and lodge cages, plus sequential territory
     connections in `godot/tests/campaign_reachability.gd`; the production
-    `godot/tests/route_certificate.gd` regression checks that accepted layouts
-    keep their seed and RNG state, a rejected fresh layout retries once, and a
-    legacy save keeps its saved seed;
+    `godot/tests/route_certificate.gd` regression checks four reachable `F`
+    services, accepted layouts keeping their seed and RNG state, one retry for
+    a rejected fresh layout, and a legacy save keeping its saved seed;
 14. occupied-building margin recovery for Freya and dogs, plus old-save and
     interior-exit checks, in `godot/tests/occupation_collision_recovery.gd`;
 15. five-seed doorway-connected routes to grocery, pharmacy, police, and clinic
@@ -412,6 +412,11 @@ If an objective is actually unreachable, close the game, copy the primary and
 description for a targeted repair. Do not reseed that save: building and
 objective IDs depend on their positions.
 
+On Windows, press Win+R and open
+`%APPDATA%\Godot\app_userdata\Friendly Freya` to find the save folder. Copy
+`friendly_freya_save.json` and `friendly_freya_save.json.bak` (if present)
+before starting another player's game or investigating a blocked route.
+
 ## Visual Regression Captures
 
 The capture scripts require host `wmctrl` and `xwd`, local `ffmpeg`, an X11
@@ -589,31 +594,49 @@ adds fresh-neighborhood route certification and clears an inherited Watch
 Intro QA setting in the packaged performance runner. HP graphical, listening,
 and sustained performance checks remain open.
 
+The local `review-20261015w` ZIP passed exported-content validation with 24
+recorded barks and 33 exact cue mappings, ZIP integrity, and SHA-256
+verification against
+`d6822c8806cc769e4f7b09a965f428b440aa32cef208bf4e39e8023330f2b28b`.
+Its extracted PCK passed the four-service route certificate, synthetic
+missing/blocked-service diagnostics, and one-shot fresh-layout fallback.
+Windows CI and HP graphical review remain open for this local build.
+
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update
 the export metadata and release notes to match the new `vMAJOR.MINOR.PATCH`
 tag. Review the notes' highlights and install filename against that build.
 The current `v0.1.2` metadata and notes describe the earlier published build.
 
-Any pushed `vMAJOR.MINOR.PATCH` tag runs
-`.github/workflows/windows-release.yml` for release publication. The workflow
-first verifies that the Windows EXE versions, release notes heading, and install
-ZIP filename match that tag. It then downloads checksum-pinned official Godot
-files, repeats the full project
-validation and export, launches the package on `windows-latest`, and publishes
-the ZIP and checksum only after the Windows startup smoke and exported
-start-to-credits campaign route pass. Other `v*` tags trigger the workflow but
-fail the version/metadata guard. A manual `workflow_dispatch` run from a
-pushed review branch builds
-an Actions artifact, smoke-tests the exported EXE, its bundled performance
-entry, and the Watch Intro opening on `windows-latest`, then
-runs the bundled keyboard campaign controller through credits and Keep
-Exploring in the extracted EXE/PCK. Tag pushes require the same route before
-publication. That Windows route is headless and checks
+Pushing a `vMAJOR.MINOR.PATCH` tag runs
+`.github/workflows/windows-release.yml` for validation, export, and an Actions
+artifact, but does not publish a GitHub Release. The workflow verifies that the
+Windows EXE versions, release notes heading, and install ZIP filename match
+the tag. Other `v*` tags fail this metadata guard. Manual review runs from a
+branch also build an artifact without publishing. Every run downloads
+checksum-pinned official Godot files, repeats the full project validation and
+export, smoke-tests the EXE and bundled performance entry, verifies the Watch
+Intro opening, and runs the bundled keyboard campaign controller through
+credits and Keep Exploring in the extracted EXE/PCK on `windows-latest`. That
+Windows route is headless and checks
 `NATURAL_ROUTE_CREDITS_OK`, `NATURAL_ROUTE_KEEP_EXPLORING_OK`, and
 `NATURAL_ROUTE_CAMPAIGN_OK`; the opening smoke checks `WATCH_INTRO_ROUTE_OK`.
-The campaign log is uploaded even if the route fails. Manual
-runs do not publish a GitHub Release, including when dispatched from a tag.
+The campaign log is uploaded even if the route fails.
+
+After the graphical HP, accessibility, and unfamiliar-player release checks
+pass, manually dispatch the workflow **on the version tag** with
+`publish_release` enabled. This repeats all automated jobs and publishes the
+ZIP and checksum only if they pass. The workflow rejects publication from a
+branch. For example, after pushing the tag and ensuring this workflow exists
+on the default branch:
+
+```sh
+gh workflow run windows-release.yml --ref v0.1.3 -f publish_release=true
+```
+
+Leaving `publish_release` off produces a review artifact even when dispatched
+on a tag. A tag push by itself also cannot publish.
+
 A passing route verifies exported Windows input and campaign logic, while visual
 Windows review, unfamiliar-player playtests, and minimum-PC performance still
 require their own checks. GitHub reports this repository as public, so treat
