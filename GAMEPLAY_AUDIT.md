@@ -3,7 +3,8 @@
 [Documentation hub](README.md) · [Run and validation](RUN_FRIENDLY_FREYA.md) ·
 [Codebase map](docs/CODEBASE_MAP.md) · [Dog breeds](godot/BREEDS.md) ·
 [Completed visual record](VISUAL_RECOMMENDATIONS.md) ·
-[Capture catalog](visual_regressions/README.md)
+[Capture catalog](visual_regressions/README.md) ·
+[Game completion plan](docs/GAME_COMPLETION_PLAN.md)
 
 **Document role:** living design reference and current-build audit. Sections and
 bullets marked **implemented** describe the current build; **future** and
@@ -18,17 +19,20 @@ There are no angel dogs or devil dogs. Every NPC is always a real dog, and a rea
 
 - **Possession:** `real` or `possessed`.
 - **Army alignment:** `independent` or `Freya's army`.
-- Every NPC dog begins a new game possessed; cleansing creates the real-dog
-  state the player can then befriend.
+- Roaming NPC dogs begin a new game possessed. The three staged first-exit
+  leashed dogs begin ordinary and become possessed during the visible reveal;
+  cleansing creates the unpossessed state the player can then befriend.
 - A cleansed dog becomes real; it does not become an angel dog.
 - An army dog remains a real dog and may eventually have a lower—but not necessarily zero—risk of re-possession.
 - Possession must remain visually secret. Breed, body, coat, animation, and ordinary cosmetics cannot reveal it.
 
 Friendly alignment uses a broad, high-contrast, neck-mounted camouflage-pattern collar that remains obvious at normal gameplay zoom, with no icon or indicator above the dog. Wings, horns, halos, and other angel/devil imagery are removed from dog alignment feedback.
 
-### Aggressive Bark Is an Exorcism Test
+### Aggressive Bark Tests Dogs and Interrupts Visible Imps
 
-Aggressive barking has one purpose: testing for and expelling possession.
+Against dogs, aggressive barking tests for and expels possession. A visible
+grounded imp can also be intercepted by a sustained bark before it escapes or
+finishes a transfer.
 
 - Barking at a possessed dog expels its alien.
 - Barking at a real dog scares the dog away. Its flee response is the player's feedback that the guess was wrong.
@@ -73,7 +77,8 @@ When an expelled alien occupies a storefront:
 - the store immediately becomes non-enterable and unusable by Freya;
 - its entrance and services need an unmistakable static locked/contaminated state;
 - it strengthens surrounding alien-controlled buildings;
-- the exact radius, stacking curve, and meaning of “stronger” remain intentionally undefined for a future balance pass.
+- each occupied storefront adds reinforcement within 22 world units,
+  slowing wall weakening; this provisional value still needs balance testing.
 
 The data model should still distinguish a storefront's base function from its current controller so cleansing or reclaiming it can restore its original use.
 
@@ -85,13 +90,17 @@ The data model should still distinguish a storefront's base function from its cu
 - Freya controls her home by default. Other buildings can be claimed only when every nearby claimable object around them is Freya-marked and the building connects to Freya territory on the same generated block or a direct north/south/east/west neighboring block.
 - Claiming a clean eligible building requires holding `Space` inside for 10 seconds. Partial building progress decays by about 10% every 2 seconds while Freya is not peeing inside.
 - Claimed building territory receives a subtle yellow ground tint; Ryah Diane places a quick scribbly Freya drawing on a wooden stake near the entrance. The building model itself does not transform.
-- Freya wins when she owns every building on the map.
+- The Northbrook chapter ends after its highlighted sites, ally, lodge rescue,
+  alien holds, and generators are resolved. Owning every building remains an
+  optional mastery victory.
 
 ## Current Build Audit
 
 ### Already Aligned
 
-- **Implemented:** Every NPC dog begins possessed, independently from appearance.
+- **Implemented:** Roaming NPC dogs begin possessed, independently from
+  appearance. The three first-exit leashed dogs begin ordinary until their
+  visible possession event.
 - **Implemented:** Freya becomes uneasy near possessed dogs without directly identifying them.
 - **Implemented:** Close possessed dogs bark aggressively and scare Freya into fleeing unless the player holds `R` to make her bark back and stand ground. On the watch-intro route, aggression stays disabled until the first-exit possession reveal; skipping the intro enables it immediately, and dog-park threats do not project through the fence.
 - **Implemented:** A short aggressive bark expels possession and creates a visible alien transfer.
@@ -105,16 +114,44 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** Occupied architecture and its minimap outline remain static and use discrete integrity stages.
 - **Implemented:** Occupied storefronts lock their entrances and services, reinforce nearby alien buildings, and exclusively generate a map-wide maximum of eight free aliens.
 - **Implemented:** Free aliens flee from approaching Freya to the nearest building.
+- **Implemented:** A free imp may seek a vulnerable real dog and begin a visible,
+  timed transfer. Barking or a nearby guard/assist ally can interrupt it;
+  police armor absorbs one completed attempt and pharmacy immunity excludes
+  the dog. Successful possession does not change the dog's ordinary appearance
+  or army membership. Failed approaches observe a retry cooldown.
+- **Implemented:** Barking can intercept a visible imp, and full-meter vomit
+  spray interrupts imps in its short path.
 - **Implemented:** Visible aliens are slightly smaller grounded voxel imps with articulated gaits, bounded character speed, collision-aware steering, and an exterior-wall possession handoff.
 - **Implemented:** Every alien-controlled building stores and displays its current alien occupant count.
+- **Implemented:** A new alien occupation moves Freya or a dog only if its
+  expanding collision margin would trap that character. Recovery chooses a
+  nearby walkable point and retains character height; save/resume also repairs
+  older positions trapped against an occupied building.
 - **Implemented:** Freya's permanent food bowl inside Ryah Diane's house is reusable and resets Hunger to zero when Freya eats from it.
 - **Implemented:** Freya starts fully hungry after the family prologue; first-person text, exact authored barks, and a pulsing bowl pointer guide her to eat, while the home boundary turns her back with a reminder until the meal is complete.
 - **Implemented:** Gene drops his pill bottles during abduction; after saving Ryah, Freya eats the spill, performs a comic convulsion, discovers her internal monologue, and only then enters the eat-first tutorial.
 - **Implemented:** Freya's first post-meal exit stages three people with initially ordinary leashed city dogs farther down a street-side sidewalk, abducts the people in separate beams, turns those dogs aggressive only when possession energy enters them, then shows the same energy bounce away from Freya. Her exact internal thought identifies the immunity before the leashes clear and dog behavior resumes.
 - **Implemented:** The dog park population is six dogs and the park has a complete two-rail perimeter with a visible open gate, weave poles, a jump hurdle, an A-frame, and a crawl tunnel. Each training obstacle now has contextual `F` interaction points at both ends and its own brief, collision-safe Freya animation: slalom weaving, a parabolic hurdle leap, an A-frame climb, or a lowered tunnel crawl.
+- **Implemented:** The first completion of each park obstacle gives a lasting
+  8% per-dog pack-assist bonus; repeats remain playable without stacking it.
 - **Implemented:** Dog audio is separated into conversational, excited-social, and aggressive recorded-bark pools; friendly call-and-response routes by speaker, aggressive socializing stays in its own pool, and per-category shuffle bags exhaust every clip before reuse without immediate cycle-boundary repeats.
 - **Implemented:** Residential mailboxes use the same hold-`Space` pee claim, owner/reclaim state, world-ring feedback, and Freya/enemy minimap markers as trees, light poles, and fire hydrants.
 - **Implemented:** Freya owns her initial home by default. Eligible clean building interiors can now be claimed through the 10-second hold-`Space` pee action after surrounding objects are marked and the building connects to Freya territory; progress decays when interrupted, and full-map ownership triggers victory.
+- **Implemented:** Pause > Controls offers an optional saved "Press once for long actions (Space/C)" setting. Its default is off. When enabled, one Space press continues a selected scent mark, interior claim, or occupied-wall weakening, and one C press continues socializing with a selected dog. Pressing the same key again, moving, changing action or target, pausing, losing window focus, or reaching a chapter result stops the action; completion stops it automatically. The Space claim meter gives a visible stop cue.
+- **Implemented:** Three pack orders (`1` follow, `2` guard, `3` assist) direct
+  up to three active real dogs, with stuck detours. Additional clean recruits
+  hold individual guard posts and defend nearby dogs and sites. Active allies
+  speed weakening and claims; Social and park drills increase their effect.
+- **Implemented:** The current Northbrook chapter highlights eight connected
+  properties and requires two cleared alien holds, one ally, a lodge rescue,
+  and no active storefront generator. Full-map ownership remains optional.
+  A chapter result panel provides continuation; save/resume preserves progress.
+  A saved, H-dismissible first-chapter guide points from the park dog through
+  an optional first agility drill, the first clean connected claim, alien hold,
+  and lodge rescue. Occupied generators show their 22m influence; Tab goals
+  explain their 10–17-second imp output and shared eight-imp cap. Initial
+  stronghold seeding does not interrupt the eat-first lesson with an alien
+  notice; alien occupations during live play still announce themselves.
 - **Implemented:** Every non-possessed building is enterable. Residences are
   scattered across ranch, two-story, and three-story flavors and expose only a
   furnished bottom floor through hollow shells with transparent windows. Each
@@ -123,30 +160,39 @@ The data model should still distinguish a storefront's base function from its cu
 - **Implemented:** The pharmacy provides medicine that freed dogs consume for
   permanent possession immunity; the grocery provides an infinite reusable
   dog-food bowl; and the police station provides visible doggy armor.
-- **Implemented:** The medical clinic is furnished and enterable, while its
-  gameplay function remains intentionally undefined.
+- **Implemented:** The medical clinic supplies a care kit that immediately
+  frees a repossessed ally or calms a frightened dog when used nearby. It is
+  distinct from pharmacy immunity and one-use police armor.
+- **Implemented:** Carried supplies mark the dog that `F` will affect. Medicine
+  is retained if the nearby dog is already immune; armor is retained for dogs
+  with intact armor or permanent immunity. Chapter 2 favors an unprotected
+  recruited ally, while independent dogs can still be protected and then
+  recruited. At the grocery bowl, `F` feeds Freya before using a carried item;
+  an unused clinic kit requires a taken ally or frightened dog.
+- **Implemented:** Service locations carry `M` medicine, `F` food, `A` armor,
+  and `C` care minimap markers. A static cyan diamond identifies the next
+  highlighted site named in Tab goals, including at the minimap edge when it
+  lies beyond the zoomed view. A static orange `!` identifies the nearest
+  active storefront imp generator, including at the map edge while distant;
+  it clears when that source is no longer occupied. The pause and objectives
+  panels scale for smaller windows.
+- **Implemented:** Public-building fixtures leave Freya-radius aisles from the
+  entrance to each service. A five-seed doorway flood and F-effect regression
+  covers grocery food, pharmacy medicine, police armor, and clinic care.
 - **Implemented:** Any occupied building locks its full footprint and service;
   only retail buildings marked `generates_free_aliens` produce free aliens.
 
-### Placement-Ready, Not Yet on the Map
+### Live Northbrook Dog Lodge
 
-- **Prepared, not live:** The Northbrook Dog Lodge archetype has a complete
-  clean exterior/interior, six caged shared-rig dogs, transparent glazing,
-  entry and collision metadata, and deterministic references.
-- **Prepared, not live:** All six caged dogs begin secretly possessed and expose
-  the same de-possession outcome as other dogs; cage release remains future.
-- **Prepared, not live:** Its first clean entry emits Freya's exact one-time
-  thought, `I'll find a way to free you!`
-- **Prepared, not live:** Possession locks entry and requests one possessed dog
-  every eight seconds, with a hard lifetime maximum of six successfully
-  accepted spawns and explicit confirmation/retry hooks for safe NPC placement.
-  Cleansing the building permanently forfeits all unspawned dogs for that
-  level, so early cleansing produces a correspondingly smaller dog population.
-- **Prepared, not live:** Caged and spawned kennel dogs use the canonical shared
-  voxel rig and hidden possession state; spawned dogs join the normal dog
-  lifecycle and can be de-possessed normally.
-- Map placement, minimap registration, occupation routing, and the mechanics
-  that eventually fulfill Freya's rescue promise remain future integration.
+- **Implemented:** The lodge has a guaranteed lot and minimap marker. It starts
+  occupied, locks entry until cleansed, and offers six caged shared-rig dogs.
+- **Implemented:** While occupied it requests one possessed dog every eight
+  seconds with a lifetime cap of six accepted spawns. Cleansing forfeits
+  unspawned releases; all dogs still in cages can be cleansed and freed, so
+  an early attack cannot block the chapter rescue.
+- **Implemented:** Freya can bark at captives, then press `F` to open safe
+  cages. Released dogs enter the ordinary real-dog and recruitment loop. The
+  one-time clean-entry promise remains `I'll find a way to free you!`
 
 ### Pass 1 Implemented
 
@@ -163,14 +209,30 @@ The data model should still distinguish a storefront's base function from its cu
 
 1. **Implemented — Find possessed dogs.** Freya uses automatic unease while every dog continues to look ordinary.
 2. **Implemented — Cleanse them.** Aggressive bark performs the exorcism test; a fleeing real dog communicates an incorrect guess.
-3. **Implemented foundation — Respond to building occupation.** Expelled aliens claim nearby buildings, and occupied storefronts lose their services. Broader route/control consequences remain future work.
+3. **Implemented — Respond to building occupation.** Expelled aliens claim
+   nearby buildings; occupied storefronts lose services and reinforce nearby
+   holds. Bark or guarding allies can intercept visible imps. The nearby
+   occupation instruction stays visible long enough to read at small windows
+   and yields to a more urgent threat warning.
 4. **Implemented — Contain alien generation.** Occupied storefronts generate additional free aliens under a map-wide cap.
-5. **Partial — Deploy the dog army.** Socialized real dogs can join Freya's army; army combat and building-assault support are future work.
-6. **Future — Resist re-possession.** Aliens will attempt to possess real dogs, including insufficiently protected army members.
-7. **Implemented foundation — Claim and weaken through scent marking.** Freya claims trees, poles, hydrants, and mailboxes, and directly weakens occupied buildings. Strategic territory influence remains future work.
-8. **Future — Protect Freya's friends.** Add one or more actions that reduce an allied dog's susceptibility to re-possession.
-9. **Future — Collect resources and fortify buildings.** Reclaimed buildings will consume resources, join Freya's network, and grant bonuses.
-10. **Future — Liberate the entire map.** Define full control, a functioning fortified network, and removal of the alien menace as the level goal.
+5. **Implemented — Deploy the dog army.** Recruited dogs follow, guard, or assist; nearby assistants speed wall weakening and claims and can contain imps. Guard near an independent clean dog to follow and protect that dog, or guard a location when no such dog is nearby. Assist selects the nearby chapter site or alien hold first and names the selected building in its feedback.
+6. **Implemented — Resist re-possession.** Free imps attempt a timed transfer to vulnerable real dogs. Bark, pack defense, immunity, armor, and a clinic recovery kit offer different responses.
+7. **Implemented — Claim and weaken through scent marking.** Freya marks
+   objects and directly weakens occupied buildings; pack assistance improves
+   both. Each nearby claimed building adds a visible 14% wall-weakening bonus,
+   capped at 42%. A broader defensive scent network remains future work.
+8. **Implemented — Protect Freya's friends.** Pharmacy medicine grants permanent immunity, police armor absorbs one attempt, and clinic care recovers a taken ally.
+9. **Future — Fortify buildings.** Resource costs and multiple fortification levels are still proposals; current services and territory have tactical value without them.
+10. **Implemented — Secure Northbrook and finish the story.** The eight-site
+    rescue chapter leads to a five-site ally-protection chapter, a four-site
+    pack-assisted final hold, and a Gene/Zoe/Ryah ending with credits. If the
+    player owns every eligible site before chapter 3, a marked clean final
+    signal still requires a deliberate ally guard instead of silently awarding
+    the finale. The guard success plays the recorded objective cue unless the
+    chapter-result cue confirms the same final action. A last building claim
+    that completes a chapter, all-map victory, or both plays that recorded
+    reward cue once. Owning every building remains an optional victory. First-run
+    pacing and the full story route still need human playtesting.
 11. **Future — Advance beyond the neighborhood.** Treat the current map as Level 1 and vary later layouts, resources, pressure, and bonuses while preserving the core loop.
 
 ## Recommended System Model
@@ -183,10 +245,9 @@ are proposed conceptual fields. Each field is labeled by implementation status.
 - **Current:** `alien_possessed`: whether a real dog is currently possessed.
 - **Current:** `army_aligned`: whether the dog has joined Freya's army.
 - **Current:** `flee_timer`: temporary response after a wrong exorcism guess.
-- **Future:** `repossess_resistance`: protection gained from Freya's support actions.
 - **Current:** `socialization_progress`: post-cleanse recruitment progress, paused by full Hunger. Unrecruited possessed dogs cannot bank progress; cleansing starts recruitment at zero without changing existing army membership.
 - **Current:** `possession_immune`: permanent protection granted by pharmacy medicine after cleansing.
-- **Current:** `has_dog_armor`: whether the dog wears the police-station armor visual.
+- **Current:** `has_dog_armor`: one available police-station armor defense and its visible vest; an absorbed attempt removes it.
 
 Possession and army alignment must remain orthogonal. This avoids recreating angel/devil categories under different names.
 
@@ -198,19 +259,23 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 - **Current:** `alien_occupied`: whether the building is alien controlled.
 - **Current:** `alien_integrity`: persistent weakening from direct pee damage.
 - **Current:** `alien_occupant_count`: aliens currently held by that building.
-- **Current derived behavior:** nearby occupied storefronts contribute the provisional reinforcement effect; there is no persistent `reinforcement_strength` field.
+- **Current derived behavior:** nearby occupied storefronts update the cached
+  `alien_reinforcement_sources` and `alien_reinforcement_strength` fields.
 - **Future proposed field:** `fortification_level`: resource investment after Freya reclaims a building.
 - **Current derived behavior:** occupied-building services are disabled; the
   clean building's base service remains available for future restoration.
-- **Current:** pharmacy immunity, grocery food, and police armor are distinct
-  building benefits; clinic behavior is intentionally unassigned.
+- **Current:** pharmacy immunity, grocery food, police armor, and clinic care
+  are distinct building benefits.
 
 ### Level State
 
-- **Future:** ownership percentage and liberation requirements;
+- **Current:** owned-building count, eight highlighted Northbrook properties,
+  chapter rescue/stronghold requirements, and optional all-building victory;
 - **Current:** active and available alien population;
-- **Partial:** army roster exists; protection levels are future work;
-- **Current foundation:** claimed scent targets exist; strategic network effects are future work;
+- **Current:** army roster, three orders, immunity, one-use armor, and clinic
+  recovery;
+- **Current foundation:** claimed scent targets exist, and nearby claimed
+  buildings strengthen Freya's weakening of an occupied wall;
 - **Future:** resource inventory and fortified-building network;
 - **Future:** transition from the current neighborhood into later levels.
 
@@ -222,7 +287,9 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 4. **Implemented:** Alien buildings remain static and use fixed details/discrete integrity states rather than pulsing.
 5. **Partial:** Occupied storefronts have a static blocked entrance and disabled services. A distinct secondary reinforcement trim remains future polish.
 6. **Implemented:** Socialization visibly changes Hunger/Social progress, stops at full Hunger, and presents the blocked reason without permanent state changes.
-7. **Future polish:** Add a brief claimed-territory influence cue when the strategic scent-network effect is implemented; do not add permanent pulsing.
+7. **Implemented foundation:** Occupied walls show a static `FREYA SCENT +%`
+   label when nearby claimed buildings strengthen wall weakening. A brief
+   action cue remains optional polish; do not add permanent pulsing.
 
 ## Implementation Roadmap
 
@@ -236,44 +303,67 @@ Possession and army alignment must remain orthogonal. This avoids recreating ang
 - Lock alien storefront entry, focus, food, and services.
 - Add a provisional nearby-building reinforcement field from occupied storefronts.
 
-### Pass 2 — Free Aliens Implemented; Re-possession and Protection Remain
+### Pass 2 — Free Aliens, Re-possession, and Protection Implemented
 
 - **Implemented:** Occupied storefronts exclusively generate free-roaming aliens, capped at eight map-wide.
 - **Implemented:** Approaching Freya makes a free alien flee to the nearest building, where it increments the occupant count.
 - **Implemented:** Alien roaming, fleeing, and expelled-alien travel use grounded character collision; possession begins only from a reachable exterior wall point, and Ryah's home is forbidden navigation space.
-- Let aliens attempt possession against real dogs.
-- Add resistance and Freya support actions for army dogs.
-- Define success, failure, cooldown, and readable feedback for possession attempts.
+- **Implemented:** Free imps seek vulnerable real dogs, keep the contact warning
+  visible through the 4.5-second bark-or-guard window, and possess on success
+  without changing dog cosmetics. The scripted chapter-2 ambush keeps its
+  bark-or-guard warning visible when the chapter starts. Resuming a save made
+  during contact restarts that attempt's warning and full response window.
+- **Implemented:** Bark and assigned pack defense interrupt; armor absorbs one
+  attempt, immunity blocks targeting, and a failed approach has a cooldown.
 
 ### Pass 3 — Reclamation, Resources, and Fortification
 
-- Add the final reclaim action after alien integrity is weakened.
+- **Implemented foundation:** Pee weakening already clears occupation, after which a clean, eligible interior can be claimed. Decide through playtests whether any additional reclaim action would create a useful choice.
 - Add resource collection and costs.
-- Give reclaimed building types distinct bonuses.
-- Connect claimed scent territory to alien weakening and defensive coverage.
+- **Implemented foundation:** Grocery, pharmacy, police, clinic, and lodge each
+  change a usable action. Further claimed-site bonuses remain future work.
+- **Implemented foundation:** Claimed neighboring buildings now help Freya
+  weaken an occupied wall. Broader defensive coverage remains future work.
 
 ### Pass 4 — Army Combat and Alien Escalation
 
-- Give army dogs roles in intercepting aliens and assaulting strongholds.
-- Add controlled alien generation and reinforcement behavior.
+- **Implemented foundation:** Follow, guard, and assist orders let dogs contain
+  imps or shorten wall/claim actions; more varied army tactics remain future.
+- **Implemented:** Occupied storefronts generate capped free imps and
+  reinforce nearby occupied buildings.
 - Balance storefront influence, building strength, and army effectiveness.
 
 ### Pass 5 — Level Victory and Campaign Structure
 
-- Define complete-map ownership and alien-removal victory conditions.
-- Persist army, resources, or upgrades according to the campaign design.
-- Treat the current neighborhood as Level 1 and author later levels around variations of the same strategic loop.
+- **Implemented:** Three connected highlighted routes on the Northbrook map
+  vary rescue, ally protection, and pack-assistance requirements. Chapter
+  results lead to the family ending and credits; complete-map ownership is
+  optional.
+- **Implemented:** A versioned save stores world seed, buildings, dogs, pack,
+  supplies, meters, kennel, and chapter state with startup resume.
+- **Implemented for fresh games:** A static Freya-radius route certificate
+  checks the home doorway, occupied wall approaches, nearby scent marks,
+  cleared entrances, and lodge cages before play. A rejected fresh layout
+  retries once on a known passing seed. Resume preserves its saved seed and
+  IDs; an ID-preserving repair for a genuinely failing legacy layout remains
+  future work.
+- **Future:** Distinct later maps or levels may vary layouts and resources;
+  the current campaign uses the existing neighborhood for all three chapters.
 
 ## Validation Requirements
 
 ### Implemented Invariants
 
-Existing checks for all-dog initial possession, appearance independence, Freya's unease, exorcism transfer, Ryah-home exclusion, alien-building visuals, and pee weakening should remain.
+Existing checks for roaming-dog initial possession, the staged first-exit
+exception, appearance independence, Freya's unease, exorcism transfer,
+Ryah-home exclusion, alien-building visuals, and pee weakening should remain.
 
 The current automated guardrail suite should continue to prove:
 
 - no angel/devil/hostile dog relation state or wing visuals remain;
-- every NPC dog records possessed as its origin state without a possession-only cosmetic marker;
+- roaming NPC dogs record possessed as their origin state without a
+  possession-only cosmetic marker; the staged first-exit leashed dogs begin
+  ordinary until the visible reveal;
 - the first-exit cinematic visibly possesses the staged dogs, rejects the same effect from Freya, and presents her exact immunity thought before control resumes;
 - barking at a possessed dog cleanses it without creating an enemy state;
 - barking at a real dog starts a flee response without altering possession or army alignment;
@@ -301,7 +391,5 @@ PNG listed in the [capture catalog](visual_regressions/README.md).
 Add checks alongside—not ahead of—the corresponding implementation for:
 
 - reclaiming a storefront and restoring its entry and services;
-- alien attempts to re-possess real and army dogs;
-- resistance and Freya support actions for army dogs;
 - fortification resources and building bonuses;
-- level ownership, liberation requirements, and victory state.
+- distinct later-map transitions, if later maps are added.

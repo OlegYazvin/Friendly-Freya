@@ -4,7 +4,8 @@ Friendly Freya is a Godot 4 neighborhood game about a wonderful three-legged
 Portuguese Water Dog protecting Ryah Diane from a covert alien invasion. The
 current project includes the startup menu with audio settings, two-part intro,
 procedural neighborhood, dog socialization and possession systems, scent and
-building claims, occupied buildings, and deterministic visual regression views.
+building claims, a three-chapter rescue campaign with an ending, save/resume,
+recorded action sounds, and deterministic visual regression views.
 
 ## Start Here
 
@@ -26,15 +27,17 @@ building claims, occupied buildings, and deterministic visual regression views.
 | [Codebase map](docs/CODEBASE_MAP.md) | Runtime flow, file ownership, subsystem entry points, and test environment variables | Current architecture |
 | [Godot overview](godot/README_GODOT.md) | Controls and implemented gameplay at a glance | Current product reference |
 | [Gameplay audit and direction](GAMEPLAY_AUDIT.md) | Canonical gameplay rules, implementation status, and explicitly future work | Living design document |
+| [Game completion plan](docs/GAME_COMPLETION_PLAN.md) | Release scope, three implemented chapters, remaining production gates, and playtest criteria | Plan in progress |
+| [Playtest note guide](docs/PLAYTEST_RUN_SHEET.md) | Optional observer notes and minimum-Windows-machine release checks | Ready for informal feedback |
 | [Intro cut-scene guide](INTRO_CUTSCENE.md) | Exact UFO/family timelines, edit surfaces, handoff rules, and intro checks | Current subsystem reference |
-| [Dog kennel concept](KENNEL_CONCEPT.md) | Placement-ready but unplaced kennel visuals, entry promise, collision contract, and finite possessed-dog spawning | Prepared future archetype |
+| [Dog kennel concept](KENNEL_CONCEPT.md) | Live lodge placement, rescue contract, entry promise, and finite possessed-dog spawning | Current subsystem reference |
 | [Building program](BUILDING_PROGRAM.md) | Enterable residences, pharmacy/grocery/police/clinic roles, occupation locks, and service rules | Current subsystem reference |
 | [Dog breed definitions](godot/BREEDS.md) | Breed schema, shared-rig policy, and army-collar rules | Current subsystem reference |
 | [Visual implementation record](VISUAL_RECOMMENDATIONS.md) | Completed visual audit recommendations and their validation expectations | Completed implementation record |
 | [De-jankification implementation](docs/DEJANKIFICATION.md) | Eleven gameplay/presentation fixes, rendered/input evidence, regression coverage, performance, and limits | Current implementation record |
 | [Visual regression catalog](visual_regressions/README.md) | What each deterministic PNG documents and how to regenerate it | Current capture reference |
 | [Model inventory and policy](godot/assets/models/README_MODELS.md) | Active/inactive model status, shared-dog rules, and provenance gaps | Current asset/release record |
-| [Audio attribution](godot/assets/audio/ATTRIBUTION.md) | Audio provenance, licenses, derived files, and exact intro mappings | Current legal/source record |
+| [Audio attribution](godot/assets/audio/ATTRIBUTION.md) | Audio provenance, licenses, derived files, and exact story and gameplay cue mappings | Current legal/source record |
 | [Original visual change request](New%20changes.md) | The historical request that led to the home/storefront/suburban visual pass | Historical record |
 | [Windows artifacts](Logs%20and%20Monitoring/README.md) | Why packaged copies exist and why they are not source documentation | Artifact note |
 
@@ -92,9 +95,13 @@ Logs and Monitoring/    Packaged Windows snapshots; not authoritative source
 ## Release Readiness
 
 The repository contains a versioned Windows export preset, a local packaging
-script, and a tag-driven GitHub Actions workflow. Release jobs verify the Godot
-editor and export-template downloads, run all project checks, build the ZIP,
-and start the exported package on a Windows runner before publishing it.
+script, and a GitHub Actions workflow. Tag pushes and ordinary manual runs
+verify the Godot downloads, run all project checks, build the ZIP, and test the
+exported package on Windows without publishing it. After the HP, accessibility,
+and player gates pass, a manual run on the version tag with `publish_release`
+enabled repeats those checks before publishing the ZIP and checksum. The
+Windows checks include Watch Intro, credits, Keep Exploring, and an uploaded
+campaign log.
 
 The active dog model is documented CC0 material. Inactive reference models with
 unresolved provenance are explicitly excluded from release exports. See the

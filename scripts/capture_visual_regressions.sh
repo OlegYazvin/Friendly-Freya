@@ -28,6 +28,7 @@ for spec in \
 	FREYA_VISUAL_VIEW:building_clinic_inside \
 	FREYA_VISUAL_VIEW:home_outside \
 	FREYA_VISUAL_VIEW:home_inside \
+	FREYA_VISUAL_VIEW:kennel_live \
 	FREYA_VISUAL_VIEW:post_intro_food_tutorial \
 	FREYA_VISUAL_VIEW:first_exit_leashed \
 	FREYA_VISUAL_VIEW:first_exit_abduction \
@@ -36,14 +37,33 @@ for spec in \
 	FREYA_VISUAL_VIEW:first_exit_freya_immunity \
 	FREYA_VISUAL_VIEW:first_exit_immunity_thought \
 	FREYA_VISUAL_VIEW:dog_park_friendly \
+	FREYA_VISUAL_VIEW:pack_squad \
+	FREYA_VISUAL_VIEW:pack_assist_context \
+	FREYA_VISUAL_VIEW:pack_guard_dog \
+	FREYA_VISUAL_VIEW:supply_target \
+	FREYA_VISUAL_VIEW:supply_target_960 \
 	FREYA_VISUAL_VIEW:dog_park_training_weave \
 	FREYA_VISUAL_VIEW:dog_park_training_hurdle \
 	FREYA_VISUAL_VIEW:dog_park_training_aframe \
 	FREYA_VISUAL_VIEW:dog_park_training_tunnel \
 	FREYA_VISUAL_VIEW:army_collars \
 	FREYA_VISUAL_VIEW:pause_menu \
+	FREYA_VISUAL_VIEW:pause_restart \
+	FREYA_VISUAL_VIEW:pause_controls \
+	FREYA_VISUAL_VIEW:pause_howto \
+	FREYA_VISUAL_VIEW:chapter_guide \
+	FREYA_VISUAL_VIEW:chapter_guide_2 \
+	FREYA_VISUAL_VIEW:chapter_guide_3 \
+	FREYA_VISUAL_VIEW:chapter_goals \
+	FREYA_VISUAL_VIEW:chapter_goals_status \
+	FREYA_VISUAL_VIEW:chapter_relay \
+	FREYA_VISUAL_VIEW:chapter_relay_goals \
+	FREYA_VISUAL_VIEW:chapter_final_recovery \
+	FREYA_VISUAL_VIEW:chapter_result \
+	FREYA_VISUAL_VIEW:chapter_result_final \
 	FREYA_ALIEN_VIEW:alien_model:model \
 	FREYA_ALIEN_VIEW:alien_occupied:occupied \
+	FREYA_ALIEN_VIEW:alien_occupied_scent:occupied_scent \
 	FREYA_ALIEN_VIEW:alien_store_stronghold:stronghold \
 	FREYA_ALIEN_VIEW:ryah_defense:ryah_defense \
 	FREYA_KENNEL_VIEW:kennel_clean:clean \
@@ -82,6 +102,11 @@ do
 		echo "Could not find the Friendly Freya window for $output_name." >&2
 		cat "$log_file" >&2
 		exit 1
+	fi
+	if [ -n "${FREYA_CAPTURE_WINDOW_POSITION:-}" ]; then
+		# Move the game before capture if a host desktop overlay contaminates
+		# the X11 screenshot at the default window position.
+		host-spawn wmctrl -ir "$window_id" -e "0,${FREYA_CAPTURE_WINDOW_POSITION},-1,-1"
 	fi
 	for attempt in $(seq 1 480); do
 		if [ -f "$ready_file" ]; then break; fi

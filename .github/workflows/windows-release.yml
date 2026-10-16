@@ -4,7 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  # Review runs and tag pushes validate without publishing. Publish only by
+  # manually dispatching this workflow on a version tag after release signoff.
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish the selected version tag after HP and player signoff"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -17,7 +25,6 @@ env:
   GODOT_VERSION: "4.7.2"
   GODOT_EDITOR_SHA256: "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4"
   GODOT_TEMPLATES_SHA256: "f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011"
-  RELEASE_TAG: "v0.1.2"
 
 jobs:
   build:
@@ -32,15 +39,39 @@ jobs:
       - name: Resolve artifact label
         id: release-label
         shell: bash
+        env:
+          PUBLISH_RELEASE: ${{ inputs.publish_release }}
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             label="$GITHUB_REF_NAME"
-            if [[ "$label" != "$RELEASE_TAG" ]]; then
-              echo "Tag $label does not match configured release $RELEASE_TAG." >&2
+            if [[ ! "$label" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Release tag must have the form vMAJOR.MINOR.PATCH: $label" >&2
               exit 1
             fi
-          else
+            version="${label#v}"
+            if ! grep -Fqx "application/file_version=\"${version}.0\"" godot/export_presets.cfg || \
+               ! grep -Fqx "application/product_version=\"${version}.0\"" godot/export_presets.cfg; then
+              echo "Windows executable version must match release tag $label." >&2
+              exit 1
+            fi
+            if [[ "$(head -n 1 packaging/windows/RELEASE_NOTES.md)" != "# Friendly Freya $label" ]]; then
+              echo "Release notes heading must match release tag $label." >&2
+              exit 1
+            fi
+            expected_install_line="$(printf '1. Download \140Friendly-Freya-%s-Windows-x86_64.zip\140.' "$label")"
+            if ! grep -Fqx "$expected_install_line" packaging/windows/RELEASE_NOTES.md; then
+              echo "Release notes install ZIP must match release tag $label." >&2
+              exit 1
+            fi
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+              echo "Publishing requires manually running this workflow on a version tag." >&2
+              exit 1
+            fi
             label="manual-$GITHUB_RUN_NUMBER"
+          else
+            echo "Unsupported workflow ref: $GITHUB_REF" >&2
+            exit 1
           fi
           case "$label" in
             *[!A-Za-z0-9._-]*|'')
@@ -175,16 +206,136 @@ jobs:
             Pop-Location
           }
 
-  release:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+      - name: Verify packaged performance runner and exported stress entry
+        shell: pwsh
+        run: |
+          $runner = Get-Item 'smoke/FriendlyFreya/RunPerformanceQA.ps1'
+          $cmd = Get-Item 'smoke/FriendlyFreya/RunPerformanceQA.cmd'
+          if ($runner.Length -le 0 -or $cmd.Length -le 0) { throw 'Packaged performance runner is empty.' }
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($runner.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { throw "Performance runner PowerShell parse errors: $parseErrors" }
+
+          $exe = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.exe'
+          Push-Location $exe.Directory.FullName
+          try {
+            $env:FREYA_EXPORTED_PERF_STRESS = '1'
+            $env:FREYA_WORLD_SEED = '20260831'
+            $env:FREYA_PERF_STRESS_WARMUP_SECONDS = '0'
+            $env:FREYA_PERF_STRESS_SAMPLE_SECONDS = '6'
+            $process = Start-Process -FilePath $exe.FullName -ArgumentList @('--headless', '--log-file', 'performance-entry-smoke.log') -Wait -PassThru
+            if (Test-Path performance-entry-smoke.log) { Get-Content performance-entry-smoke.log -Tail 60 }
+            if ($process.ExitCode -ne 0) { throw "Exported performance route exited with code $($process.ExitCode)." }
+            if (-not (Select-String -Path performance-entry-smoke.log -Pattern 'PERF_STRESS_RESULT' -Quiet)) {
+              throw 'Exported performance route did not report PERF_STRESS_RESULT.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Verify exported Watch Intro opening route
+        shell: pwsh
+        run: |
+          $exe = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.exe'
+          $logPath = Join-Path $exe.Directory.FullName 'watch-intro-smoke.log'
+          Push-Location $exe.Directory.FullName
+          try {
+            $env:FREYA_EXPORTED_WATCH_INTRO_QA = '1'
+            $env:FREYA_WORLD_SEED = '20260831'
+            $process = Start-Process -FilePath $exe.FullName -ArgumentList @('--headless', '--resolution', '960x540', '--log-file', 'watch-intro-smoke.log') -Wait -PassThru
+            if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 80 }
+            if ($process.ExitCode -ne 0) { throw "Exported Watch Intro route exited with code $($process.ExitCode)." }
+            if (-not (Test-Path -LiteralPath $logPath)) { throw 'Exported Watch Intro log is missing.' }
+            foreach ($marker in @('WATCH_INTRO_UFO_HOLD_OK', 'WATCH_INTRO_FAMILY_HOLD_OK', 'WATCH_INTRO_MEAL_OK', 'WATCH_INTRO_FIRST_EXIT_OK', 'WATCH_INTRO_ROUTE_OK')) {
+              if (-not (Select-String -Path $logPath -Pattern $marker -SimpleMatch -Quiet)) {
+                throw "Exported Watch Intro log did not contain $marker."
+              }
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+  windows-campaign-qa:
+    name: Exported Windows start-to-credits route
     needs:
       - build
       - windows-smoke
+    runs-on: windows-latest
+    timeout-minutes: 100
+    steps:
+      - name: Download Windows package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: friendly-freya-windows
+          path: dist
+
+      - name: Run exported package through credits and Keep Exploring
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem -Path dist -Filter '*.zip' | Select-Object -First 1
+          $checksum = Get-ChildItem -Path dist -Filter '*.zip.sha256' | Select-Object -First 1
+          if ($null -eq $archive -or $null -eq $checksum) { throw 'Windows package or checksum is missing.' }
+          $expectedHash = ((Get-Content -LiteralPath $checksum.FullName -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          $actualHash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) { throw 'Windows ZIP SHA-256 verification failed.' }
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath smoke
+          $exe = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.exe'
+          $pck = Get-Item 'smoke/FriendlyFreya/FriendlyFreya.pck'
+          if ($exe.Length -le 0 -or $pck.Length -le 0) { throw 'Exported EXE or PCK is empty.' }
+
+          $logPath = Join-Path $exe.Directory.FullName 'windows-campaign.log'
+          Push-Location $exe.Directory.FullName
+          try {
+            $env:FREYA_EXPORTED_CAMPAIGN_QA = '1'
+            $env:FREYA_NATURAL_CAMPAIGN = '1'
+            $env:FREYA_WORLD_SEED = '20260831'
+            $process = Start-Process -FilePath $exe.FullName -ArgumentList @('--headless', '--resolution', '960x540', '--log-file', 'windows-campaign.log') -Wait -PassThru
+            if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 200 }
+            if ($process.ExitCode -ne 0) { throw "FriendlyFreya.exe campaign route exited with code $($process.ExitCode)." }
+            if (-not (Test-Path -LiteralPath $logPath)) { throw 'Windows campaign log is missing.' }
+            foreach ($marker in @('NATURAL_ROUTE_CREDITS_OK', 'NATURAL_ROUTE_KEEP_EXPLORING_OK', 'NATURAL_ROUTE_CAMPAIGN_OK')) {
+              if (-not (Select-String -Path $logPath -Pattern $marker -SimpleMatch -Quiet)) {
+                throw "Windows campaign log did not contain $marker."
+              }
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Upload Windows campaign log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: friendly-freya-windows-campaign-log
+          path: smoke/FriendlyFreya/windows-campaign.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && inputs.publish_release == true
+    needs:
+      - build
+      - windows-smoke
+      - windows-campaign-qa
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      RELEASE_LABEL: ${{ needs.build.outputs.release-label }}
     steps:
+      - name: Confirm manual version-tag publication
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" || "$RELEASE_LABEL" != "$GITHUB_REF_NAME" ]]; then
+            echo "A public release requires manual dispatch on its matching version tag." >&2
+            exit 1
+          fi
+
       - name: Check out release notes
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

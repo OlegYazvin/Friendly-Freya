@@ -7,7 +7,9 @@ var alleys: Array[Rect2] = []
 var sidewalks: Array[Rect2] = []
 var buildings: Array[Rect2] = []
 var store_buildings: Array[Rect2] = []
+var service_buildings: Array[Dictionary] = []
 var home_building = Rect2()
+var kennel_building = Rect2()
 var store_entries = PackedVector2Array()
 var store_entry_dirs = PackedVector2Array()
 var dog_park = Rect2()
@@ -26,6 +28,9 @@ var claimed_hydrants_enemy = PackedVector2Array()
 var claimed_mailboxes_enemy = PackedVector2Array()
 var alien_buildings: Array[Rect2] = []
 var alien_building_integrities = PackedFloat32Array()
+var chapter_target_buildings: Array[Rect2] = []
+var next_chapter_target_building = Rect2()
+var active_generator_building = Rect2()
 var camera_forward = Vector2(1.0, -1.0)
 var freya_forward = Vector2(0.0, -1.0)
 var zoom_level = 2.6
@@ -65,7 +70,10 @@ func update_dynamic(
 	hydrants_enemy: PackedVector2Array = PackedVector2Array(),
 	mailboxes_enemy: PackedVector2Array = PackedVector2Array(),
 	alien_rects: Array[Rect2] = [],
-	alien_integrities: PackedFloat32Array = PackedFloat32Array()
+	alien_integrities: PackedFloat32Array = PackedFloat32Array(),
+	chapter_rects: Array[Rect2] = [],
+	next_chapter_rect: Rect2 = Rect2(),
+	generator_rect: Rect2 = Rect2()
 ) -> void:
 	freya_position = freya_pos
 	dog_positions = dogs
@@ -81,6 +89,9 @@ func update_dynamic(
 	claimed_mailboxes_enemy = mailboxes_enemy
 	alien_buildings = alien_rects
 	alien_building_integrities = alien_integrities
+	chapter_target_buildings = chapter_rects
+	next_chapter_target_building = next_chapter_rect
+	active_generator_building = generator_rect
 	if forward.length_squared() > 0.000001:
 		# Smooth heading changes to reduce minimap rotation jitter.
 		camera_forward = camera_forward.lerp(forward.normalized(), 0.46).normalized()
@@ -196,6 +207,120 @@ func _draw_home_marker(center: Vector2, pulse: float) -> void:
 	draw_rect(Rect2(center + Vector2(-1.2, 3.0), Vector2(2.4, 4.0)), Color(0.45, 0.27, 0.13, 1.0), true)
 	draw_rect(Rect2(center + Vector2(2.3, 1.8), Vector2(1.7, 1.5)), Color(0.4, 0.78, 0.92, 1.0), true)
 
+func _draw_service_marker(service: Dictionary, world_origin: Vector2, scale_vec: Vector2, angle: float, draw_rect: Rect2) -> void:
+	var footprint: Rect2 = service.get("footprint", Rect2())
+	if footprint.size.x <= 0.0 or footprint.size.y <= 0.0:
+		return
+	var kind = str(service.get("kind", ""))
+	var letter = ""
+	var color = Color.WHITE
+	match kind:
+		"pharmacy":
+			letter = "M" # Medicine
+			color = Color(0.15, 0.85, 0.55)
+		"grocery":
+			letter = "F" # Food
+			color = Color(1.0, 0.78, 0.22)
+		"police":
+			letter = "A" # Armor
+			color = Color(0.35, 0.7, 1.0)
+		"clinic":
+			letter = "C" # Care
+			color = Color(1.0, 0.43, 0.5)
+		_:
+			return
+	var center = _to_map_pos(footprint.get_center(), world_origin, scale_vec, angle, draw_rect)
+	draw_circle(center, 8.0, Color(0.015, 0.025, 0.035, 0.98))
+	draw_arc(center, 7.2, 0.0, TAU, 20, color, 2.2, true)
+	var font = get_theme_default_font()
+	if font != null:
+		draw_string(font, center + Vector2(-5.0, 4.5), letter, HORIZONTAL_ALIGNMENT_CENTER, 10.0, 12, Color.WHITE)
+
+func _draw_next_chapter_target(world_origin: Vector2, scale_vec: Vector2, angle: float, draw_rect: Rect2) -> void:
+	if next_chapter_target_building.size.x <= 0.0 or next_chapter_target_building.size.y <= 0.0:
+		return
+	var projected = _to_map_pos(next_chapter_target_building.get_center(), world_origin, scale_vec, angle, draw_rect)
+	var service_target = next_chapter_target_building == active_generator_building
+	for service in service_buildings:
+		if service.get("footprint", Rect2()) == next_chapter_target_building:
+			service_target = true
+			break
+	var center = _next_target_badge_position(projected, draw_rect, service_target)
+	if service_target and draw_rect.has_point(projected) and center.distance_to(projected) > 21.0:
+		# A short leader keeps the service letter and the selected-site badge distinct.
+		var direction = (center - projected).normalized()
+		var line_start = projected + direction * 9.0
+		var line_end = center - direction * 13.0
+		draw_line(line_start, line_end, Color(0.0, 0.025, 0.045, 0.98), 4.0, true)
+		draw_line(line_start, line_end, Color(0.12, 0.76, 1.0, 1.0), 1.5, true)
+	var dark = PackedVector2Array([
+		center + Vector2(0.0, -13.0),
+		center + Vector2(13.0, 0.0),
+		center + Vector2(0.0, 13.0),
+		center + Vector2(-13.0, 0.0)
+	])
+	var cyan = PackedVector2Array([
+		center + Vector2(0.0, -9.5),
+		center + Vector2(9.5, 0.0),
+		center + Vector2(0.0, 9.5),
+		center + Vector2(-9.5, 0.0)
+	])
+	draw_colored_polygon(dark, Color(0.0, 0.025, 0.045, 0.98))
+	draw_colored_polygon(cyan, Color(0.12, 0.76, 1.0, 1.0))
+	draw_circle(center, 2.5, Color(0.0, 0.055, 0.09, 0.98))
+
+func _draw_active_generator(world_origin: Vector2, scale_vec: Vector2, angle: float, draw_rect: Rect2) -> void:
+	if active_generator_building.size.x <= 0.0 or active_generator_building.size.y <= 0.0:
+		return
+	var projected = _to_map_pos(active_generator_building.get_center(), world_origin, scale_vec, angle, draw_rect)
+	var marker_area = draw_rect.grow(-13.0)
+	var center = Vector2(
+		clampf(projected.x, marker_area.position.x, marker_area.end.x),
+		clampf(projected.y, marker_area.position.y, marker_area.end.y)
+	)
+	if next_chapter_target_building.size.x > 0.0 and next_chapter_target_building.size.y > 0.0:
+		var next_projected = _to_map_pos(next_chapter_target_building.get_center(), world_origin, scale_vec, angle, draw_rect)
+		var next_center_marked = next_chapter_target_building == active_generator_building
+		for service in service_buildings:
+			if service.get("footprint", Rect2()) == next_chapter_target_building:
+				next_center_marked = true
+				break
+		var next_badge = _next_target_badge_position(next_projected, draw_rect, next_center_marked)
+		if center.distance_to(next_badge) < 27.0:
+			for offset in [Vector2(0.0, 30.0), Vector2(0.0, -30.0), Vector2(30.0, 0.0), Vector2(-30.0, 0.0)]:
+				var candidate = center + offset
+				if marker_area.has_point(candidate) and candidate.distance_to(next_badge) >= 27.0:
+					center = candidate
+					break
+	# The source badge replaces an occupied storefront's unusable service letter.
+	# Its shape and exclamation remain legible without color or animation.
+	var outer = PackedVector2Array([
+		center + Vector2(0.0, -11.5), center + Vector2(11.5, 0.0),
+		center + Vector2(0.0, 11.5), center + Vector2(-11.5, 0.0)
+	])
+	var inner = PackedVector2Array([
+		center + Vector2(0.0, -8.5), center + Vector2(8.5, 0.0),
+		center + Vector2(0.0, 8.5), center + Vector2(-8.5, 0.0)
+	])
+	draw_colored_polygon(outer, Color(0.03, 0.02, 0.02, 1.0))
+	draw_colored_polygon(inner, Color(1.0, 0.35, 0.12, 1.0))
+	draw_line(center + Vector2(0.0, -5.0), center + Vector2(0.0, 1.0), Color.WHITE, 2.5, true)
+	draw_circle(center + Vector2(0.0, 4.0), 1.4, Color.WHITE)
+
+func _next_target_badge_position(projected: Vector2, draw_rect: Rect2, service_target: bool) -> Vector2:
+	var marker_area = draw_rect.grow(-14.0)
+	var point = projected
+	if service_target and draw_rect.has_point(projected):
+		var inward = draw_rect.get_center() - projected
+		if inward.length_squared() < 1.0:
+			inward = Vector2(1.0, -1.0)
+		point += inward.normalized() * 26.0
+	# Keep the shape on the map edge when the selected site is outside the zoomed view.
+	return Vector2(
+		clampf(point.x, marker_area.position.x, marker_area.end.x),
+		clampf(point.y, marker_area.position.y, marker_area.end.y)
+	)
+
 func _draw() -> void:
 	if map_size.x <= 0.0 or map_size.y <= 0.0:
 		return
@@ -255,6 +380,19 @@ func _draw() -> void:
 			integrity = clampf(alien_building_integrities[alien_index], 0.0, 1.0)
 		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.24, 0.015, 0.34, 0.48 + integrity * 0.28), true)
 		_draw_map_rect(alien_rect, world_origin, scale_vec, angle, draw_rect, Color(0.12, 1.0, 0.68, 0.48 + integrity * 0.5), false, 1.4 + integrity * 1.2)
+
+	for target_rect in chapter_target_buildings:
+		_draw_map_rect(target_rect.grow(0.35), world_origin, scale_vec, angle, draw_rect, Color(1.0, 0.8, 0.2, 0.98), false, 2.8)
+	for service in service_buildings:
+		_draw_service_marker(service, world_origin, scale_vec, angle, draw_rect)
+	_draw_active_generator(world_origin, scale_vec, angle, draw_rect)
+	if kennel_building.size.x > 0.0 and kennel_building.size.y > 0.0:
+		_draw_map_rect(kennel_building, world_origin, scale_vec, angle, draw_rect, Color(0.19, 0.75, 0.78, 0.96), false, 2.4)
+		var lodge_center = _to_map_pos(kennel_building.get_center(), world_origin, scale_vec, angle, draw_rect)
+		draw_circle(lodge_center, 5.2, Color(0.01, 0.16, 0.18, 0.96))
+		draw_circle(lodge_center + Vector2(0.0, 1.0), 2.4, Color(0.66, 1.0, 0.88, 1.0))
+		for toe in [Vector2(-2.8, -2.0), Vector2(-0.95, -3.0), Vector2(1.0, -3.0), Vector2(2.8, -2.0)]:
+			draw_circle(lodge_center + toe, 0.95, Color(0.66, 1.0, 0.88, 1.0))
 
 	for i in range(store_entries.size()):
 		var s = store_entries[i]
@@ -386,6 +524,8 @@ func _draw() -> void:
 
 	for v in vomit_positions:
 		draw_circle(_to_map_pos(v, world_origin, scale_vec, angle, draw_rect), 1.5, Color(0.52, 0.74, 0.31, 0.95))
+
+	_draw_next_chapter_target(world_origin, scale_vec, angle, draw_rect)
 
 	for d in dog_positions:
 		draw_circle(_to_map_pos(d, world_origin, scale_vec, angle, draw_rect), 2.0, Color(0.97, 0.95, 0.9, 0.95))

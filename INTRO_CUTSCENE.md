@@ -16,7 +16,12 @@ runs inside the actual generated map home before control is released to Freya.
 Both halves use absolute-time timelines and deterministic regression views.
 `Space` / Next resolves the current text first, then advances on the next press.
 The UFO completion point is the end of its rune and morph phases, so English
-remains available even when advancing early.
+remains available even when advancing early. The UFO timeline pauses just before
+the end of each dialogue scene with its complete English line visible until
+`Space` / Next. Its establishing and fleet shots still advance automatically;
+the fleet's natural end still begins the live-home family sequence. The authored
+`25.5s` is a baseline timeline duration; waiting at dialogue holds can lengthen
+it, while using Next can shorten it.
 
 ## Editable Architecture
 
@@ -45,15 +50,21 @@ Main thresholds, and the relevant reviewed captures.
 
 - Runtime scene: `Startup.tscn`
 - Timing: untimed; appears every normal application launch.
-- During gameplay, press `Esc` and select `Watch Intro` to replay the cut-scene at any time. The pause state is cleared before routing; finishing or skipping the replay starts a fresh game.
-- Visible UI: title, invasion prompt, `Watch Intro`, and `Skip To Game`.
-- Default focus: `Watch Intro`.
-- `Watch Intro` route: `IntroCutscene.tscn`.
-- `Skip To Game` route: `Main.tscn`, starting at the live home near the food
+- During gameplay, press `Esc` and select `Restart Story`. Confirm the warning
+  to end the current session and replay the intro. The pause state clears before
+  routing; finishing or skipping the intro starts a fresh game.
+- Visible UI: title, invasion prompt, `New Game: Watch Intro`,
+  `New Game: Skip Intro`, and `Resume Game` when a valid save exists.
+- Default focus: `Resume Game` when available, otherwise `New Game: Watch Intro`.
+- `New Game: Watch Intro` route: `IntroCutscene.tscn`.
+- `New Game: Skip Intro` route: `Main.tscn`, starting at the live home near the food
   bowl with 100% Hunger, optional food guidance, an open exit, and dog behavior
   enabled independently of cinematic history. UFO Escape uses the same route.
-- Selection behavior: both buttons immediately lock after either choice so two
-  destination changes cannot race.
+- Selection behavior: an existing save prompts for confirmation before either
+  new-game route can replace it. Cancel has default keyboard focus. A save from
+  an incompatible game version blocks new game and resume until both save files
+  are archived outside the save folder or opened in the matching version.
+  Choices lock once a destination is selected so two scene changes cannot race.
 - Edit point: presentation lives in `Startup.tscn`; route invariants and startup
   validation live in `startup.gd`.
 
@@ -95,11 +106,12 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. The bubble appears and reveals nonsensical runes for `1.1s`.
   2. Rune cells progressively resolve into English for `1.4s`.
-  3. The exact English sentence remains readable for the rest of the scene.
+  3. The exact English sentence remains visible until `Space` / Next, including
+     after the authored scene time reaches its dialogue hold.
 - Sound cues:
   - `rune_reveal.ogg` once when the rune bubble begins.
   - `translation_resolve.ogg` once when translation begins.
-- Transition: the A bubble clears before the B bubble takes over.
+- Transition: `Space` / Next clears the A bubble before the B bubble takes over.
 - Edit points: speaker, text, and durations are all in this scene's timeline
   dictionary.
 
@@ -117,9 +129,9 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. Nonsensical runes reveal for `1.1s`.
   2. Runes progressively resolve for `1.6s`.
-  3. The longer English sentence receives the sequence's longest reading hold.
+  3. The longer English sentence remains visible until `Space` / Next.
 - Sound cues: one exact rune reveal cue and one exact translation cue.
-- Transition: the B bubble clears before Alien A's final command.
+- Transition: `Space` / Next clears the B bubble before Alien A's final command.
 - Edit points: speaker, text, and durations are in `intro_timeline.gd`.
 
 ## Scene 04 — Alien A: The Command
@@ -135,12 +147,12 @@ Main thresholds, and the relevant reviewed captures.
 - Progression:
   1. Runes reveal for `1.0s`.
   2. Runes resolve into English for `1.3s`.
-  3. The command holds through the end of the bridge shot.
+  3. The command holds until `Space` / Next ends the bridge shot.
 - Sound cues: one exact rune reveal cue and one exact translation cue.
 - Alien C rule: Alien C never owns a dialogue entry or speech bubble anywhere in
   the timeline.
-- Transition: a short black mask hides the switch from the bridge interior to
-  the hero UFO exterior.
+- Transition: `Space` / Next starts a short black mask that hides the switch
+  from the bridge interior to the hero UFO exterior.
 
 ## Scene 05 — Fleet Reveal
 
@@ -158,6 +170,8 @@ Main thresholds, and the relevant reviewed captures.
   widens its field of view until Earth and the full eight-ship formation appear.
 - Dialogue/bubble: none.
 - Speech audio: none.
+- Fleet movement audio: intentionally silent. The reveal is in space, so a
+  recorded aircraft or wind pass would imply air around the ships.
 - End transition: natural completion sets a one-shot family-intro handoff and
   opens `Main.tscn`. Main generates the map and actual home before beginning the
   family sequence. Skipping the UFO segment bypasses that sequence.
@@ -167,7 +181,10 @@ Main thresholds, and the relevant reviewed captures.
 ## Scenes 06–25 — Family Prologue in the Live Map Home
 
 - Runtime scene: `Main.tscn`; this is not a duplicate cutscene house.
-- Timeline: `0.0–64.0s` relative to the start of the family segment.
+- Timeline: authored beats span `0.0–64.0s` relative to the start of the family
+  segment. Long lines pause on their complete text until the player chooses
+  Next with Space or the visible button; Space while text types first reveals
+  the full line. The actual viewing time can therefore exceed 64 seconds.
 - Stable data: `family_intro_timeline.gd`.
 - Set rule: Main first generates its normal randomized map, selects Freya's real
   home, builds the shell/interior/furniture, and creates the persistent Freya
@@ -207,8 +224,11 @@ Main thresholds, and the relevant reviewed captures.
   then descends into the dogs. The same energy targets Freya, strikes her, and
   visibly ricochets up and away while an immunity burst expands from her. Freya
   concludes, `Whatever's happening to those other dogs seems like I'm immune
-  from it. Interesting.` Only after that exact thought clears do the dogs resume
-  their ordinary autonomous behavior and control return.
+  from it. Interesting.` The full thought remains on screen until the player
+  chooses Continue with Space or the button. Space during its typing reveals
+  the complete line first; Escape can skip the transition. After Continue or
+  an explicit skip, the dogs resume their ordinary autonomous behavior and
+  control returns.
 - Character references: Gene uses dark hair, a full beard/mustache, rectangular
   glasses, a dark gray shirt, gray pants, and brown shoes. Zoe uses layered
   light-brown curls, a black top, dark pants, and dark shoes. Both are stylized
@@ -235,22 +255,31 @@ Main thresholds, and the relevant reviewed captures.
 | `family_16_freya_approaches_pills` | 52.4–54.0 | Freya turns toward and approaches the dropped bottles. |
 | `family_17_freya_eats_pills` | 54.0–55.2 | Freya eats the shrinking bottle-and-capsule spill. |
 | `family_18_freya_convulses` | 55.2–59.0 | Freya hops, squashes, wobbles, and spins through colorful comic reaction rings and stars. |
-| `family_19_internal_monologue` | 59.0–64.0 | Freya discovers her exact internal-monologue line; the cinematic then clears and fully hungry bowl guidance begins. |
+| `family_19_internal_monologue` | 59.0–64.0 | Freya discovers her exact internal-monologue line; Next clears the cinematic and begins fully hungry bowl guidance. |
 
 ## Speech-Bubble Audio Policy
 
 The UFO half has six deterministic authored sound events: rune reveal and
 translation resolve for each alien line. The family half maps the normal and
-super-loud Freya beats to two exact existing recorded bark files. The
-post-intro eat-first prompt and boundary reminder map only to the same exact
-normal Freya recording; a missing file produces silence. Dialogue remains
-text-only.
+super-loud Freya beats to two exact existing recorded bark files. It also has
+timed recorded Foley for the adults' laughter, pill-bottle reveal and landing,
+parent and Ryah beams, vanishing and beam collapse, Freya eating the spill, and
+her collar shaking during the comic convulsion. The first-exit dog-walker scene
+has recorded beam, disappearance, three possession-hit, Freya-target, and
+immunity-ricochet cues. Exact IDs, paths, sources, and times are in
+[audio attribution](godot/assets/audio/ATTRIBUTION.md#intro-story-event-mappings).
+The post-intro eat-first prompt and boundary reminder map only to the same
+exact normal Freya recording; a missing file produces silence. Dialogue remains
+text-only. Player-requested Next and Skip use the exact recorded mechanical
+button cue; timed scene progression has only the event cues above.
 
 - No sound is synthesized or generated at runtime.
 - There is no candidate list and no replacement clip.
 - If one mapped file is missing or fails to decode/play, only that event is
   silent. The other mapped file remains independent.
-- Skipping either half stops its active audio players before gameplay resumes.
+- Skipping either half stops its scene-owned cinematic audio players before
+  gameplay resumes. The short recorded button cue may finish across the scene
+  change.
 - The loud bark changes playback gain only; it does not synthesize or replace
   the authored recording.
 
@@ -283,7 +312,8 @@ capture command is an update tool, not an image-diff assertion. See the
 output names.
 
 The validators check the UFO scene IDs/times, exact alien cast and dialogue,
-audio schedules, Earth, fleet, and natural handoff. They also seek the live-home
+player-paced English holds, Next/Skip controls, audio schedules, Earth, fleet,
+and natural handoff. They also seek the live-home
 timeline to check all exact family lines, Gene/Zoe likeness signatures, held
 and dropped pill bottles, two rings around each parent, both disappearance
 checkpoints, Ryah's interrupted transfer, Freya's pill-eating, convulsion, and

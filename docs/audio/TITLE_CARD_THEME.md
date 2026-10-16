@@ -51,9 +51,9 @@ Alternate candidates are stored in [`ai_attempts/`](ai_attempts/):
 Earlier Stable Audio generated candidates are also kept in
 [`ai_attempts/`](ai_attempts/) for reference:
 
-- `title_card_theme_stable_audio_candidate_02.wav` is the currently shipped
-  candidate. It keeps more of the source structure with a lower init-noise
-  level.
+- `title_card_theme_stable_audio_candidate_02.wav` was an earlier candidate.
+  It keeps more of the source structure with a lower init-noise level, but is
+  not the current shipped menu WAV.
 - `title_card_theme_stable_audio_candidate_03.wav` pushes harder toward
   chiptune and is kept as an alternate.
 

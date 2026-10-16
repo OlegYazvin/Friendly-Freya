@@ -3,6 +3,8 @@ extends SceneTree
 # Input-driven route regressions; rare dog/collision states are explicitly staged.
 # Run headless with --script res://tests/dejank_flow.gd. No imported assets change.
 var failures: Array[String] = []
+const OCCUPATION_NOTICE = "A nearby building has become alien! Pee along its walls to weaken it."
+const THREAT_NOTICE = "An imp is reaching for a dog — bark or guard it!"
 
 func _initialize() -> void:
 	set_meta("freya_flow_validation", true)
@@ -54,6 +56,108 @@ func check_skip(s: Node, route: String) -> void:
 	var out: Vector2 = home.home_layout.entry_outside_pos
 	check(not s._try_block_post_intro_home_exit(out, Vector3.FORWARD), route + " unexpectedly gated the exit")
 
+func check_status_dwell(s: Node) -> void:
+	var original_size = root.size
+	for window_size in [Vector2i(800, 450), Vector2i(960, 540)]:
+		root.size = window_size
+		await frames(3)
+		var building_index = -1
+		for index in range(s.buildings.size()):
+			var building: Dictionary = s.buildings[index]
+			if str(building.get("building_type", "")).begins_with("residence_") and not bool(building.get("is_freya_home", false)) and not bool(building.get("alien_occupied", false)) and not s._building_is_controlled_by_freya(index):
+				building_index = index
+				break
+		check(building_index >= 0, "no clean residence for status test at " + str(window_size))
+		if building_index < 0:
+			break
+		s.status_timer = 0.0
+		check(s._occupy_building_with_alien(building_index, 900100 + building_index), "live occupation did not start at " + str(window_size))
+		check(s.status_label.text == OCCUPATION_NOTICE and s.status_priority >= 1, "occupation did not give a prioritized visible instruction at " + str(window_size))
+		await frames(3)
+		check(s.status_panel.visible and root.get_visible_rect().encloses(s.status_panel.get_global_rect()), "occupation status left the HUD viewport at " + str(window_size))
+		check(s.status_panel.get_global_rect().encloses(s.status_label.get_global_rect()), "occupation text left its HUD background at " + str(window_size))
+		await tap(KEY_G)
+		check(s.objectives_pinned and s.objectives_status_panel.visible, "pinned goals hid occupation instruction at " + str(window_size))
+		await create_timer(2.05).timeout
+		check(s.status_timer > 0.0 and s.status_label.text == OCCUPATION_NOTICE, "occupation instruction expired before two seconds at " + str(window_size))
+		check(s.objectives_status_panel.visible and s.objectives_status_label.text == OCCUPATION_NOTICE, "occupation instruction did not persist in pinned goals at " + str(window_size))
+		check(s.objectives_status_panel.get_global_rect().encloses(s.objectives_status_label.get_global_rect()), "occupation text left pinned-goals background at " + str(window_size))
+		s._show_status("No stick to drop", 0.55, 0)
+		check(s.status_label.text == OCCUPATION_NOTICE, "lower-priority feedback interrupted occupation instruction at " + str(window_size))
+		s._show_status(THREAT_NOTICE, 1.5, 2)
+		check(s.status_label.text == THREAT_NOTICE and s.objectives_status_label.text == THREAT_NOTICE, "urgent threat did not interrupt occupation instruction at " + str(window_size))
+		var expiry_deadline = Time.get_ticks_msec() + 9000
+		while s.status_timer > 0.0 and Time.get_ticks_msec() < expiry_deadline:
+			await process_frame
+		check(s.status_timer <= 0.0 and s.status_priority == 0 and s.status_label.text.is_empty(), "interrupted status did not eventually expire at " + str(window_size))
+		check(not s.objectives_status_panel.visible, "expired status stayed visible in pinned goals at " + str(window_size))
+		await tap(KEY_G)
+		check(not s.objectives_pinned and not s.objectives_panel.visible, "status test left goals pinned at " + str(window_size))
+	root.size = original_size
+	await frames(2)
+
+func check_imp_warning_through_response(s: Node) -> void:
+	var original_size = root.size
+	root.size = Vector2i(800, 450)
+	await frames(3)
+	check(not s.dogs.is_empty(), "no clean dog for live imp-warning test")
+	if s.dogs.is_empty():
+		root.size = original_size
+		return
+	# Keep this disposable scene focused on one undefended dog and one imp.
+	s.store_building_indices.clear()
+	s._clear_free_aliens()
+	var target: Dictionary = s.dogs[0].duplicate()
+	var dog: Node3D = target.get("node", null)
+	check(dog != null and is_instance_valid(dog), "live imp-warning target has no dog node")
+	if dog == null or not is_instance_valid(dog):
+		root.size = original_size
+		return
+	var park: Vector2 = s.dog_park.get_center()
+	var dog_position = Vector3(park.x, 0.0, park.y)
+	dog.global_position = dog_position
+	target["alien_possessed"] = false
+	target["possession_immune"] = false
+	target["has_dog_armor"] = false
+	target["army_aligned"] = false
+	target["speed"] = 0.0
+	target["dir"] = Vector3.ZERO
+	target["wander"] = 999.0
+	target["pref_timer"] = 999.0
+	target["flee_timer"] = 0.0
+	s.dogs = [target]
+	s.freya.global_position = dog_position + Vector3(1.4, 0.0, 0.0)
+	s.freya_inside_home = false
+	s.post_intro_meal_tutorial_active = false
+	var imp = Node3D.new()
+	s.add_child(imp)
+	imp.global_position = dog_position + Vector3(0.3, 0.0, 0.0)
+	s.free_aliens.append({
+		"node": imp,
+		"phase": "seek_dog",
+		"dog_target_index": 0,
+		"dog_transfer_timer": 0.0,
+		"interrupt_progress": 0.0
+	})
+	await frames(3)
+	check(s.free_aliens.size() == 1 and str(s.free_aliens[0].get("phase", "")) == "dog_transfer", "live imp did not begin transferring to the dog")
+	check(s.status_label.text == THREAT_NOTICE, "live dog contact did not show the bark-or-guard warning")
+	await tap(KEY_G)
+	check(s.objectives_pinned and s.objectives_status_panel.visible, "G did not pin the live imp warning")
+	await create_timer(3.25).timeout
+	check(s.free_aliens.size() == 1 and not bool(s.dogs[0].get("alien_possessed", false)), "imp transfer resolved before the late response window")
+	check(s.status_timer > 0.0 and s.status_label.text == THREAT_NOTICE, "bark-or-guard warning vanished before transfer finished")
+	check(s.objectives_status_panel.visible and s.objectives_status_label.text == THREAT_NOTICE, "pinned goals hid the late imp warning")
+	check(root.get_visible_rect().encloses(s.objectives_status_panel.get_global_rect()), "late imp warning left the 800x450 viewport")
+	await key(KEY_R, true)
+	await create_timer(0.6).timeout
+	await key(KEY_R, false)
+	check(s.free_aliens.is_empty() and not bool(s.dogs[0].get("alien_possessed", false)), "R did not intercept the imp in the late response window")
+	check(s.status_label.text == "The imp was intercepted before it could take hold!" and s.objectives_status_label.text == s.status_label.text, "interception did not replace the imp warning in pinned goals")
+	await tap(KEY_G)
+	root.size = original_size
+	await frames(2)
+
 func run() -> void:
 	await open_scene("res://scenes/Startup.tscn")
 	current_scene.skip_to_game_button.grab_focus()
@@ -64,11 +168,71 @@ func run() -> void:
 	await tap(KEY_F)
 	check(s.freya_hunger < 0.2 and s.post_intro_meal_tutorial_completed, "skip spawn could not eat using F")
 	check(not s.first_exit_abduction_pending and s.possessed_dog_behavior_enabled, "eating changed skip readiness")
+	check(s._action_has_key("toggle_objectives", KEY_G), "G goals toggle is not bound")
+	var goals_test_window_size = root.size
+	root.size = Vector2i(800, 450)
+	await frames(2)
+	await tap(KEY_G)
+	check(s.objectives_pinned and s.objectives_panel.visible, "G did not pin goals after release")
+	s._show_status("An imp is reaching for a dog — bark or guard it!", 5.0, 2)
+	await frames(2)
+	check(s.objectives_status_panel.visible and s.objectives_status_label.text == s.status_label.text, "pinned goals hid the imp warning")
+	check(not s.status_panel.visible, "pinned goals left a duplicate HUD status")
+	var goals_status_rect: Rect2 = s.objectives_status_panel.get_global_rect()
+	check(root.get_visible_rect().encloses(goals_status_rect), "pinned-goals warning left the 800x450 viewport")
+	check(s.objectives_panel.get_global_rect().encloses(goals_status_rect), "pinned-goals warning left the goals panel")
+	check(goals_status_rect.encloses(s.objectives_status_label.get_global_rect()), "pinned-goals warning text exceeds its background")
+	check(s.objectives_scroll.get_global_rect().end.y + 8.0 <= goals_status_rect.position.y, "pinned-goals warning overlaps the scrollable tasks")
+	check(s.objectives_scroll.get_v_scroll_bar().max_value > s.objectives_scroll.get_v_scroll_bar().page, "goals test window did not need scrolling")
+	await tap(KEY_PAGEDOWN)
+	check(s.objectives_scroll.scroll_vertical > 0, "PageDown did not scroll pinned goals")
+	await tap(KEY_PAGEUP)
+	check(s.objectives_scroll.scroll_vertical == 0, "PageUp did not scroll pinned goals to top")
+	await tap(KEY_G)
+	check(not s.objectives_pinned and not s.objectives_panel.visible, "G did not close pinned goals")
+	check(s.status_panel.visible and not s.objectives_status_panel.visible, "closing goals did not restore HUD status")
+	await key(KEY_TAB, true)
+	check(s.objectives_panel.visible, "held Tab did not show goals")
+	await key(KEY_TAB, false)
+	check(not s.objectives_panel.visible, "released Tab left goals open")
+	await tap(KEY_G)
+	check(s.objectives_pinned and s.objectives_panel.visible, "G did not repin goals")
 	await tap(KEY_ESCAPE)
-	check(s.pause_menu_open, "Escape did not open pause")
+	check(s.pause_menu_open and paused, "Escape did not open pause")
+	check(not s.objectives_pinned and not s.objectives_panel.visible, "pause did not clear pinned goals")
+	check(s.pause_resume_button.has_focus(), "opening pause did not focus Resume")
+	await tap(KEY_ESCAPE)
+	check(not s.pause_menu_open and not paused, "Escape did not resume paused gameplay")
+	check(not s.objectives_panel.visible, "goals reopened after pause cleared their pin")
+	root.size = goals_test_window_size
+	await frames(2)
+	await tap(KEY_ESCAPE)
+	check(s.pause_menu_open and paused and s.pause_resume_button.has_focus(), "reopening pause did not refocus Resume")
+	await tap(KEY_ENTER)
+	check(not s.pause_menu_open and not paused, "Enter on focused Resume did not resume gameplay")
+	await tap(KEY_ESCAPE)
+	check(s.pause_menu_open and paused, "Escape did not reopen pause after keyboard Resume")
+	s.pause_controls_button.grab_focus()
+	await tap(KEY_ENTER)
+	check(s.pause_controls_panel.visible, "keyboard did not open Controls")
+	await tap(KEY_PAGEDOWN)
+	check(s.pause_controls_scroll.scroll_vertical > 0, "PageDown did not scroll Controls")
+	await tap(KEY_PAGEUP)
+	check(s.pause_controls_scroll.scroll_vertical == 0, "PageUp did not scroll Controls to top")
+	s.pause_howto_button.grab_focus()
+	await tap(KEY_ENTER)
+	check(s.pause_howto_panel.visible, "keyboard did not open How To Play")
+	await tap(KEY_PAGEDOWN)
+	check(s.pause_howto_scroll.scroll_vertical > 0, "PageDown did not scroll How To Play")
 	s.pause_intro_button.grab_focus()
 	await tap(KEY_ENTER)
-	check(current_scene.scene_file_path == "res://scenes/IntroCutscene.tscn" and not paused, "pause replay did not clear pause and route to UFO")
+	check(current_scene == s and paused and s.pause_restart_prompt.visible and s.pause_restart_prompt.cancel_button.has_focus(), "pause restart did not focus its cancel choice")
+	await tap(KEY_ESCAPE)
+	check(current_scene == s and paused and s.pause_menu_panel.visible and s.pause_intro_button.has_focus(), "pause restart Escape did not keep gameplay paused")
+	await tap(KEY_ENTER)
+	s.pause_restart_prompt.confirm_button.grab_focus()
+	await tap(KEY_ENTER)
+	check(current_scene.scene_file_path == "res://scenes/IntroCutscene.tscn" and not paused, "confirmed pause restart did not clear pause and route to UFO")
 	await tap(KEY_ESCAPE)
 	check_skip(current_scene, "UFO skip after replay")
 
@@ -93,6 +257,14 @@ func run() -> void:
 	check(not s.family_intro_active and s.post_intro_meal_tutorial_active and s.post_intro_meal_exit_required, "family skip lost meal/tutorial handoff")
 	check(s.first_exit_abduction_pending and not s.possessed_dog_behavior_enabled, "family skip lost the pending reveal")
 
+	# Give the timed status test a disposable world so its two occupied homes
+	# cannot affect the later interaction and collision fixtures.
+	await open_scene("res://scenes/Main.tscn")
+	s = current_scene
+	await check_status_dwell(s)
+	await open_scene("res://scenes/Main.tscn")
+	s = current_scene
+	await check_imp_warning_through_response(s)
 	# Fresh skip for staged interaction/animation/UI regressions.
 	await open_scene("res://scenes/Main.tscn")
 	s = current_scene
@@ -246,7 +418,7 @@ func run() -> void:
 	check(s.territory_label.text.contains("Neighborhood complete!") and s._objectives_text().contains("Neighborhood complete!"), "completion disappears when status expires")
 	check(s.status_timer <= 0.0, "completion persistence test did not outlast temporary status")
 	if failures.is_empty():
-		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, claim bounds, outcome priority, and persistent completion")
+		print("DEJANK_FLOW_OK: input routes, food, replay, Next phases, recruitment, blocked gait, readable status dwell through live imp defense, outcome priority, and persistent completion")
 	else:
 		push_error("DEJANK_FLOW_FAIL: " + ", ".join(failures))
 	quit(0 if failures.is_empty() else 1)

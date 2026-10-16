@@ -97,7 +97,7 @@ custom_minimum_size = Vector2(420, 62)
 layout_mode = 2
 focus_mode = 2
 theme_override_font_sizes/font_size = 23
-text = "Watch Intro"
+text = "New Game: Watch Intro"
 
 [node name="SkipToGameButton" type="Button" parent="MenuCenter/MenuPanel/Margin/Choices"]
 unique_name_in_owner = true
@@ -105,7 +105,16 @@ custom_minimum_size = Vector2(420, 62)
 layout_mode = 2
 focus_mode = 2
 theme_override_font_sizes/font_size = 23
-text = "Skip To Game"
+text = "New Game: Skip Intro"
+
+[node name="ResumeGameButton" type="Button" parent="MenuCenter/MenuPanel/Margin/Choices"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(420, 62)
+layout_mode = 2
+focus_mode = 2
+theme_override_font_sizes/font_size = 23
+text = "Resume Game"
 
 [node name="SettingsButton" type="Button" parent="MenuCenter/MenuPanel/Margin/Choices"]
 unique_name_in_owner = true

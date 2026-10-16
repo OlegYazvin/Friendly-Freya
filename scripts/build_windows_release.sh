@@ -102,8 +102,8 @@ validate_exported_pack() {
 }
 
 # Load the exported PCK itself, not the source project. The embedded startup
-# validator requires the active CC0 dog and the complete 24-bark runtime
-# library, and rejects every inactive model with unresolved provenance.
+# validator requires the active CC0 dog, complete 24-bark library, every exact
+# recorded cue mapping, and campaign ending, and rejects inactive models.
 content_validation_log="$stage_root/release-content-validation.log"
 if ! validate_exported_pack >"$content_validation_log" 2>&1; then
 	cat "$content_validation_log" >&2
@@ -117,6 +117,8 @@ if ! grep -Fq "RELEASE_CONTENT_OK" "$content_validation_log"; then
 fi
 
 cp "$REPOSITORY_ROOT/packaging/windows/README.txt" "$package_dir/README.txt"
+cp "$REPOSITORY_ROOT/packaging/windows/RunPerformanceQA.ps1" "$package_dir/RunPerformanceQA.ps1"
+cp "$REPOSITORY_ROOT/packaging/windows/RunPerformanceQA.cmd" "$package_dir/RunPerformanceQA.cmd"
 cp "$REPOSITORY_ROOT/packaging/windows/GODOT_ENGINE_LICENSE.txt" "$package_dir/GODOT_ENGINE_LICENSE.txt"
 cp "$REPOSITORY_ROOT/godot/assets/audio/ATTRIBUTION.md" "$package_dir/AUDIO_ATTRIBUTION.md"
 cp "$REPOSITORY_ROOT/packaging/windows/MODEL_ATTRIBUTION.md" "$package_dir/MODEL_ATTRIBUTION.md"
