@@ -14,12 +14,12 @@ executable checks remain authoritative.
 
 ## Next release steps
 
-The local `review-20261015u` Windows ZIP passed export content and checksum
+The local `review-20261015v` Windows ZIP passed export content and checksum
 checks after the complete source suite. The matching
-[review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
+[review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
 passed source validation, export, EXE startup, the short performance entry,
 the keyboard Watch Intro opening, credits, and Keep Exploring. Its
-[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715)
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184)
 is the HP review build. Release publication remains gated by the checks below.
 
 1. On the actual HP Victus 16-r0073cl, confirm the installed hardware and
@@ -30,8 +30,8 @@ is the HP review build. Release publication remains gated by the checks below.
 2. Complete an ordinary graphical Windows start-to-credits run. Exercise
    mid-chapter Resume, a lodge rescue, chapter-2 ally protection, the final
    signal, credits, Keep Exploring, and Replay Story cancellation. Verify a
-   future-version save is preserved rather than overwritten. Run the focused
-   keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md),
+   future-version save remains protected in the automated save regression.
+   Run the focused keyboard-only accessibility pass in the [note guide](PLAYTEST_RUN_SHEET.md),
    including the default holds and optional press-once Space/C controls.
 3. Have about five players who have not seen the project play on the Victus
    without control coaching. The owner will relay their informal feedback;
@@ -44,10 +44,12 @@ is the HP review build. Release publication remains gated by the checks below.
    door, every wall and nearby mark, all entrances, and lodge cages with other
    buildings occupied. A rejected fresh layout retries once on a known passing
    seed before play or autosave. Existing saves keep their seed and positional
-   IDs and only report a diagnostic if they fail; an ID-preserving repair for
-   any genuinely failing legacy save still needs design and verification. The
-   ten fixed seeds and 50 additional seeds are samples, not a proof by
-   themselves. Measure the startup cost on the HP during its review.
+   IDs and only report a diagnostic if they fail. That check runs before saved
+   progress is restored, so its warning alone does not establish a blocked
+   route. Preserve both save files and diagnose an observed blockage on that
+   exact saved world before designing an ID-preserving repair. The ten fixed
+   seeds and 50 additional seeds are samples, not a proof by themselves.
+   Measure the startup cost on the HP during its review.
 5. Fix the most common or severe problems, then repeat affected
    automated, visual, Windows, and player checks. Set the supported window
    sizes and release metadata from observed results before a public release.
@@ -640,8 +642,19 @@ hardware floor.
   `24bc82acb8c2d22da31df8f7eee08053d1ff3fe88d2dd240525cfe6d4c5a9b6c`.
   Its extracted PCK passed the production certificate and forced one-shot
   fallback regression. This build also clears an inherited Watch Intro QA
-  setting in the packaged performance runner. Windows CI and HP review remain
-  open for review-v.
+  setting in the packaged performance runner. The
+  [review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
+  passed source validation, export, EXE startup, packaged stress entry,
+  keyboard Watch Intro, and the exported start-to-credits campaign at commit
+  `58b9d1d`. Its
+  [download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184)
+  contains `Friendly-Freya-manual-22-Windows-x86_64.zip`, independently
+  verified against SHA-256
+  `1aea30baea71f36fcc89786c8c05212b0863a31d0beb1eed31d4f32bb3f0f76b`.
+  The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018707657)
+  records three secured chapters, six lodge rescues, three allies, 18 claimed
+  sites, credits, and Keep Exploring without game errors or warnings. HP
+  audible, graphical, and sustained performance review remain open.
 
 ## The game to finish
 

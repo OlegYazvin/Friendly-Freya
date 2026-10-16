@@ -404,6 +404,13 @@ build, or close the game and copy both `friendly_freya_save.json` and its
 `.bak` out of that folder before removing the originals and starting fresh.
 Ordinary new-game choices and pause-menu `Restart Story` require a keyboard
 accessible confirm/cancel step when progress could be replaced or abandoned.
+On a resumed world, `ROUTE_CERT_LEGACY_SAVE` is a log diagnostic from a
+conservative route check before saved progress is restored. It is not an
+on-screen notice or proof that the player's remaining objectives are blocked.
+If an objective is actually unreachable, close the game, copy the primary and
+`.bak` save out of the save folder, and retain the seed, log, and blocked-route
+description for a targeted repair. Do not reseed that save: building and
+objective IDs depend on their positions.
 
 ## Visual Regression Captures
 
@@ -567,8 +574,20 @@ sites, credits, and Keep Exploring without game errors or warnings. This build
 adds the full warning after resuming a late dog transfer, quiet save-state
 reconstruction, and an attributed recorded bark for a confirmed nearby lodge
 spawn.
-Graphical playtesting and sustained performance measurement on the HP Victus
-remain open.
+
+The [review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
+passed source validation, export, EXE startup, packaged stress entry, Watch
+Intro, and the start-to-credits campaign at commit `58b9d1d`. Its
+[download artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184)
+contains `Friendly-Freya-manual-22-Windows-x86_64.zip`, independently verified
+against SHA-256
+`1aea30baea71f36fcc89786c8c05212b0863a31d0beb1eed31d4f32bb3f0f76b`.
+The [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018707657)
+records three secured chapters, six lodge rescues, three allies, 18 claimed
+sites, credits, and Keep Exploring without game errors or warnings. This build
+adds fresh-neighborhood route certification and clears an inherited Watch
+Intro QA setting in the packaged performance runner. HP graphical, listening,
+and sustained performance checks remain open.
 
 Use a new review label for each changed build; the script will not overwrite
 an existing ZIP. Before a new public release, choose its version and update

@@ -24,23 +24,26 @@ candidate smallest supported window and test native 1920×1080 as well. Check
 
 ## Setup
 
-For the HP, download the [review-u Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12016981715).
-Extract its wrapper first. Inside, verify `Friendly-Freya-manual-21-Windows-x86_64.zip`
+For the HP, download the [review-v Windows artifact](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018565184).
+Extract its wrapper first. Inside, verify `Friendly-Freya-manual-22-Windows-x86_64.zip`
 against the adjacent `.sha256` file (expected SHA-256
-`c29bdc282187dba53d5a154090453adaad38b8640548bafe015ebc7a78f61f2c`),
+`1aea30baea71f36fcc89786c8c05212b0863a31d0beb1eed31d4f32bb3f0f76b`),
 then extract that game ZIP. The Actions artifact expires October 30, 2026,
-at 00:33:30 UTC.
+at 01:07:04 UTC.
 
-Local alternative: `dist/Friendly-Freya-review-20261015u-Windows-x86_64.zip`
-(SHA-256 `3f0d1b98ca97173fe5ce82e8f3779e6963299de07d724410ae438ae3cea751e7`).
+Local alternative: `dist/Friendly-Freya-review-20261015v-Windows-x86_64.zip`
+(SHA-256 `24bc82acb8c2d22da31df8f7eee08053d1ff3fe88d2dd240525cfe6d4c5a9b6c`).
 Verify it against its own adjacent `.sha256` file before testing. The
-[review-u Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527)
+[review-v Windows run](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295)
 passed export validation, EXE startup, the short headless performance entry,
 the keyboard Watch Intro opening, and an exported start-to-credits campaign.
-Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38829628527/artifacts/12017785722)
-records three chapters, six lodge rescues, two allies, 18 claimed sites,
+Its [campaign log](https://github.com/OlegYazvin/Friendly-Freya/actions/runs/38832798295/artifacts/12018707657)
+records three chapters, six lodge rescues, three allies, 18 claimed sites,
 credits, and Keep Exploring without game errors or warnings. The local
-review-u PCK passed exact-content verification. This build carries the longer
+review-v PCK passed exact-content verification and the route certificate
+regression. Fresh neighborhoods now get a route check before play; a rejected
+layout retries once on a known passing seed. Saved neighborhoods keep their
+seed and positional IDs. This build also carries the longer
 status display and single recorded pop when a claim also triggers a result;
 an imp's contact warning remains visible throughout the 4.5-second window
 before an unopposed dog transfer, and the chapter-2 ambush warning remains
@@ -71,6 +74,12 @@ save or a screen recording only with the player's agreement.
 If several players use the same Windows account, New Game can replace its
 single campaign save. Use separate Windows accounts or archive both the save
 and its `.bak` before the next session when an unfinished run should be kept.
+If a resumed game appears to have an unreachable objective, close the game and
+copy `friendly_freya_save.json` and `friendly_freya_save.json.bak` out of its
+save folder before trying a new game. Send the saved files, the seed and game
+log if available, and a description of the route that failed. A
+`ROUTE_CERT_LEGACY_SAVE` warning in the log is a conservative check made before
+saved progress is restored; it is not by itself proof that the route is blocked.
 
 Optional owner observer notes (not a player questionnaire):
 
@@ -139,10 +148,12 @@ with Escape, resume with Escape and the focused Enter button, then use Page
 Down and Page Up in both help panels with the keyboard alone.
 
 On a separate QA save copy, verify that New Game, pause Restart Story, and
-ending Replay Story leave the existing save intact when canceled. Inject a
-future-version primary save and, separately, a future-version backup only in
-that disposable QA copy; each must show its archive notice and block a route
-that cannot save. Never use a playtester’s sole campaign save for this check.
+ending Replay Story leave the existing save intact when canceled. The source
+`godot/tests/new_game_safety.gd` regression already checks that a
+future-version primary and, separately, a future-version backup each show an
+archive notice and block a route that cannot save. Repeating that fixture test
+on Windows is a developer task and requires a disposable save copy. Never use
+a playtester’s sole campaign save for this check.
 
 In a focused accessibility pass, finish a chapter using the keyboard alone.
 Try the default held Space/C controls and the optional "Press once for long
